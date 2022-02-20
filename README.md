@@ -1,2 +1,5 @@
 # WebAssembly Test
-　点を打つテスト。ワーカーを利用してひたすら点を打つ
+
+2022/02/20 0.0.1 Pointのみ
+
+予定 line, circle, arc, paint....

@@ -1,10 +1,12 @@
-import init,{Universe} from "../pkg/paint.js";  // Universeは要インポート wasm.Universeでは動かない
+import init,{Universe} from "../../pkg/paint.js";  // Universeは要インポート wasm.Universeでは動かない
 
 let universe;
 let buffersize;
 let buf;
 let img;
-let memory
+let memory;
+
+console.log("Hello Worker!");
 
 function workerInit(width, height) {
     init()
