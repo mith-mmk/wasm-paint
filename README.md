@@ -7,4 +7,7 @@
 2022/02/21 0.0.3 rect追加
 
 
-予定 circle, arc, paint....
+Todo circle, arc, paint, polyline, ellipse, Regular Polygon,Pentagram,....,pen draw, alpha blending
+
+document....
+fn data type (use i32 or i64 ...)

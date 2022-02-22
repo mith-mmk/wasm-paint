@@ -1,10 +1,12 @@
 mod utils;
 pub mod paint;
+use crate::paint::polygram::*;
 use crate::paint::rect::rect;
 use crate::paint::line::line;
-use wasm_bindgen::prelude::*;
 use crate::paint::point::point_antialias;
 use crate::paint::canvas::Canvas;
+use wasm_bindgen::prelude::*;
+
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
@@ -21,11 +23,11 @@ extern {
 }
 
 
-pub struct rnd{
+pub struct Rnd{
     seed:  u64,
 }
 
-impl rnd {
+impl Rnd {
     pub fn new() -> Self{
         let seed: u64 =  instant::Instant::now().elapsed().as_nanos() as u64;
         Self {
@@ -63,7 +65,7 @@ impl Universe {
             canvas,
         }
     }
-/* Wrapper */
+/* Wrappers */
     pub fn clear(&mut self,color :u32) {
         self.canvas.set_buckground_color(color);
         self.canvas.clear();
@@ -81,6 +83,13 @@ impl Universe {
         rect(&mut self.canvas,sx,sy,ex,ey,color);
     }
 
+    pub fn pentagram(&mut self,ox :i32, oy: i32, r: f32,tilde: f32,color: u32) {
+        pentagram(&mut self.canvas,ox, oy, r,tilde,color);
+    }
+
+    pub fn polygram(&mut self,p :u32,q :u32,ox :i32, oy: i32, r: f32,tilde: f32,color: u32) {
+        polygram(&mut self.canvas,p,q,ox, oy, r,tilde,color);
+    }
 
     pub fn output_buffer(&mut self) -> *const u8 {
         self.canvas.canvas()
@@ -93,5 +102,7 @@ impl Universe {
     pub fn height(&self) -> u32 {
         self.canvas.height()
     }
+
+
 
 }

@@ -14,3 +14,4 @@ pub mod clear;
 pub mod point;
 pub mod grayscale;
 pub mod rect;
+pub mod polygram;

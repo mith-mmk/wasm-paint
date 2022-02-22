@@ -1,6 +1,8 @@
 use super::super::paint::utils::color_taple;
 use super::super::Canvas;
 
+
+// use for line only _point function
 fn _point (canvas: &mut Canvas, x: i64, y: i64, r :u8, g :u8, b :u8, a :u8) {
     if x < 0 || y < 0 || x >= canvas.width() as i64 || y >= canvas.height() as i64 || a == 0 {
         return;
@@ -15,6 +17,7 @@ fn _point (canvas: &mut Canvas, x: i64, y: i64, r :u8, g :u8, b :u8, a :u8) {
     buf[pos + 3] = 0xff;
 }
 
+// line no antialias
 pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
     let (red, green, blue, _) = color_taple(color);
     let sx;

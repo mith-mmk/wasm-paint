@@ -6,7 +6,6 @@ let buf;
 let img;
 let memory;
 
-console.log("Hello Worker!");
 
 function workerInit(width, height) {
     init()
