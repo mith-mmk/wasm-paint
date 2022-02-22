@@ -6,6 +6,7 @@
 
 2022/02/21 0.0.3 rect追加
 
+2022/02/22 0.0.4 polygram追加
 
 Todo circle, arc, paint, polyline, ellipse, Regular Polygon,Pentagram,....,pen draw, alpha blending
 
