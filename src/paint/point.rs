@@ -1,5 +1,5 @@
-use crate::paint::canvas::Canvas;
-use crate::paint::utils::*;
+use super::super::paint::canvas::Canvas;
+use super::super::paint::utils::*;
 
 fn _point (canvas: &mut Canvas, x: i64, y: i64, red :u8, green :u8, blue :u8, alpha :u8) {
     if x < 0 || y < 0 || x >= canvas.width() as i64 || y >= canvas.height() as i64 || alpha == 0 {

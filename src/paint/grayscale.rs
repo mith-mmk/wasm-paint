@@ -1,4 +1,4 @@
-use crate::paint::canvas::Canvas;
+use super::super::paint::canvas::Canvas;
 
 pub enum Weights {
     Jpeg,

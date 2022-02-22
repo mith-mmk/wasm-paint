@@ -1,4 +1,4 @@
-use crate::paint::canvas::Canvas;
+use super::super::paint::canvas::Canvas;
 
 pub fn fillrect(canvas: &mut Canvas, color: u32){
     let width = canvas.width();
@@ -21,5 +21,4 @@ pub fn fillrect(canvas: &mut Canvas, color: u32){
             buf[pos + 3] = alpha;
         }
     }
-
 }

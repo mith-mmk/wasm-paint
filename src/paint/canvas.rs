@@ -1,5 +1,5 @@
-use crate::paint::pen::Pen;
-use crate::paint::clear::fillrect;
+use super::super::paint::pen::Pen;
+use super::super::paint::clear::fillrect;
 
 pub struct Canvas {
     pub buffer: Vec<u8>,

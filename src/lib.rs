@@ -1,5 +1,6 @@
 mod utils;
 pub mod paint;
+use crate::paint::rect::rect;
 use crate::paint::line::line;
 use wasm_bindgen::prelude::*;
 use crate::paint::point::point_antialias;
@@ -75,6 +76,11 @@ impl Universe {
     pub fn line(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
         line(&mut self.canvas,sx,sy,ex,ey,color);
     }
+
+    pub fn rect(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
+        rect(&mut self.canvas,sx,sy,ex,ey,color);
+    }
+
 
     pub fn output_buffer(&mut self) -> *const u8 {
         self.canvas.canvas()

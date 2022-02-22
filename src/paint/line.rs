@@ -1,5 +1,5 @@
-use crate::paint::utils::color_taple;
-use crate::Canvas;
+use super::super::paint::utils::color_taple;
+use super::super::Canvas;
 
 fn _point (canvas: &mut Canvas, x: i64, y: i64, r :u8, g :u8, b :u8, a :u8) {
     if x < 0 || y < 0 || x >= canvas.width() as i64 || y >= canvas.height() as i64 || a == 0 {
