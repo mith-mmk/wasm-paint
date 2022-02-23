@@ -1,5 +1,5 @@
 use super::super::paint::utils::*;
-use super::super::Canvas;
+use super::super::paint::canvas::Canvas;
 
 
 pub fn rect(canvas: &mut Canvas,x0: i32,y0: i32,x1: i32,y1: i32, color: u32){ 

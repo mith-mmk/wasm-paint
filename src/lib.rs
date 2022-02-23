@@ -1,5 +1,6 @@
 mod utils;
 pub mod paint;
+use crate::paint::fill::fill;
 use crate::paint::polygram::*;
 use crate::paint::rect::rect;
 use crate::paint::line::line;
@@ -103,6 +104,9 @@ impl Universe {
         self.canvas.height()
     }
 
+    pub fn fill(&mut self, sx: i32, sy: i32, color: u32) {
+        fill(&mut self.canvas, sx, sy, color);
+    }
 
 
 }

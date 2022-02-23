@@ -3,8 +3,8 @@ use super::super::Canvas;
 
 
 // use for line only _point function
-fn _point (canvas: &mut Canvas, x: i64, y: i64, r :u8, g :u8, b :u8, a :u8) {
-    if x < 0 || y < 0 || x >= canvas.width() as i64 || y >= canvas.height() as i64 || a == 0 {
+fn _point (canvas: &mut Canvas, x: i32, y: i32, r :u8, g :u8, b :u8, a :u8) {
+    if x < 0 || y < 0 || x >= canvas.width() as i32 || y >= canvas.height() as i32 || a == 0 {
         return;
     }
     let width = canvas.width();
@@ -40,16 +40,16 @@ pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u
         let x = sx;
         if sy <= ey {
             for y in sy..ey + 1 {
-                _point(canvas, x as i64, y as i64, red, green, blue, 0xff);
+                _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
             }
         } else {
             for y in ey..sy + 1 {
-                _point(canvas, x as i64, y as i64, red, green, blue, 0xff);
+                _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
             }
         }
     } else if ey == sy {
         for x in sx..ex + 1 {
-            _point(canvas, x as i64, sy as i64, red, green, blue, 0xff);
+            _point(canvas, x as i32, sy as i32, red, green, blue, 0xff);
         }
     } else {
         let delta = (ey -sy) as f32 / (ex - sx) as f32;
@@ -58,7 +58,7 @@ pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u
             let mut fy = sy as f32;
             for x in sx..ex + 1 {
                 let y = fy.round() as i32;
-                _point(canvas, x as i64, y as i64, red, green, blue, 0xff);
+                _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
                 fy = fy + delta;
             }
         } else {
@@ -75,11 +75,11 @@ pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u
             }
             while y != ey {
                 let x = fx.round() as i32;
-                _point(canvas, x as i64, y as i64, red, green, blue, 0xff);
+                _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
                 fx = fx + delta;
                 y = y + dy;
             }
-            _point(canvas, ex as i64, ey as i64, red, green, blue, 0xff);
+            _point(canvas, ex as i32, ey as i32, red, green, blue, 0xff);
 
         }
     }

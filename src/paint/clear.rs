@@ -1,5 +1,10 @@
 use super::super::paint::canvas::Canvas;
 
+// add 2022/02/22
+pub fn clear(canvas: &mut Canvas) {
+    fillrect(canvas, canvas.background_color());
+}
+
 pub fn fillrect(canvas: &mut Canvas, color: u32){
     let width = canvas.width();
     let height = canvas.height();
@@ -22,3 +27,4 @@ pub fn fillrect(canvas: &mut Canvas, color: u32){
         }
     }
 }
+

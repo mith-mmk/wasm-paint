@@ -12,6 +12,16 @@ pub struct Canvas {
 
 impl Canvas {
     pub fn new (width: u32, height: u32) -> Self {
+        if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
+            return Self {
+                buffer: Vec::new(),
+                width: 0,
+                height: 0,
+                color: 0x00ffffff,
+                background_color: 0,
+                pen: Pen::new(1, 1, vec![255]),
+            }
+        }
         let buffersize = width * height * 4;
         let buffer = (0..buffersize)
             .map(|_| {0})
