@@ -41,10 +41,8 @@ pub fn fill ( canvas: &mut Canvas, sx: i32, sy: i32, paint_color: u32) {
     stacks.push(ScanStack::new(sx as u32, sy as u32));
     let base_color = pick(canvas, sx as  u32, sy as u32);
     if base_color == paint_color & 0xffffff {return}
-    let mut index :usize = 0;
-    while stacks.len() > index {
-        let stack = &stacks[index];
-        index = index + 1;
+ 
+    while let Some(stack) = stacks.pop() {
         let (sx,sy) = (stack.sx,stack.sy);
         let current_color = pick(canvas,sx,sy);
         // current point
