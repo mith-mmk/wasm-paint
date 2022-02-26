@@ -1,5 +1,6 @@
 mod utils;
 pub mod paint;
+use crate::paint::circle::*;
 use crate::paint::fill::fill;
 use crate::paint::polygram::*;
 use crate::paint::rect::rect;
@@ -108,5 +109,12 @@ impl Universe {
         fill(&mut self.canvas, sx, sy, color);
     }
 
+    pub fn circle(&mut self,ox :i32, oy: i32, r: f32,color:u32){
+        circle(&mut self.canvas, ox, oy, r, color);
+    }
+
+    pub fn ellipse(&mut self,ox :i32, oy: i32, rx: f32, ry: f32,tilde : f32,color:u32){
+        ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
+    }
 
 }

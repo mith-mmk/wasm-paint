@@ -18,7 +18,7 @@ pub fn reglar_polygon(canvas: &mut Canvas,p: u32,ox: i32,oy: i32,r : f32,tilde :
     polygram(canvas,p,1,ox,oy,r,tilde,color);
 }
 
-// Schläfli symbol p,q
+// 中点(ox,oy) 半径r の円に内接する、Schläfli symbol {p/q}角形を傾き(tilde)で指定したcolorで描画する。
 
 pub fn polygram(canvas: &mut Canvas,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
     if r < 0.0 || p <= 2 {return};
