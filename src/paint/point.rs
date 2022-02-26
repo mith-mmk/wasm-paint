@@ -1,8 +1,8 @@
 use super::super::paint::canvas::Canvas;
 use super::super::paint::utils::*;
 
-fn _point (canvas: &mut Canvas, x: i64, y: i64, red :u8, green :u8, blue :u8, alpha :u8) {
-    if x < 0 || y < 0 || x >= canvas.width() as i64 || y >= canvas.height() as i64 || alpha == 0 {
+fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8) {
+    if x < 0 || y < 0 || x >= canvas.width() as i32 || y >= canvas.height() as i32 || alpha == 0 {
         return;
     }
     let width = canvas.width();
@@ -21,23 +21,23 @@ fn _point (canvas: &mut Canvas, x: i64, y: i64, red :u8, green :u8, blue :u8, al
 
 pub fn point ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
     let (red, green, blue, _) = color_taple(color);
-    _point(canvas, x as i64, y as i64, red, green, blue, 0xff);
+    _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
 }
 
-pub fn point_antialias(canvas: &mut Canvas, x: f64, y: f64, color: u32,s: f64) {
+pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
     if s <= 0.0 {return};
     let (red, green, blue, _) = color_taple(color);
-    let alpha = 1.0_f64;
+    let alpha = 1.0_f32;
                                                 // x = 4.5 y = 5.0 s = 4.5
-    let sx :f64 = (x + 0.5 - s / 2.0).floor();  // sx : 2
-    let sy :f64 = (y + 0.5 - s / 2.0).floor();  // sy : 3
-    let ex :f64 = (x + 0.5 + s / 2.0).ceil();   // ex : 8
-    let ey :f64 = (y + 0.5 + s / 2.0).ceil();   // ey : 8
+    let sx :f32 = (x + 0.5 - s / 2.0).floor();  // sx : 2
+    let sy :f32 = (y + 0.5 - s / 2.0).floor();  // sy : 3
+    let ex :f32 = (x + 0.5 + s / 2.0).ceil();   // ex : 8
+    let ey :f32 = (y + 0.5 + s / 2.0).ceil();   // ey : 8
 
-    let dx0 = 1.0_f64 - ((x + 0.5 - s / 2.0) - sx);  // dx0 = 0.25
-    let dy0 = 1.0_f64 - ((y + 0.5 - s / 2.0) - sy);   // dy0 = 0.75
-    let dx1 = 1.0_f64 - (ex - (x + 0.5 + s / 2.0));   // dx1 = 0.25
-    let dy1 = 1.0_f64 - (ey - (y+ 0.5 + s / 2.0));  // dy1 = 0.75
+    let dx0 = 1.0_f32 - ((x + 0.5 - s / 2.0) - sx);  // dx0 = 0.25
+    let dy0 = 1.0_f32 - ((y + 0.5 - s / 2.0) - sy);   // dy0 = 0.75
+    let dx1 = 1.0_f32 - (ex - (x + 0.5 + s / 2.0));   // dx1 = 0.25
+    let dy1 = 1.0_f32 - (ey - (y+ 0.5 + s / 2.0));  // dy1 = 0.75
     /*
       00        0y       10
      (dx0,dy0)   (1 ,dy0)  (dx1, dy0)
@@ -49,19 +49,19 @@ pub fn point_antialias(canvas: &mut Canvas, x: f64, y: f64, color: u32,s: f64) {
     (dx0,dy1) 01
     */
 
-    let weight00 = (dx0 * dy0 * alpha * 255.0_f64).round() as u8;
-    let weight01 = (dx0 * dy1 * alpha * 255.0_f64).round() as u8;
-    let weight10 = (dx1 * dy0 * alpha * 255.0_f64).round() as u8;
-    let weight11 = (dx1 * dy1 * alpha * 255.0_f64).round() as u8;
-    let weight0y = (dy0 * alpha * 255.0_f64).round() as u8;
-    let weight1y = (dy1 * alpha * 255.0_f64).round() as u8;
-    let weightx0 = (dx0 * alpha * 255.0_f64).round() as u8;
-    let weightx1 = (dx1 * alpha * 255.0_f64).round() as u8;
+    let weight00 = (dx0 * dy0 * alpha * 255.0_f32).round() as u8;
+    let weight01 = (dx0 * dy1 * alpha * 255.0_f32).round() as u8;
+    let weight10 = (dx1 * dy0 * alpha * 255.0_f32).round() as u8;
+    let weight11 = (dx1 * dy1 * alpha * 255.0_f32).round() as u8;
+    let weight0y = (dy0 * alpha * 255.0_f32).round() as u8;
+    let weight1y = (dy1 * alpha * 255.0_f32).round() as u8;
+    let weightx0 = (dx0 * alpha * 255.0_f32).round() as u8;
+    let weightx1 = (dx1 * alpha * 255.0_f32).round() as u8;
 
-    let px = sx as i64;
-    let py = sy as i64;
-    let rx = ex as i64;
-    let ry = ey as i64;
+    let px = sx as i32;
+    let py = sy as i32;
+    let rx = ex as i32;
+    let ry = ey as i32;
 /*
     log (&format!("{} {} {} {}, {} {} {} {}",px,py,rx,ry,dx0,dy0,dx1,dy1));
     log (&format!("{} {} {}\n{} {} {}\n {} {} {}\n",

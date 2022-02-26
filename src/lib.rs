@@ -73,7 +73,7 @@ impl Universe {
         self.canvas.clear();
     }
 
-    pub fn point_antialias(&mut self, x: f64, y: f64, color: u32,s: f64) {
+    pub fn point_antialias(&mut self, x: f32, y: f32, color: u32,s: f32) {
         point_antialias(&mut self.canvas,x,y,color,s);
     }
 
@@ -109,11 +109,11 @@ impl Universe {
         fill(&mut self.canvas, sx, sy, color);
     }
 
-    pub fn circle(&mut self,ox :i32, oy: i32, r: f32,color:u32){
+    pub fn circle(&mut self,ox :i32, oy: i32, r: i32,color:u32){
         circle(&mut self.canvas, ox, oy, r, color);
     }
 
-    pub fn ellipse(&mut self,ox :i32, oy: i32, rx: f32, ry: f32,tilde : f32,color:u32){
+    pub fn ellipse(&mut self,ox :i32, oy: i32, rx: i32, ry: i32,tilde : f32,color:u32){
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 

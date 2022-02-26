@@ -20,24 +20,31 @@ function workerInit(width, height) {
     });
 }
 
+let width,height;
+
 onmessage = function(ev) {
     const data = ev.data;
     if(data.command != null) {
         switch(data.command) {
             case 'init':
                 workerInit(data.width,data.height);
+                width = data.width;
+                height = data.height;
                 break;
             case 'run':
                 if (universe == null) return;
+                let tilde =0;
+                if (data.tilde) {
+                    tilde = data.tilde;
+                }
                 universe.ellipse(
-                            255,
-                            255,
-                            100,
-                            200,
-                            20 * Math.PI,
+                            Math.random() * width,
+                            Math.random() * height,
+                            Math.random() * width / 4 + 1,
+                            Math.random() * height / 4 + 1,
+                            data.tilde,
                             Math.random() * 0xffffff
                 );
-
 //                postMessage({message: 'run'});
                 break;
             case 'get':

@@ -25,10 +25,10 @@ function workerInit() {
       case 'init':
         img = data.image;
         ctx.putImageData(img, 0, 0);
-        PixelWorker.postMessage({command: 'run'});
+        PixelWorker.postMessage({command: 'run',tilde: 0.25 *Math.PI});
       break;
       case 'run': // run loop
-        PixelWorker.postMessage({command: 'run'}); 
+        PixelWorker.postMessage({command: 'run',tilde: 0.25 *Math.PI});
         break;
       case 'get':
         console.log('get');
@@ -46,5 +46,6 @@ function workerInit() {
     setTimeout(function(){draw();},100);
     if(img == null) return;
     PixelWorker.postMessage({command: 'get'});
+    PixelWorker.postMessage({command: 'run',tilde: 0.25 *Math.PI});
   }
 }
