@@ -1,3 +1,9 @@
+/*
+ *  line.rs
+ *  Create 2022/02/21
+ *  Update 2022/02/27
+ */
+
 use super::super::paint::utils::color_taple;
 use super::super::Canvas;
 
