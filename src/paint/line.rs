@@ -30,8 +30,8 @@ pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u
     let dx = (x0 - x1).abs();
     let dy = (y0 - y1).abs();
 
-    let step_x = if (x0 < x1) { 1 } else { -1 };
-    let step_y = if (y0 < y1) { 1 } else { -1 };
+    let step_x = if x0 < x1 { 1 } else { -1 };
+    let step_y = if y0 < y1 { 1 } else { -1 };
 
     let mut err = dx - dy;
 
