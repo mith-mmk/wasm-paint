@@ -1,6 +1,6 @@
-use super::super::paint::utils::*;
-use super::super::paint::line::*;
-use super::super::paint::canvas::Canvas;
+use super::utils::*;
+use super::line::*;
+use super::canvas::Canvas;
 
 pub struct ScanStack {
     pub sx :u32, 

@@ -1,4 +1,4 @@
-use super::super::paint::canvas::Canvas;
+use super::canvas::Canvas;
 
 // add 2022/02/22
 pub fn clear(canvas: &mut Canvas) {

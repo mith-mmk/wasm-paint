@@ -1,5 +1,5 @@
-use super::super::paint::canvas::Canvas;
-use super::super::paint::utils::*;
+use super::canvas::Canvas;
+use super::utils::*;
 
 fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8) {
     if x < 0 || y < 0 || x >= canvas.width() as i32 || y >= canvas.height() as i32 || alpha == 0 {

@@ -1,4 +1,4 @@
-use super::super::paint::canvas::Canvas;
+use super::canvas::Canvas;
 use core::cmp::max;
 use core::cmp::min;
 

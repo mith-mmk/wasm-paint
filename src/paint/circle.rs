@@ -4,9 +4,9 @@
  *  Update 2022/02/27
  */
 //use crate::log;
-use super::super::paint::line::line;
-use super::super::paint::point::*;
-use super::super::paint::canvas::Canvas;
+use super::line::line;
+use super::point::*;
+use super::canvas::Canvas;
 
 use core::f32::consts::PI;
 
@@ -46,7 +46,7 @@ use core::f32::consts::PI;
  *
  */
 
- /* arc (ox,oy)を中点とするθ0 = t0 ,θ1 = t1 を満たす半径rx,ryの楕円弧を描く。　θはらラジアン
+ /* arc (ox,oy)を中点とするθ0 = t0 ,θ1 = t1 を満たす半径rx,ryの楕円弧を描く。　θはラジアン
   * 　ただし θ=0 を時計の12時の位置とし、時計回りとする。ただし、-2π <= θ <= 2π　とする
   *   |t0 - t1| >= 2π の場合、楕円を描き、さらにrx=ryの時、円を描く
   */
@@ -179,9 +179,6 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
              *
              * xx = x * cosθ + y * sinθ
              * yy = y * sinθ - y * cosθ
-             * 
-             * x' = xx + ox
-             * y' = yy + oy
              */
 
              // rotate (tilde), becose the roteate start point is clock number 12.
@@ -220,9 +217,6 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
              * 
              * xx = x * cosθ - y * sinθ
              * yy = x * sinθ + y * cosθ
-             * 
-             * x' = xx + ox
-             * y' = yy + oy
              */
             let xx =  (x as f32 * tcos - y as f32 * tsin).floor() as i32;
             let yy =  (x as f32 * tsin + y as f32 * tcos).floor() as i32;
@@ -259,9 +253,6 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
              * 
              * xx = - x * cosθ - y * sinθ
              * yy = - x * sinθ + y * cosθ
-             * 
-             * x' = xx + ox
-             * y' = yy + oy
              */
             let xx = (-x as f32 * tcos - y as f32 * tsin).floor() as i32;
             let yy = (-x as f32 * tsin + y as f32 * tcos).floor() as i32;
@@ -297,9 +288,6 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
              * 
              * xx = - x * cosθ + y * sinθ
              * yy = - x * sinθ - y * cosθ
-             * 
-             * x' = xx + ox
-             * y' = yy + oy
              */
             let xx = (-x as f32 * tcos + y as f32 * tsin).floor() as i32;
             let yy = (-x as f32 * tsin - y as f32 * tcos).floor() as i32;

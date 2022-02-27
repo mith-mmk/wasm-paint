@@ -4,8 +4,8 @@
  *  Update 2022/02/27
  */
 
-use super::super::paint::utils::color_taple;
-use super::super::Canvas;
+use super::utils::color_taple;
+use super::canvas::Canvas;
 
 
 // use for line only _point function
@@ -23,7 +23,7 @@ fn _point (canvas: &mut Canvas, x: i32, y: i32, r :u8, g :u8, b :u8, a :u8) {
     buf[pos + 3] = 0xff;
 }
 
-// line no antialias
+// line no antialias (Bresenham's line algorithm)
 pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
     let (red, green, blue, _) = color_taple(color);
 
