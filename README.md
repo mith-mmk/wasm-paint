@@ -12,9 +12,9 @@ Color model ABGR uint32LE
 
 2022/02/22 0.0.5 paint/picker追加
 
+2022/02/27 0.0.6 circle追加
+
 Todo 
-- circle and arc
-- ellipse and arc
 - border
 - polyline
 - Bézier Curve
