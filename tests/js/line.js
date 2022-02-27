@@ -1,3 +1,5 @@
+import * as fps from './fps.js';
+
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
@@ -6,7 +8,6 @@ let height =512;
 canvas.width = width;
 canvas.height = height;
 let img;
-
 
 if (window.Worker) {
   workerInit();  
@@ -27,6 +28,12 @@ function workerInit() {
         img = data.image;
         ctx.putImageData(img, 0, 0);
         PixelWorker.postMessage({command: 'run'});
+        function draw() { // draw loop
+          fps.fps.render();          
+          PixelWorker.postMessage({command: 'get'});
+          window.requestAnimationFrame(draw);
+        }
+        draw();
       break;
       case 'run': // run loop
         PixelWorker.postMessage({command: 'run'});
@@ -42,12 +49,5 @@ function workerInit() {
         break;
     }
   }
-
-  setTimeout(function(){draw();},167);
-
-  function draw() {
-    setTimeout(function(){draw();},167);
-    if(img == null) return;
-    PixelWorker.postMessage({command: 'get'});
-  }
 }
+

@@ -40,11 +40,11 @@ function workerInit() {
     }
   }
 
-  setTimeout(function(){draw();},100);
+  setTimeout(function(){draw();},10);
 
   let i = 0;
   function draw() {
-    setTimeout(function(){draw();},100);
+    setTimeout(function(){draw();},10);
     if(img == null) return;
     PixelWorker.postMessage({command: 'get'});
     PixelWorker.postMessage({command: 'run',tilde: i++ / 16 * Math.PI});

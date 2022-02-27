@@ -49,7 +49,7 @@ impl Rnd {
     }
 }
 
-fn rand_u32(range: u32) -> u32 {
+fn _rand_u32(range: u32) -> u32 {
     ( random() * (range as f64)) as u32
 }
 

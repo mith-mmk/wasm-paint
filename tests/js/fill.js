@@ -39,12 +39,12 @@ function workerInit() {
   }
 
 
-  setTimeout(function(){draw();},1000 / 30);
+  setTimeout(function(){draw();},1000 / 120);
 
 let count = 0; 
 
   function draw() {
-    setTimeout(function(){draw();},1000 / 30);
+    setTimeout(function(){draw();},1000 / 120);
     if(img == null) return;
     if (count++ < 300) {
       PixelWorker.postMessage({command: 'get'});
