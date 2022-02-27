@@ -42,7 +42,7 @@ use core::f32::consts::PI;
  *   E = 2E - 4ax + 2by + 2a + b 
  *
  * 　（以下省略)
- *
+ * https://fussy.web.fc2.com/algo/algo2-2.htm
  *
  */
 
