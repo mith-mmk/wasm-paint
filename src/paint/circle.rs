@@ -16,8 +16,8 @@ use core::f32::consts::PI;
  *
  * a = ry ** 2
  * b = rx ** 2
- * R**2 = rx ** 2 + ry ** 2
- *
+ * R**2 = rx ** 2 * ry ** 2 // comment bug fix 2022/02/28 ソースは正しい が
+ *　 R**2の√は計算する必要がなかった R = rx*ry
  * 
  * 誤差値 ただし、E = a x**2 + b y ** 2 - R**2
  * x2 + 2x 1
@@ -65,11 +65,11 @@ pub fn arc (canvas: &mut Canvas,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 
     }
 
     /* ellipse */
-    /* rx **2 ,ry **2 が大きいので i64に変換している rx,ryが3万越えることは無いと思うが */
+    /* rx **2 ,ry **2 が大きいので i64に変換している rx,ryが3万越えることは無いと思う */
     let a: i64 = (ry as i64).pow(2);
     let b: i64 = (rx as i64).pow(2);
-    let rpow2: i64 = a * b;
-    let d: i64 = (ry as f64 * (rpow2 as f64).sqrt()) as i64;
+    let r: i64 = rx as i64 * ry as i64;
+    let d: i64 = ry as i64 * r as i64;  /* issue rx , ry 10の20乗を越えるとoverflowする可能性 */
 
     let mut x: i32 = rx;
     let mut y: i32 = 0;
@@ -107,7 +107,7 @@ pub fn arc (canvas: &mut Canvas,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
             point(canvas, ox - x, oy - y, color);
         }
-// next
+    // next
         if err1 >= 0 {
             x = x - 1;
             err1 = err1 - 4 * a * x as i64;
@@ -141,8 +141,8 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
     /* ellipse */
     let a: i64 = (ry as i64).pow(2);
     let b: i64 = (rx as i64).pow(2);
-    let rpow2: i64 = a * b;
-    let d: i64 = (ry as f64 * (rpow2 as f64).sqrt()) as i64;
+    let r: i64 = rx as i64 * ry as i64;
+    let d: i64 = ry as i64 * r as i64;
 
     let mut x: i32 = rx.ceil() as i32;
     let mut y: i32 = 0;
@@ -303,7 +303,7 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
         } else {
             bx[i] = i32::MIN;
         }
-// next
+        // next
         if err1 >= 0 {
             x = x - 1;
             err1 = err1 - 4 * a * x as i64;
@@ -328,4 +328,5 @@ pub fn ellipse (canvas :&mut Canvas,ox: i32,oy: i32,rx : i32,ry : i32,tilde: f32
     } else {
         arc_tilde(canvas, ox, oy, rx as f32, ry as f32, 0.0 * PI, 2.0 * PI, tilde, color);
     }
+
 }

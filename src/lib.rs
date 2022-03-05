@@ -1,5 +1,7 @@
 mod utils;
 pub mod paint;
+pub mod img;
+use crate::img::DecodeOptions;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
 use crate::paint::polygram::*;
@@ -8,6 +10,8 @@ use crate::paint::line::line;
 use crate::paint::point::point_antialias;
 use crate::paint::canvas::Canvas;
 use wasm_bindgen::prelude::*;
+use img::ImageBuffer;
+use img::jpeg::decoder::decode as jpeg_decoder;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -117,4 +121,12 @@ impl Universe {
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 
+    pub fn jpeg_decode(buffer :&[u8]) {
+        let img = ImageBuffer::new();
+        let mut option = DecodeOptions{
+            debug_flag : 0,
+            callback: img,
+        };
+        jpeg_decoder(buffer , &mut option);
+    }
 }

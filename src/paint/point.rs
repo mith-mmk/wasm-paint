@@ -1,14 +1,29 @@
+/*  point.rs
+ *  create 2022/02/20
+ *  update 2022/02/28  internal point method change
+ */
+
+
 use super::canvas::Canvas;
 use super::utils::*;
 
-fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8) {
-    if x < 0 || y < 0 || x >= canvas.width() as i32 || y >= canvas.height() as i32 || alpha == 0 {
+fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8, weight :f32) {
+    if x < 0 || y < 0 || x >= canvas.width() as i32 || y >= canvas.height() as i32  {
         return;
     }
+    let a = weight;
     let width = canvas.width();
     let buf = &mut canvas.buffer;
     let pos :usize= (y as u32 * width * 4 + (x as u32 * 4)) as usize;
-    let a = alpha as f32 / 255_f32;
+
+    if a == 1.0 {
+        buf[pos] = red;
+        buf[pos + 1] = green;
+        buf[pos + 2] = blue;
+        buf[pos + 3] = alpha;
+        return;
+    }
+
     let r = (buf[pos] as f32 * (1.0 - a) + red as f32 * a) as u8;
     let g = (buf[pos + 1] as f32 * (1.0 - a) + green as f32 * a) as u8;
     let b = (buf[pos + 2]  as f32* (1.0 - a) + blue as f32 * a) as u8;
@@ -16,13 +31,29 @@ fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, al
     buf[pos] = r;
     buf[pos + 1] = g;
     buf[pos + 2] = b;
-    buf[pos + 3] = 0xff;
+    buf[pos + 3] = alpha;
 }
 
 pub fn point ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
     let (red, green, blue, _) = color_taple(color);
-    _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
+    _point(canvas, x as i32, y as i32, red, green, blue, 0xff, 1.0);
 }
+
+pub fn point_with_alpha ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
+    let (red, green, blue, alpha) = color_taple(color);
+    _point(canvas, x as i32, y as i32, red, green, blue, alpha, 1.0);
+}
+
+pub fn point_with_weight ( canvas: &mut Canvas, x: i32, y: i32, color: u32, weight: f32) {
+    let (red, green, blue, _) = color_taple(color);
+    _point(canvas, x as i32, y as i32, red, green, blue, 0xff, weight);
+}
+
+pub fn point_with_weight_from_alpha ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
+    let (red, green, blue, alpha) = color_taple(color);
+    _point(canvas, x as i32, y as i32, red, green, blue, 0xff, alpha as f32 / 255.0);
+}
+
 
 pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
     if s <= 0.0 {return};
@@ -49,14 +80,14 @@ pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
     (dx0,dy1) 01
     */
 
-    let weight00 = (dx0 * dy0 * alpha * 255.0_f32).round() as u8;
-    let weight01 = (dx0 * dy1 * alpha * 255.0_f32).round() as u8;
-    let weight10 = (dx1 * dy0 * alpha * 255.0_f32).round() as u8;
-    let weight11 = (dx1 * dy1 * alpha * 255.0_f32).round() as u8;
-    let weight0y = (dy0 * alpha * 255.0_f32).round() as u8;
-    let weight1y = (dy1 * alpha * 255.0_f32).round() as u8;
-    let weightx0 = (dx0 * alpha * 255.0_f32).round() as u8;
-    let weightx1 = (dx1 * alpha * 255.0_f32).round() as u8;
+    let weight00 = dx0 * dy0 * alpha;
+    let weight01 = dx0 * dy1 * alpha;
+    let weight10 = dx1 * dy0 * alpha;
+    let weight11 = dx1 * dy1 * alpha;
+    let weight0y = dy0 * alpha;
+    let weight1y = dy1 * alpha;
+    let weightx0 = dx0 * alpha;
+    let weightx1 = dx1 * alpha;
 
     let px = sx as i32;
     let py = sy as i32;
@@ -67,30 +98,30 @@ pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
     log (&format!("{} {} {}\n{} {} {}\n {} {} {}\n",
         weight00,weight0y,weight01,weightx0,255,weightx1,weight10,weight1y,weight11));
 */
-    _point(canvas, px, py, red, green, blue, weight00);
-    _point(canvas, rx, py, red, green, blue, weight10);
-    _point(canvas, px, ry, red, green, blue, weight01);
-    _point(canvas, rx ,ry, red, green, blue, weight11);
+    _point(canvas, px, py, red, green, blue, 0xff, weight00);
+    _point(canvas, rx, py, red, green, blue, 0xff, weight10);
+    _point(canvas, px, ry, red, green, blue, 0xff, weight01);
+    _point(canvas, rx ,ry, red, green, blue, 0xff, weight11);
 
     if py + 1 < ry {
         for qy in py + 1 .. ry {
-            _point(canvas, px, qy, red, green, blue, weightx0);
+            _point(canvas, px, qy, red, green, blue, 0xff, weightx0);
         }
         for qy in py + 1 .. ry {
-            _point(canvas, rx, qy, red, green, blue, weightx1);
+            _point(canvas, rx, qy, red, green, blue, 0xff, weightx1);
         }
     }
 
 
     if px + 1 < rx {
         for qx in px + 1 .. rx {
-            _point(canvas, qx, py, red, green, blue, weight0y);
+            _point(canvas, qx, py, red, green, blue, 0xff, weight0y);
             if py + 1 < ry {
                 for qy in py + 1 .. ry {
-                    _point(canvas, qx, qy, red, green, blue, 0xff);
+                    _point(canvas, qx, qy, red, green, blue, 0xff, 1.0);
                 }
             }
-            _point(canvas, qx, ry, red, green, blue, weight1y);
+            _point(canvas, qx, ry, red, green, blue, 0xff, weight1y);
         }
     }
 }
