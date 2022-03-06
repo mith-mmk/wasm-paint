@@ -1,7 +1,7 @@
 mod utils;
 pub mod paint;
 pub mod img;
-use crate::img::DecodeOptions;
+use crate::paint::image::draw_image;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
 use crate::paint::polygram::*;
@@ -9,9 +9,9 @@ use crate::paint::rect::rect;
 use crate::paint::line::line;
 use crate::paint::point::point_antialias;
 use crate::paint::canvas::Canvas;
+
 use wasm_bindgen::prelude::*;
-use img::ImageBuffer;
-use img::jpeg::decoder::decode as jpeg_decoder;
+
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -59,7 +59,8 @@ fn _rand_u32(range: u32) -> u32 {
 
 #[wasm_bindgen]
 pub struct Universe {
-    canvas: Canvas,
+    canvas:  Canvas,
+    input_buffer: Vec<u8>,
 }
 
 #[wasm_bindgen]
@@ -69,8 +70,22 @@ impl Universe {
         let canvas = Canvas::new(width, height);
         Universe {
             canvas,
+            input_buffer: Vec::new(),
         }
     }
+
+    pub fn input_buffer(&mut self) -> *const u8 {
+        self.input_buffer.as_ptr()
+    }
+
+    pub fn input_buffer_set_length(&mut self,size : u32) -> *const u8 {
+        self.input_buffer = (0..size)
+            .map(|_| {0})
+            .collect();
+        log(&format!("Get Buffer {}",self.input_buffer.len()));
+        self.input_buffer.as_ptr()
+    }
+
 /* Wrappers */
     pub fn clear(&mut self,color :u32) {
         self.canvas.set_buckground_color(color);
@@ -121,12 +136,7 @@ impl Universe {
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 
-    pub fn jpeg_decode(buffer :&[u8]) {
-        let img = ImageBuffer::new();
-        let mut option = DecodeOptions{
-            debug_flag : 0,
-            callback: img,
-        };
-        jpeg_decoder(buffer , &mut option);
+    pub fn jpeg_decoder(&mut self,buffer: &[u8]) {
+        draw_image(&mut self.canvas,buffer);
     }
 }

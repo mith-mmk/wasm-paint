@@ -1,15 +1,13 @@
 use crate::img::jpeg::header::Component;
-
 use core::f64::consts::PI;
-use crate::img::DefaultCallback;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::error::ImgError::SimpleAddMessage;
-use crate::ImageBuffer;
 use crate::img::jpeg::header::JpegHaeder;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{Simple};
 use crate::img::DecodeOptions;
 
+use crate::log;
 
 
 #[allow(unused)]
@@ -150,6 +148,7 @@ struct BitReader {
     eof_flag: bool,
 }
 
+#[derive(std::cmp::PartialEq)]
 struct HuffmanDecodeTable<'a> {
     pos: &'a Vec::<usize>,
     val: &'a Vec::<usize>,
@@ -170,7 +169,7 @@ fn dc_read(bitread: &mut BitReader,dc_decode:&HuffmanDecodeTable,pred:i32) -> Re
 fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<i32>,ImgError> {
     let mut zigzag : usize= 1;
     let mut zz :Vec<i32> = (0..64).map(|_| 0).collect();
-    loop {
+    loop {  // F2.2.2
         let ac = huffman_read(bitread,&ac_decode)?;
         
         let ssss = ac & 0xf;
@@ -183,6 +182,7 @@ fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<
                 zigzag = zigzag + 16;
                 continue
             }
+            return Ok(zz)   // N/A
         } else {
             zigzag = zigzag + rrrr as usize;
             let v =  receive(bitread,ssss as i32)?;
@@ -230,21 +230,21 @@ fn extend(mut v:i32,t: i32) -> i32 {
 #[inline]
 fn idct(f :&[i32]) -> Vec<u8> {
     let vals :Vec<u8> = (0..64).map(|i| {
-        let mut val: f64=0.0;
         let (x,y) = ((i%8) as f64,(i/8) as f64);
-        // IDCT from CCITT Rec. T.81 (1992 E) p.27
+        // IDCT from CCITT Rec. T.81 (1992 E) p.27 A3.3
+        let mut val: f64=0.0;
         for u in 0..8 {
+            let cu = if u == 0 {1.0_f64 / 2.0_f64.sqrt()} else {1.0};
             for v in 0..8 {
-                let cu = if u == 0 {1.0_f64 / 2.0_f64.sqrt()} else {1.0};
                 let cv = if v == 0 {1.0_f64 / 2.0_f64.sqrt()} else {1.0};
-                val += cu * cv * (f[u*8 + v] as f64)
+                val += cu * cv * (f[v*8 + u] as f64)
                     * ((2.0 * x + 1.0) * u as f64 * PI / 16.0_f64).cos()
                     * ((2.0 * y + 1.0) * v as f64 * PI / 16.0_f64).cos();
             }
         }
         val = val / 4.0;
 
-        // level shift from CCITT Rec. T.81 (1992 E) p.26
+        // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
         let v = val.round() as i32 + 128;
         if v < 0 {0} else if v > 255 {255} else {v as u8}
     }).collect();
@@ -276,45 +276,39 @@ fn y_to_rgb  (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
 fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
     let mut buffer:Vec<u8> = (0..hv_maps[0].h * hv_maps[0].v * 64 * 4).map(|_| 0).collect();
     let y_map = 0;
-    let mut u_map = y_map + hv_maps[0].h * hv_maps[0].v;
-    let mut v_map = u_map + hv_maps[1].h * hv_maps[1].v;
+    let u_map = y_map + hv_maps[0].h * hv_maps[0].v;
+    let v_map = u_map + hv_maps[1].h * hv_maps[1].v;
 
-    println!("{} {} {} {} {} {}",yuv[0][0],yuv[1][0],yuv[2][0],yuv[3][0],yuv[4][0],yuv[5][0]);
+    let uy = hv_maps[0].v / hv_maps[1].v as usize;
+    let vy = hv_maps[0].v / hv_maps[2].v as usize;
+    let ux = hv_maps[0].h / hv_maps[1].h as usize;
+    let vx = hv_maps[0].h / hv_maps[2].h as usize;
 
     for v in 0..hv_maps[0].v {
-        let mut uy = v * 8 * (hv_maps[1].v / hv_maps[0].v) as usize;
-        if uy >= 8 {
-            u_map = u_map + 1;
-            uy = 0;
-        }
-        let mut vy = v * 8 * (hv_maps[2].v / hv_maps[0].v) as usize;
-        if vy >= 8 {
-            v_map = v_map + 1;
-            vy = 0;
-        }
+        let mut u_map_cur = u_map + v / hv_maps[0].h;
+        let mut v_map_cur = v_map + v / hv_maps[0].h;
+
         for h in 0..hv_maps[0].h {
             let gray = &yuv[v*hv_maps[0].h + h];
-            let mut ux = (h * 8 ) * (hv_maps[1].h / hv_maps[0].h) as usize;
-            if ux >= 8 {
-                u_map = u_map + 1;
-                ux = 0;
-            }
-            let mut vx = (h * 8 ) * (hv_maps[2].h / hv_maps[0].h) as usize;
-            if vx >= 8 {
-                v_map = v_map + 1;
-                vx = 0;
-            }
+            u_map_cur = u_map_cur + h / hv_maps[0].h;
+            v_map_cur = v_map_cur + h / hv_maps[0].h;
+
             for y in 0..8 {
                 let offset = ((y + v * 8) * (8 * hv_maps[0].h)) * 4;
                 for x in 0..8 {
                     let xx = (x + h * 8) * 4;
                     let cy = gray[y * 8 + x] as f32;
-                    let cu = yuv[u_map][uy * 8 + ux +  (hv_maps[0].h / hv_maps[1].h)] as f32;
-                    let cv = yuv[v_map][vy * 8 + vx +  (hv_maps[0].h / hv_maps[2].h)] as f32;
+//                    log(&format!("{} {}",((y + v) / uy) % 8,((x + h) / ux) % 8));
+                    let cb = yuv[u_map_cur][(((y + v) / uy % 8) * 8)  + ((x + h) / ux) % 8] as f32;
+                    let cr = yuv[v_map_cur][(((y + v) / vy % 8) * 8)  + ((x + h) / vx) % 8] as f32;
 
-                    let red  = ((cy as f32 + 1.402 * (cu - 128.0)) as usize & 0xff) as u8;
-                    let green= ((cy as f32 + 0.34414 * (cv - 128.0) - 0.71414 * (cu - 128.0)) as usize & 0xff) as u8;
-                    let blue = ((cy as f32 + 1.772 * (cv - 128.0)) as usize &0xff) as u8;
+                    let red  = cy as f32 + 1.402 * (cr - 128.0);
+                    let green= cy as f32 - 0.34414 * (cb - 128.0) - 0.71414 * (cr - 128.0);
+                    let blue = cy as f32 + 1.772 * (cb - 128.0);
+
+                    let red = if red > 255.0 {255} else if red < 0.0 {0} else {red as u8};
+                    let green = if green > 255.0 {255} else if green < 0.0 {0} else {green as u8};
+                    let blue = if blue > 255.0 {255} else if blue < 0.0 {0} else {blue as u8};
 
                     buffer[xx + offset    ] = red; //R
                     buffer[xx + offset + 1] = green; //G
@@ -330,18 +324,60 @@ fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
 
 
 pub fn decode(buffer: &[u8],option:&mut DecodeOptions) 
-    -> Result<Option<ImageBuffer>,ImgError> {
+    -> Result<Option<usize>,ImgError> {
 
-// Scan Header
+     // Scan Header
     let header = JpegHaeder::new(buffer,0)?;
+    
+    match header.huffman_scan_header {
+        None => {
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Huffman Scan Header".to_string()));
+        },
+        _ => {
 
+        }
+    }
     let huffman_scan_header  = header.huffman_scan_header.as_ref().unwrap();
+    match header.huffman_tables {
+        None => {
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Huffman Tables".to_string()));
+        },
+        _ => {
+
+        }
+    }
     let huffman_tables = header.huffman_tables.as_ref().unwrap();
+    match header.frame_header {
+        None => {
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Frame Header".to_string()));
+        },
+        _ => {
+
+        }
+    }
+
     let fh = header.frame_header.as_ref().unwrap();
     let width = fh.width;
     let height = fh.height;
     let plane = fh.plane;
+    match fh.component {
+        None => {
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Frame Header Component".to_string()));
+        },
+        _ => {
+
+        }
+    }
+
     let component = fh.component.as_ref().unwrap();
+    match header.quantization_tables {
+        None => {
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Quantization Tables".to_string()));
+        },
+        _ => {
+
+        }
+    }
     let quantization_tables = header.quantization_tables.unwrap();
 
     if fh.huffman == false {
@@ -353,10 +389,12 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
     }
 
     // Make Huffman Table
-    let mut ac_decode : Vec<Option<HuffmanDecodeTable>> = (0..4).map(|_| None).collect();
-    let mut dc_decode : Vec<Option<HuffmanDecodeTable>> = (0..4).map(|_| None).collect();
+
+    let mut ac_decode : Vec<HuffmanDecodeTable> = Vec::new();
+    let mut dc_decode : Vec<HuffmanDecodeTable> = Vec::new();
 
     for i in 0..huffman_tables.len() {
+
         let huffman_table :&HuffmanTable = &huffman_tables[i];
 
         let mut current_max: Vec<i32> = Vec::new();
@@ -379,25 +417,28 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
             }
             code = code << 1;
         }
+        
         if huffman_table.ac {
-            ac_decode[huffman_table.no] = Some(HuffmanDecodeTable{
+            ac_decode.push(HuffmanDecodeTable{
                 val: &huffman_table.val,
                 pos: &huffman_table.pos,
                 max: current_max,
                 min: current_min,
-            })
+            });
         } else {
-            dc_decode[huffman_table.no] = Some(HuffmanDecodeTable{
+            dc_decode.push(HuffmanDecodeTable{
                 val: &huffman_table.val,
                 pos: &huffman_table.pos,
                 max: current_max,
                 min: current_min,
-            })
+            });
         }
     }
+    log("Decode Start");
 
     // decode
-    option.callback.init(width,height);
+    (option.callback.init)(option.drawer,width,height)?;
+
 
     let slice = &buffer[header.imageoffset..];
     let bitread :&mut BitReader = &mut BitReader::new(&slice);
@@ -423,29 +464,29 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
 
 
     let mut preds: Vec::<i32> = (0..component.len()).map(|_| 0).collect();
-    for x in 0..(height+dy-1)/dy {
-        for y in 0..(width+dx-1)/dx {
+    for y in 0..(height+dy-1)/dy {
+        for x in 0..(width+dx-1)/dx {
             let mut yuv :Vec<Vec<u8>> = Vec::new();
-            for scannummber in 0..mcu_size {
-                let (dc_current,ac_current,i,tq) = scan[scannummber];
+            for scannumber in 0..mcu_size {
+                let (dc_current,ac_current,i,tq) = scan[scannumber];
                 let (zz,pred) = baseline_read(bitread
-                            ,&dc_decode[dc_current].as_ref().unwrap()
-                            ,&ac_decode[ac_current].as_ref().unwrap()
+                            ,&dc_decode[dc_current]
+                            ,&ac_decode[ac_current]
                             ,preds[i])?;
                 preds[i] = pred;
 
                 let sq = &super::util::ZIG_ZAG_SEQUENCE;
-                let vals :Vec<i32> = (0..64).map(|i| 
+                let zz :Vec<i32> = (0..64).map(|i| 
                     zz[i] * quantization_tables[tq].q[i] as i32).collect();
-
-                let uv :Vec<i32> = (0..64).map(|i| vals[sq[i]]).collect();
-                let ff = idct(&uv);
+                let zz :Vec<i32> = (0..64).map(|i| zz[sq[i]]).collect();
+                let ff = idct(&zz);
                 yuv.push(ff);
             }
             let data = if plane == 3 {yuv_to_rgb(&yuv,&component)} else {y_to_rgb(&yuv,&component)};
-            option.callback.draw(x*dx,y*dy,dx,dy,&data);
+//            log(&format!("draw {} {}",x,y));
+            (option.callback.draw)(option.drawer,x*dx,y*dy,dx,dy,&data)?;
         }
     }
-    option.callback.terminate();
+    (option.callback.terminate)(option.drawer)?;
     Ok(None)
 }

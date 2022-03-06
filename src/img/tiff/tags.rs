@@ -1,3 +1,4 @@
+use crate::log;
 use super::super::io::read_string;
 use super::super::util::*;
 use super::header::DataPack;
@@ -213,1806 +214,1806 @@ pub fn gps_mapper(tag :u16, data: &DataPack) {
 pub fn tag_mapper(tag :u16, data: &DataPack) {
    match tag {
     0x0001 => {
-        debug_print!("InteropIndex ");
+        log("InteropIndex ");
         print_data(&data);
      },
     0x0002 => {
-     debug_print!("InteropVersion ");
+     log("InteropVersion ");
 
          print_data(&data)
      },
     0x000b => {
-     debug_print!("ProcessingSoftware ");
+     log("ProcessingSoftware ");
 
          print_data(&data)
 
      
      },
     0x00fe => {
-     debug_print!("SubfileType ");
+     log("SubfileType ");
 
          print_data(&data)
 
      
      },
     0x00ff => {
-     debug_print!("OldSubfileType ");
+     log("OldSubfileType ");
 
          print_data(&data)
 
      
      },
     0x0100 => {
-     debug_print!("ImageWidth ");
+     log("ImageWidth ");
 
          print_data(&data)
 
      
      },
     0x0101 => {
-     debug_print!("ImageHeight ");
+     log("ImageHeight ");
 
          print_data(&data)
 
      
      },
     0x0102 => {
-     debug_print!("BitsPerSample ");
+     log("BitsPerSample ");
 
          print_data(&data)
 
      
      },
     0x0103 => {
-     debug_print!("Compression ");
+     log("Compression ");
 
          print_data(&data)
 
      
      },
     0x0106 => {
-     debug_print!("PhotometricInterpretation ");
+     log("PhotometricInterpretation ");
 
          print_data(&data)
 
      
      },
     0x0107 => {
-     debug_print!("Thresholding ");
+     log("Thresholding ");
 
          print_data(&data)
 
      
      },
     0x0108 => {
-     debug_print!("CellWidth ");
+     log("CellWidth ");
 
          print_data(&data)
 
      
      },
     0x0109 => {
-     debug_print!("CellLength ");
+     log("CellLength ");
 
          print_data(&data)
 
      
      },
     0x010a => {
-     debug_print!("FillOrder ");
+     log("FillOrder ");
 
          print_data(&data)
 
      
      },
     0x010d => {
-     debug_print!("DocumentName ");
+     log("DocumentName ");
 
          print_data(&data)
 
      
      },
     0x010e => {
-     debug_print!("ImageDescription ");
+     log("ImageDescription ");
 
          print_data(&data)
 
      
      },
     0x010f => {
-     debug_print!("Make ");
+     log("Make ");
 
          print_data(&data)
 
      
      },
     0x0110 => {
-     debug_print!("Model ");
+     log("Model ");
 
          print_data(&data)
 
      
      },
     0x0111 => {
-     debug_print!("StripOffsets ");
+     log("StripOffsets ");
 
          print_data(&data)
 
      
      },
     0x0112 => {
-     debug_print!("Orientation ");
+     log("Orientation ");
 
          print_data(&data)
 
      
      },
     0x0115 => {
-     debug_print!("SamplesPerPixel ");
+     log("SamplesPerPixel ");
 
          print_data(&data)
 
      
      },
     0x0116 => {
-     debug_print!("RowsPerStrip ");
+     log("RowsPerStrip ");
 
          print_data(&data)
 
      
      },
     0x0117 => {
-     debug_print!("StripByteCounts ");
+     log("StripByteCounts ");
 
          print_data(&data)
 
      
      },
     0x0118 => {
-     debug_print!("MinSampleValue ");
+     log("MinSampleValue ");
 
          print_data(&data)
 
      
      },
     0x0119 => {
-     debug_print!("MaxSampleValue ");
+     log("MaxSampleValue ");
 
          print_data(&data)
 
      
      },
     0x011a => {
-     debug_print!("XResolution ");
+     log("XResolution ");
 
          print_data(&data)
 
      
      },
     0x011b => {
-     debug_print!("YResolution ");
+     log("YResolution ");
 
          print_data(&data)
 
      
      },
     0x011c => {
-     debug_print!("PlanarConfiguration ");
+     log("PlanarConfiguration ");
 
          print_data(&data)
 
      
      },
     0x011d => {
-     debug_print!("PageName ");
+     log("PageName ");
 
          print_data(&data)
 
      
      },
     0x011e => {
-     debug_print!("XPosition ");
+     log("XPosition ");
 
          print_data(&data)
 
      
      },
     0x011f => {
-     debug_print!("YPosition ");
+     log("YPosition ");
 
          print_data(&data)
 
      
      },
     0x0120 => {
-     debug_print!("FreeOffsets ");
+     log("FreeOffsets ");
 
          print_data(&data)
 
      
      },
     0x0121 => {
-     debug_print!("FreeByteCounts ");
+     log("FreeByteCounts ");
 
          print_data(&data)
 
      
      },
     0x0122 => {
-     debug_print!("GrayResponseUnit ");
+     log("GrayResponseUnit ");
 
          print_data(&data)
 
      
      },
     0x0123 => {
-     debug_print!("GrayResponseCurve ");
+     log("GrayResponseCurve ");
 
          print_data(&data)
 
      
      },
     0x0124 => {
-     debug_print!("T4Options ");
+     log("T4Options ");
 
          print_data(&data)
 
      
      },
     0x0125 => {
-     debug_print!("T6Options ");
+     log("T6Options ");
 
          print_data(&data)
 
      
      },
     0x0128 => {
-     debug_print!("ResolutionUnit ");
+     log("ResolutionUnit ");
 
          print_data(&data)
 
      
      },
     0x0129 => {
-     debug_print!("PageNumber ");
+     log("PageNumber ");
 
          print_data(&data)
 
      
      },
     0x012c => {
-     debug_print!("ColorResponseUnit ");
+     log("ColorResponseUnit ");
 
          print_data(&data)
 
      
      },
     0x012d => {
-     debug_print!("TransferFunction ");
+     log("TransferFunction ");
 
          print_data(&data)
 
      
      },
     0x0131 => {
-     debug_print!("Software ");
+     log("Software ");
 
          print_data(&data)
 
      
      },
     0x0132 => {
-     debug_print!("ModifyDate ");
+     log("ModifyDate ");
 
          print_data(&data)
 
      
      },
     0x013b => {
-     debug_print!("Artist ");
+     log("Artist ");
 
          print_data(&data)
 
      
      },
     0x013c => {
-     debug_print!("HostComputer ");
+     log("HostComputer ");
 
          print_data(&data)
 
      
      },
     0x013d => {
-     debug_print!("Predictor ");
+     log("Predictor ");
 
          print_data(&data)
 
      
      },
     0x013e => {
-     debug_print!("WhitePoint ");
+     log("WhitePoint ");
 
          print_data(&data)
 
      
      },
     0x013f => {
-     debug_print!("PrimaryChromaticities ");
+     log("PrimaryChromaticities ");
 
          print_data(&data)
 
      
      },
     0x0140 => {
-     debug_print!("ColorMap ");
+     log("ColorMap ");
 
          print_data(&data)
 
      
      },
     0x0141 => {
-     debug_print!("HalftoneHints ");
+     log("HalftoneHints ");
 
          print_data(&data)
 
      
      },
     0x0142 => {
-     debug_print!("TileWidth ");
+     log("TileWidth ");
 
          print_data(&data)
 
      
      },
     0x0143 => {
-     debug_print!("TileLength ");
+     log("TileLength ");
 
          print_data(&data)
 
      
      },
     0x0144 => {
-     debug_print!("TileOffsets ");
+     log("TileOffsets ");
 
          print_data(&data)
 
      
      },
     0x0145 => {
-     debug_print!("TileByteCounts ");
+     log("TileByteCounts ");
 
          print_data(&data)
 
      
      },
     0x0146 => {
-     debug_print!("BadFaxLines ");
+     log("BadFaxLines ");
 
          print_data(&data)
 
      
      },
     0x0147 => {
-     debug_print!("CleanFaxData ");
+     log("CleanFaxData ");
 
          print_data(&data)
 
      
      },
     0x0148 => {
-     debug_print!("ConsecutiveBadFaxLines ");
+     log("ConsecutiveBadFaxLines ");
 
          print_data(&data)
 
      
      },
     0x014a => {
-     debug_print!("SubIFD ");
+     log("SubIFD ");
 
          print_data(&data)
 
      
      },
     0x014c => {
-     debug_print!("InkSet ");
+     log("InkSet ");
 
          print_data(&data)
 
      
      },
     0x014d => {
-     debug_print!("InkNames ");
+     log("InkNames ");
 
          print_data(&data)
 
      
      },
     0x014e => {
-     debug_print!("NumberofInks ");
+     log("NumberofInks ");
 
          print_data(&data)
 
      
      },
     0x0150 => {
-     debug_print!("DotRange ");
+     log("DotRange ");
 
          print_data(&data)
 
      
      },
     0x0151 => {
-     debug_print!("TargetPrinter ");
+     log("TargetPrinter ");
 
          print_data(&data)
 
      
      },
     0x0152 => {
-     debug_print!("ExtraSamples ");
+     log("ExtraSamples ");
 
          print_data(&data)
 
      
      },
     0x0153 => {
-     debug_print!("SampleFormat ");
+     log("SampleFormat ");
 
          print_data(&data)
 
      
      },
     0x0154 => {
-     debug_print!("SMinSampleValue ");
+     log("SMinSampleValue ");
 
          print_data(&data)
 
      
      },
     0x0155 => {
-     debug_print!("SMaxSampleValue ");
+     log("SMaxSampleValue ");
 
          print_data(&data)
 
      
      },
     0x0156 => {
-     debug_print!("TransferRange ");
+     log("TransferRange ");
 
          print_data(&data)
 
      
      },
     0x0157 => {
-     debug_print!("ClipPath ");
+     log("ClipPath ");
 
          print_data(&data)
 
      
      },
     0x0158 => {
-     debug_print!("XClipPathUnits ");
+     log("XClipPathUnits ");
 
          print_data(&data)
 
      
      },
     0x0159 => {
-     debug_print!("YClipPathUnits ");
+     log("YClipPathUnits ");
 
          print_data(&data)
 
      
      },
     0x015a => {
-     debug_print!("Indexed ");
+     log("Indexed ");
 
          print_data(&data)
 
      
      },
     0x015b => {
-     debug_print!("JPEGTables ");
+     log("JPEGTables ");
 
          print_data(&data)
 
      
      },
     0x015f => {
-     debug_print!("OPIProxy ");
+     log("OPIProxy ");
 
          print_data(&data)
 
      
      },
     0x0190 => {
-     debug_print!("GlobalParametersIFD ");
+     log("GlobalParametersIFD ");
 
          print_data(&data)
 
      
      },
     0x0191 => {
-     debug_print!("ProfileType ");
+     log("ProfileType ");
 
          print_data(&data)
 
      
      },
     0x0192 => {
-     debug_print!("FaxProfile ");
+     log("FaxProfile ");
 
          print_data(&data)
 
      
      },
     0x0193 => {
-     debug_print!("CodingMethods ");
+     log("CodingMethods ");
 
          print_data(&data)
 
      
      },
     0x0194 => {
-     debug_print!("VersionYear ");
+     log("VersionYear ");
 
          print_data(&data)
 
      
      },
     0x0195 => {
-     debug_print!("ModeNumber ");
+     log("ModeNumber ");
 
          print_data(&data)
 
      
      },
     0x01b1 => {
-     debug_print!("Decode ");
+     log("Decode ");
 
          print_data(&data)
 
      
      },
     0x01b2 => {
-     debug_print!("DefaultImageColor ");
+     log("DefaultImageColor ");
 
          print_data(&data)
 
      
      },
     0x01b3 => {
-     debug_print!("T82Options ");
+     log("T82Options ");
 
          print_data(&data)
 
      
      },
     0x01b5 => {
-     debug_print!("JPEGTables ");
+     log("JPEGTables ");
 
          print_data(&data)
 
      
      },
     0x0200 => {
-     debug_print!("JPEGProc ");
+     log("JPEGProc ");
 
          print_data(&data)
 
      
      },
     0x0201 => {
-     debug_print!("ThumbnailOffset ");
+     log("ThumbnailOffset ");
 
          print_data(&data)
 
      
      },
     0x0202 => {
-     debug_print!("ThumbnailLength ");
+     log("ThumbnailLength ");
 
          print_data(&data)
 
      
      },
     0x0203 => {
-     debug_print!("JPEGRestartInterval ");
+     log("JPEGRestartInterval ");
 
          print_data(&data)
 
      
      },
     0x0205 => {
-     debug_print!("JPEGLosslessPredictors ");
+     log("JPEGLosslessPredictors ");
 
          print_data(&data)
 
      
      },
     0x0206 => {
-     debug_print!("JPEGPointTransforms ");
+     log("JPEGPointTransforms ");
 
          print_data(&data)
 
      
      },
     0x0207 => {
-     debug_print!("JPEGQTables ");
+     log("JPEGQTables ");
 
          print_data(&data)
 
      
      },
     0x0208 => {
-     debug_print!("JPEGDCTables ");
+     log("JPEGDCTables ");
 
          print_data(&data)
 
      
      },
     0x0209 => {
-     debug_print!("JPEGACTables ");
+     log("JPEGACTables ");
 
          print_data(&data)
 
      
      },
     0x0211 => {
-     debug_print!("YCbCrCoefficients ");
+     log("YCbCrCoefficients ");
 
          print_data(&data)
 
      
      },
     0x0212 => {
-     debug_print!("YCbCrSubSampling ");
+     log("YCbCrSubSampling ");
 
          print_data(&data)
 
      
      },
     0x0213 => {
-     debug_print!("YCbCrPositioning ");
+     log("YCbCrPositioning ");
 
          print_data(&data)
 
      
      },
     0x0214 => {
-     debug_print!("ReferenceBlackWhite ");
+     log("ReferenceBlackWhite ");
 
          print_data(&data)
 
      
      },
     0x022f => {
-     debug_print!("StripRowCounts ");
+     log("StripRowCounts ");
 
          print_data(&data)
 
      
      },
     0x02bc => {
-     debug_print!("ApplicationNotes ");
+     log("ApplicationNotes ");
 
          print_data(&data)
 
      
      },
     0x03e7 => {
-     debug_print!("USPTOMiscellaneous ");
+     log("USPTOMiscellaneous ");
 
          print_data(&data)
 
      
      },
     0x1000 => {
-     debug_print!("RelatedImageFileFormat ");
+     log("RelatedImageFileFormat ");
 
          print_data(&data)
 
      
      },
     0x1001 => {
-     debug_print!("RelatedImageWidth ");
+     log("RelatedImageWidth ");
 
          print_data(&data)
 
      
      },
     0x1002 => {
-     debug_print!("RelatedImageHeight ");
+     log("RelatedImageHeight ");
 
          print_data(&data)
 
      
      },
     0x4746 => {
-     debug_print!("Rating ");
+     log("Rating ");
 
          print_data(&data)
 
      
      },
     0x4747 => {
-     debug_print!("XP_DIP_XML ");
+     log("XP_DIP_XML ");
 
          print_data(&data)
 
      
      },
     0x4748 => {
-     debug_print!("StitchInfo ");
+     log("StitchInfo ");
 
          print_data(&data)
 
      
      },
     0x4749 => {
-     debug_print!("RatingPercent ");
+     log("RatingPercent ");
 
          print_data(&data)
 
      
      },
     0x7000 => {
-     debug_print!("SonyRawFileType ");
+     log("SonyRawFileType ");
 
          print_data(&data)
 
      
      },
     0x7010 => {
-     debug_print!("SonyToneCurve ");
+     log("SonyToneCurve ");
 
          print_data(&data)
 
      
      },
     0x7031 => {
-     debug_print!("VignettingCorrection ");
+     log("VignettingCorrection ");
 
          print_data(&data)
 
      
      },
     0x7032 => {
-     debug_print!("VignettingCorrParams ");
+     log("VignettingCorrParams ");
 
          print_data(&data)
 
      
      },
     0x7034 => {
-     debug_print!("ChromaticAberrationCorrection ");
+     log("ChromaticAberrationCorrection ");
 
          print_data(&data)
 
      
      },
     0x7035 => {
-     debug_print!("ChromaticAberrationCorrParams ");
+     log("ChromaticAberrationCorrParams ");
 
          print_data(&data)
 
      
      },
     0x7036 => {
-     debug_print!("DistortionCorrection ");
+     log("DistortionCorrection ");
 
          print_data(&data)
 
      
      },
     0x7037 => {
-     debug_print!("DistortionCorrParams ");
+     log("DistortionCorrParams ");
 
          print_data(&data)
 
      
      },
     0x74c7 => {
-     debug_print!("SonyCropTopLeft ");
+     log("SonyCropTopLeft ");
 
          print_data(&data)
 
      
      },
     0x74c8 => {
-     debug_print!("SonyCropSize ");
+     log("SonyCropSize ");
 
          print_data(&data)
 
      
      },
     0x800d => {
-     debug_print!("ImageID ");
+     log("ImageID ");
 
          print_data(&data)
 
      
      },
     0x80a3 => {
-     debug_print!("WangTag1 ");
+     log("WangTag1 ");
 
          print_data(&data)
 
      
      },
     0x80a4 => {
-     debug_print!("WangAnnotation ");
+     log("WangAnnotation ");
 
          print_data(&data)
 
      
      },
     0x80a5 => {
-     debug_print!("WangTag3 ");
+     log("WangTag3 ");
 
          print_data(&data)
 
      
      },
     0x80a6 => {
-     debug_print!("WangTag4 ");
+     log("WangTag4 ");
 
          print_data(&data)
 
      
      },
     0x80b9 => {
-     debug_print!("ImageReferencePoints ");
+     log("ImageReferencePoints ");
 
          print_data(&data)
 
      
      },
     0x80ba => {
-     debug_print!("RegionXformTackPoint ");
+     log("RegionXformTackPoint ");
 
          print_data(&data)
 
      
      },
     0x80bb => {
-     debug_print!("WarpQuadrilateral ");
+     log("WarpQuadrilateral ");
 
          print_data(&data)
 
      
      },
     0x80bc => {
-     debug_print!("AffineTransformMat ");
+     log("AffineTransformMat ");
 
          print_data(&data)
 
      
      },
     0x80e3 => {
-     debug_print!("Matteing ");
+     log("Matteing ");
 
          print_data(&data)
 
      
      },
     0x80e4 => {
-     debug_print!("DataType ");
+     log("DataType ");
 
          print_data(&data)
 
      
      },
     0x80e5 => {
-     debug_print!("ImageDepth ");
+     log("ImageDepth ");
 
          print_data(&data)
 
      
      },
     0x80e6 => {
-     debug_print!("TileDepth ");
+     log("TileDepth ");
 
          print_data(&data)
 
      
      },
     0x8214 => {
-     debug_print!("ImageFullWidth ");
+     log("ImageFullWidth ");
 
          print_data(&data)
 
      
      },
     0x8215 => {
-     debug_print!("ImageFullHeight ");
+     log("ImageFullHeight ");
 
          print_data(&data)
 
      
      },
     0x8216 => {
-     debug_print!("TextureFormat ");
+     log("TextureFormat ");
 
          print_data(&data)
 
      
      },
     0x8217 => {
-     debug_print!("WrapModes ");
+     log("WrapModes ");
 
          print_data(&data)
 
      
      },
     0x8218 => {
-     debug_print!("FovCot ");
+     log("FovCot ");
 
          print_data(&data)
 
      
      },
     0x8219 => {
-     debug_print!("MatrixWorldToScreen ");
+     log("MatrixWorldToScreen ");
 
          print_data(&data)
 
      
      },
     0x821a => {
-     debug_print!("MatrixWorldToCamera ");
+     log("MatrixWorldToCamera ");
 
          print_data(&data)
 
      
      },
     0x827d => {
-     debug_print!("Model2 ");
+     log("Model2 ");
 
          print_data(&data)
 
      
      },
     0x828d => {
-     debug_print!("CFARepeatPatternDim ");
+     log("CFARepeatPatternDim ");
 
          print_data(&data)
 
      
      },
     0x828e => {
-     debug_print!("CFAPattern2 ");
+     log("CFAPattern2 ");
 
          print_data(&data)
 
      
      },
     0x828f => {
-     debug_print!("BatteryLevel ");
+     log("BatteryLevel ");
 
          print_data(&data)
 
      
      },
     0x8290 => {
-     debug_print!("KodakIFD ");
+     log("KodakIFD ");
 
          print_data(&data)
 
      
      },
     0x8298 => {
-     debug_print!("Copyright ");
+     log("Copyright ");
 
          print_data(&data)
 
      
      },
     0x829a => {
-     debug_print!("ExposureTime ");
+     log("ExposureTime ");
 
          print_data(&data)
 
      
      },
     0x829d => {
-     debug_print!("FNumber ");
+     log("FNumber ");
 
          print_data(&data)
 
      
      },
     0x82a5 => {
-     debug_print!("MDFileTag ");
+     log("MDFileTag ");
 
          print_data(&data)
 
      
      },
     0x82a6 => {
-     debug_print!("MDScalePixel ");
+     log("MDScalePixel ");
 
          print_data(&data)
 
      
      },
     0x82a7 => {
-     debug_print!("MDColorTable ");
+     log("MDColorTable ");
 
          print_data(&data)
 
      
      },
     0x82a8 => {
-     debug_print!("MDLabName ");
+     log("MDLabName ");
 
          print_data(&data)
 
      
      },
     0x82a9 => {
-     debug_print!("MDSampleInfo ");
+     log("MDSampleInfo ");
 
          print_data(&data)
 
      
      },
     0x82aa => {
-     debug_print!("MDPrepDate ");
+     log("MDPrepDate ");
 
          print_data(&data)
 
      
      },
     0x82ab => {
-     debug_print!("MDPrepTime ");
+     log("MDPrepTime ");
 
          print_data(&data)
 
      
      },
     0x82ac => {
-     debug_print!("MDFileUnits ");
+     log("MDFileUnits ");
 
          print_data(&data)
 
      
      },
     0x830e => {
-     debug_print!("PixelScale ");
+     log("PixelScale ");
 
          print_data(&data)
 
      
      },
     0x8335 => {
-     debug_print!("AdventScale ");
+     log("AdventScale ");
 
          print_data(&data)
 
      
      },
     0x8336 => {
-     debug_print!("AdventRevision ");
+     log("AdventRevision ");
 
          print_data(&data)
 
      
      },
     0x835c => {
-     debug_print!("UIC1Tag ");
+     log("UIC1Tag ");
 
          print_data(&data)
 
      
      },
     0x835d => {
-     debug_print!("UIC2Tag ");
+     log("UIC2Tag ");
 
          print_data(&data)
 
      
      },
     0x835e => {
-     debug_print!("UIC3Tag ");
+     log("UIC3Tag ");
 
          print_data(&data)
 
      
      },
     0x835f => {
-     debug_print!("UIC4Tag ");
+     log("UIC4Tag ");
 
          print_data(&data)
 
      
      },
     0x83bb => {
-     debug_print!("IPTC-NAA ");
+     log("IPTC-NAA ");
 
          print_data(&data)
 
      
      },
     0x847e => {
-     debug_print!("IntergraphPacketData ");
+     log("IntergraphPacketData ");
 
          print_data(&data)
 
      
      },
     0x847f => {
-     debug_print!("IntergraphFlagRegisters ");
+     log("IntergraphFlagRegisters ");
 
          print_data(&data)
 
      
      },
     0x8480 => {
-     debug_print!("IntergraphMatrix ");
+     log("IntergraphMatrix ");
 
          print_data(&data)
 
      
      },
     0x8481 => {
-     debug_print!("INGRReserved ");
+     log("INGRReserved ");
 
          print_data(&data)
 
      
      },
     0x8482 => {
-     debug_print!("ModelTiePoint ");
+     log("ModelTiePoint ");
 
          print_data(&data)
 
      
      },
     0x84e0 => {
-     debug_print!("Site ");
+     log("Site ");
 
          print_data(&data)
 
      
      },
     0x84e1 => {
-     debug_print!("ColorSequence ");
+     log("ColorSequence ");
 
          print_data(&data)
 
      
      },
     0x84e2 => {
-     debug_print!("IT8Header ");
+     log("IT8Header ");
 
          print_data(&data)
 
      
      },
     0x84e3 => {
-     debug_print!("RasterPadding ");
+     log("RasterPadding ");
 
          print_data(&data)
 
      
      },
     0x84e4 => {
-     debug_print!("BitsPerRunLength ");
+     log("BitsPerRunLength ");
 
          print_data(&data)
 
      
      },
     0x84e5 => {
-     debug_print!("BitsPerExtendedRunLength ");
+     log("BitsPerExtendedRunLength ");
 
          print_data(&data)
 
      
      },
     0x84e6 => {
-     debug_print!("ColorTable ");
+     log("ColorTable ");
 
          print_data(&data)
 
      
      },
     0x84e7 => {
-     debug_print!("ImageColorIndicator ");
+     log("ImageColorIndicator ");
 
          print_data(&data)
 
      
      },
     0x84e8 => {
-     debug_print!("BackgroundColorIndicator ");
+     log("BackgroundColorIndicator ");
 
          print_data(&data)
 
      
      },
     0x84e9 => {
-     debug_print!("ImageColorValue ");
+     log("ImageColorValue ");
 
          print_data(&data)
 
      
      },
     0x84ea => {
-     debug_print!("BackgroundColorValue ");
+     log("BackgroundColorValue ");
 
          print_data(&data)
 
      
      },
     0x84eb => {
-     debug_print!("PixelIntensityRange ");
+     log("PixelIntensityRange ");
 
          print_data(&data)
 
      
      },
     0x84ec => {
-     debug_print!("TransparencyIndicator ");
+     log("TransparencyIndicator ");
 
          print_data(&data)
 
      
      },
     0x84ed => {
-     debug_print!("ColorCharacterization ");
+     log("ColorCharacterization ");
 
          print_data(&data)
 
      
      },
     0x84ee => {
-     debug_print!("HCUsage ");
+     log("HCUsage ");
 
          print_data(&data)
 
      
      },
     0x84ef => {
-     debug_print!("TrapIndicator ");
+     log("TrapIndicator ");
 
          print_data(&data)
 
      
      },
     0x84f0 => {
-     debug_print!("CMYKEquivalent ");
+     log("CMYKEquivalent ");
 
          print_data(&data)
 
      
      },
     0x8546 => {
-     debug_print!("SEMInfo ");
+     log("SEMInfo ");
 
          print_data(&data)
 
      
      },
     0x8568 => {
-     debug_print!("AFCP_IPTC ");
+     log("AFCP_IPTC ");
 
          print_data(&data)
 
      
      },
     0x85b8 => {
-     debug_print!("PixelMagicJBIGOptions ");
+     log("PixelMagicJBIGOptions ");
 
          print_data(&data)
 
      
      },
     0x85d7 => {
-     debug_print!("JPLCartoIFD ");
+     log("JPLCartoIFD ");
 
          print_data(&data)
 
      
      },
     0x85d8 => {
-     debug_print!("ModelTransform ");
+     log("ModelTransform ");
 
          print_data(&data)
 
      
      },
     0x8602 => {
-     debug_print!("WB_GRGBLevels ");
+     log("WB_GRGBLevels ");
 
          print_data(&data)
 
      
      },
     0x8606 => {
-     debug_print!("LeafData ");
+     log("LeafData ");
 
          print_data(&data)
 
      
      },
     0x8649 => {
-     debug_print!("PhotoshopSettings ");
+     log("PhotoshopSettings ");
 
          print_data(&data)
 
      
      },
     0x8769 => {
-     debug_print!("ExifOffset ");
+     log("ExifOffset ");
 
          print_data(&data)
 
      
      },
     0x8773 => {
-     debug_print!("ICC_Profile ");
+     log("ICC_Profile ");
 
          print_data(&data)
 
      
      },
     0x877f => {
-     debug_print!("TIFF_FXExtensions ");
+     log("TIFF_FXExtensions ");
 
          print_data(&data)
 
      
      },
     0x8780 => {
-     debug_print!("MultiProfiles ");
+     log("MultiProfiles ");
 
          print_data(&data)
 
      
      },
     0x8781 => {
-     debug_print!("SharedData ");
+     log("SharedData ");
 
          print_data(&data)
 
      
      },
     0x8782 => {
-     debug_print!("T88Options ");
+     log("T88Options ");
 
          print_data(&data)
 
      
      },
     0x87ac => {
-     debug_print!("ImageLayer ");
+     log("ImageLayer ");
 
          print_data(&data)
 
      
      },
     0x87af => {
-     debug_print!("GeoTiffDirectory ");
+     log("GeoTiffDirectory ");
 
          print_data(&data)
 
      
      },
     0x87b0 => {
-     debug_print!("GeoTiffDoubleParams ");
+     log("GeoTiffDoubleParams ");
 
          print_data(&data)
 
      
      },
     0x87b1 => {
-     debug_print!("GeoTiffAsciiParams ");
+     log("GeoTiffAsciiParams ");
 
          print_data(&data)
 
      
      },
     0x87be => {
-     debug_print!("JBIGOptions ");
+     log("JBIGOptions ");
 
          print_data(&data)
 
      
      },
     0x8822 => {
-     debug_print!("ExposureProgram ");
+     log("ExposureProgram ");
 
          print_data(&data)
 
      
      },
     0x8824 => {
-     debug_print!("SpectralSensitivity ");
+     log("SpectralSensitivity ");
 
          print_data(&data)
 
      
      },
     0x8825 => {
-     debug_print!("GPSInfo ");
+     log("GPSInfo ");
 
          print_data(&data)
 
      
      },
     0x8827 => {
-     debug_print!("ISO ");
+     log("ISO ");
 
          print_data(&data)
 
      
      },
     0x8828 => {
-     debug_print!("Opto-ElectricConvFactor ");
+     log("Opto-ElectricConvFactor ");
 
          print_data(&data)
 
      
      },
     0x8829 => {
-     debug_print!("Interlace ");
+     log("Interlace ");
 
          print_data(&data)
 
      
      },
     0x882a => {
-     debug_print!("TimeZoneOffset ");
+     log("TimeZoneOffset ");
 
          print_data(&data)
 
      
      },
     0x882b => {
-     debug_print!("SelfTimerMode ");
+     log("SelfTimerMode ");
 
          print_data(&data)
 
      
      },
     0x8830 => {
-     debug_print!("SensitivityType ");
+     log("SensitivityType ");
 
          print_data(&data)
 
      
      },
     0x8831 => {
-     debug_print!("StandardOutputSensitivity ");
+     log("StandardOutputSensitivity ");
 
          print_data(&data)
 
      
      },
     0x8832 => {
-     debug_print!("RecommendedExposureIndex ");
+     log("RecommendedExposureIndex ");
 
          print_data(&data)
 
      
      },
     0x8833 => {
-     debug_print!("ISOSpeed ");
+     log("ISOSpeed ");
 
          print_data(&data)
 
      
      },
     0x8834 => {
-     debug_print!("ISOSpeedLatitudeyyy ");
+     log("ISOSpeedLatitudeyyy ");
 
          print_data(&data)
 
      
      },
     0x8835 => {
-     debug_print!("ISOSpeedLatitudezzz ");
+     log("ISOSpeedLatitudezzz ");
 
          print_data(&data)
 
      
      },
     0x885c => {
-     debug_print!("FaxRecvParams ");
+     log("FaxRecvParams ");
 
          print_data(&data)
 
      
      },
     0x885d => {
-     debug_print!("FaxSubAddress ");
+     log("FaxSubAddress ");
 
          print_data(&data)
 
      
      },
     0x885e => {
-     debug_print!("FaxRecvTime ");
+     log("FaxRecvTime ");
 
          print_data(&data)
 
      
      },
     0x8871 => {
-     debug_print!("FedexEDR ");
+     log("FedexEDR ");
 
          print_data(&data)
 
      
      },
     0x888a => {
-     debug_print!("LeafSubIFD ");
+     log("LeafSubIFD ");
 
          print_data(&data)
 
      
      },
     0x9000 => {
-     debug_print!("ExifVersion ");
+     log("ExifVersion ");
 
          print_data(&data)
 
      
      },
     0x9003 => {
-     debug_print!("DateTimeOriginal ");
+     log("DateTimeOriginal ");
 
          print_data(&data)
 
      
      },
     0x9004 => {
-     debug_print!("CreateDate ");
+     log("CreateDate ");
 
          print_data(&data)
 
      
      },
     0x9009 => {
-     debug_print!("GooglePlusUploadCode ");
+     log("GooglePlusUploadCode ");
 
          print_data(&data)
 
      
      },
     0x9010 => {
-     debug_print!("OffsetTime ");
+     log("OffsetTime ");
 
          print_data(&data)
 
      
      },
     0x9011 => {
-     debug_print!("OffsetTimeOriginal ");
+     log("OffsetTimeOriginal ");
 
          print_data(&data)
 
      
      },
     0x9012 => {
-     debug_print!("OffsetTimeDigitized ");
+     log("OffsetTimeDigitized ");
 
          print_data(&data)
 
      
      },
     0x9101 => {
-     debug_print!("ComponentsConfiguration ");
+     log("ComponentsConfiguration ");
 
          print_data(&data)
 
      
      },
     0x9102 => {
-     debug_print!("CompressedBitsPerPixel ");
+     log("CompressedBitsPerPixel ");
 
          print_data(&data)
 
      
      },
     0x9201 => {
-     debug_print!("ShutterSpeedValue ");
+     log("ShutterSpeedValue ");
 
          print_data(&data)
 
      
      },
     0x9202 => {
-     debug_print!("ApertureValue ");
+     log("ApertureValue ");
 
          print_data(&data)
 
      
      },
     0x9203 => {
-     debug_print!("BrightnessValue ");
+     log("BrightnessValue ");
 
          print_data(&data)
 
      
      },
     0x9204 => {
-     debug_print!("ExposureCompensation ");
+     log("ExposureCompensation ");
 
          print_data(&data)
 
      
      },
     0x9205 => {
-     debug_print!("MaxApertureValue ");
+     log("MaxApertureValue ");
 
          print_data(&data)
 
      
      },
     0x9206 => {
-     debug_print!("SubjectDistance ");
+     log("SubjectDistance ");
 
          print_data(&data)
 
      
      },
     0x9207 => {
-     debug_print!("MeteringMode ");
+     log("MeteringMode ");
 
          print_data(&data)
 
      
      },
     0x9208 => {
-     debug_print!("LightSource ");
+     log("LightSource ");
 
          print_data(&data)
 
      
      },
     0x9209 => {
-     debug_print!("Flash ");
+     log("Flash ");
 
          print_data(&data)
 
      
      },
     0x920a => {
-     debug_print!("FocalLength ");
+     log("FocalLength ");
 
          print_data(&data)
 
      
      },
     0x920b => {
-     debug_print!("FlashEnergy ");
+     log("FlashEnergy ");
 
          print_data(&data)
 
      
      },
     0x920c => {
-     debug_print!("SpatialFrequencyResponse ");
+     log("SpatialFrequencyResponse ");
 
          print_data(&data)
 
      
      },
     0x920d => {
-     debug_print!("Noise ");
+     log("Noise ");
 
          print_data(&data)
 
      
      },
     0x920e => {
-     debug_print!("FocalPlaneXResolution ");
+     log("FocalPlaneXResolution ");
 
          print_data(&data)
 
      
      },
     0x920f => {
-     debug_print!("FocalPlaneYResolution ");
+     log("FocalPlaneYResolution ");
 
          print_data(&data)
 
      
      },
     0x9210 => {
-     debug_print!("FocalPlaneResolutionUnit ");
+     log("FocalPlaneResolutionUnit ");
 
          print_data(&data)
 
      
      },
     0x9211 => {
-     debug_print!("ImageNumber ");
+     log("ImageNumber ");
 
          print_data(&data)
 
      
      },
     0x9212 => {
-     debug_print!("SecurityClassification ");
+     log("SecurityClassification ");
 
          print_data(&data)
 
      
      },
     0x9213 => {
-     debug_print!("ImageHistory ");
+     log("ImageHistory ");
 
          print_data(&data)
 
      
      },
     0x9214 => {
-     debug_print!("SubjectArea ");
+     log("SubjectArea ");
 
          print_data(&data)
 
      
      },
     0x9215 => {
-     debug_print!("ExposureIndex ");
+     log("ExposureIndex ");
 
          print_data(&data)
 
      
      },
     0x9216 => {
-     debug_print!("TIFF-EPStandardID ");
+     log("TIFF-EPStandardID ");
 
          print_data(&data)
 
      
      },
     0x9217 => {
-     debug_print!("SensingMethod ");
+     log("SensingMethod ");
 
          print_data(&data)
 
      
      },
     0x923a => {
-     debug_print!("CIP3DataFile ");
+     log("CIP3DataFile ");
 
          print_data(&data)
 
      
      },
     0x923b => {
-     debug_print!("CIP3Sheet ");
+     log("CIP3Sheet ");
 
          print_data(&data)
 
      
      },
     0x923c => {
-     debug_print!("CIP3Side ");
+     log("CIP3Side ");
 
          print_data(&data)
 
      
      },
     0x923f => {
-     debug_print!("StoNits ");
+     log("StoNits ");
 
          print_data(&data)
 
      
      },
     0x927c => {
-        debug_print!("MakerNoteApple ");
+        log("MakerNoteApple ");
         match data {
             DataPack::Undef(d) => {
 
             let string = read_string(d, 0, d.len());
-            debug_print!("{}",string)
+            log(&string)
             },
             _ => {}
         }
@@ -2022,1673 +2023,1673 @@ pub fn tag_mapper(tag :u16, data: &DataPack) {
      
      },
     0x9286 => {
-     debug_print!("UserComment ");
+     log("UserComment ");
 
          print_data(&data)
 
      
      },
     0x9290 => {
-     debug_print!("SubSecTime ");
+     log("SubSecTime ");
 
          print_data(&data)
 
      
      },
     0x9291 => {
-     debug_print!("SubSecTimeOriginal ");
+     log("SubSecTimeOriginal ");
 
          print_data(&data)
 
      
      },
     0x9292 => {
-     debug_print!("SubSecTimeDigitized ");
+     log("SubSecTimeDigitized ");
 
          print_data(&data)
 
      
      },
     0x932f => {
-     debug_print!("MSDocumentText ");
+     log("MSDocumentText ");
 
          print_data(&data)
 
      
      },
     0x9330 => {
-     debug_print!("MSPropertySetStorage ");
+     log("MSPropertySetStorage ");
 
          print_data(&data)
 
      
      },
     0x9331 => {
-     debug_print!("MSDocumentTextPosition ");
+     log("MSDocumentTextPosition ");
 
          print_data(&data)
 
      
      },
     0x935c => {
-     debug_print!("ImageSourceData ");
+     log("ImageSourceData ");
 
          print_data(&data)
 
      
      },
     0x9400 => {
-     debug_print!("AmbientTemperature ");
+     log("AmbientTemperature ");
 
          print_data(&data)
 
      
      },
     0x9401 => {
-     debug_print!("Humidity ");
+     log("Humidity ");
 
          print_data(&data)
 
      
      },
     0x9402 => {
-     debug_print!("Pressure ");
+     log("Pressure ");
 
          print_data(&data)
 
      
      },
     0x9403 => {
-     debug_print!("WaterDepth ");
+     log("WaterDepth ");
 
          print_data(&data)
 
      
      },
     0x9404 => {
-     debug_print!("Acceleration ");
+     log("Acceleration ");
 
          print_data(&data)
 
      
      },
     0x9405 => {
-     debug_print!("CameraElevationAngle ");
+     log("CameraElevationAngle ");
 
          print_data(&data)
 
      
      },
     0x9c9b => {
-     debug_print!("XPTitle ");
+     log("XPTitle ");
 
          print_data(&data)
 
      
      },
     0x9c9c => {
-     debug_print!("XPComment ");
+     log("XPComment ");
 
          print_data(&data)
 
      
      },
     0x9c9d => {
-     debug_print!("XPAuthor ");
+     log("XPAuthor ");
 
          print_data(&data)
 
      
      },
     0x9c9e => {
-     debug_print!("XPKeywords ");
+     log("XPKeywords ");
 
          print_data(&data)
 
      
      },
     0x9c9f => {
-     debug_print!("XPSubject ");
+     log("XPSubject ");
 
          print_data(&data)
 
      
      },
     0xa000 => {
-     debug_print!("FlashpixVersion ");
+     log("FlashpixVersion ");
 
          print_data(&data)
 
      
      },
     0xa001 => {
-     debug_print!("ColorSpace ");
+     log("ColorSpace ");
 
          print_data(&data)
 
      
      },
     0xa002 => {
-     debug_print!("ExifImageWidth ");
+     log("ExifImageWidth ");
 
          print_data(&data)
 
      
      },
     0xa003 => {
-     debug_print!("ExifImageHeight ");
+     log("ExifImageHeight ");
 
          print_data(&data)
 
      
      },
     0xa004 => {
-     debug_print!("RelatedSoundFile ");
+     log("RelatedSoundFile ");
 
          print_data(&data)
 
      
      },
     0xa005 => {
-     debug_print!("InteropOffset ");
+     log("InteropOffset ");
 
          print_data(&data)
 
      
      },
     0xa010 => {
-     debug_print!("SamsungRawPointersOffset ");
+     log("SamsungRawPointersOffset ");
 
          print_data(&data)
 
      
      },
     0xa011 => {
-     debug_print!("SamsungRawPointersLength ");
+     log("SamsungRawPointersLength ");
 
          print_data(&data)
 
      
      },
     0xa101 => {
-     debug_print!("SamsungRawByteOrder ");
+     log("SamsungRawByteOrder ");
 
          print_data(&data)
 
      
      },
     0xa102 => {
-     debug_print!("SamsungRawUnknown? ");
+     log("SamsungRawUnknown? ");
 
          print_data(&data)
 
      
      },
     0xa20b => {
-     debug_print!("FlashEnergy ");
+     log("FlashEnergy ");
 
          print_data(&data)
 
      
      },
     0xa20c => {
-     debug_print!("SpatialFrequencyResponse ");
+     log("SpatialFrequencyResponse ");
 
          print_data(&data)
 
      
      },
     0xa20d => {
-     debug_print!("Noise ");
+     log("Noise ");
 
          print_data(&data)
 
      
      },
     0xa20e => {
-     debug_print!("FocalPlaneXResolution ");
+     log("FocalPlaneXResolution ");
 
          print_data(&data)
 
      
      },
     0xa20f => {
-     debug_print!("FocalPlaneYResolution ");
+     log("FocalPlaneYResolution ");
 
          print_data(&data)
 
      
      },
     0xa210 => {
-     debug_print!("FocalPlaneResolutionUnit ");
+     log("FocalPlaneResolutionUnit ");
 
          print_data(&data)
 
      
      },
     0xa211 => {
-     debug_print!("ImageNumber ");
+     log("ImageNumber ");
 
          print_data(&data)
 
      
      },
     0xa212 => {
-     debug_print!("SecurityClassification ");
+     log("SecurityClassification ");
 
          print_data(&data)
 
      
      },
     0xa213 => {
-     debug_print!("ImageHistory ");
+     log("ImageHistory ");
 
          print_data(&data)
 
      
      },
     0xa214 => {
-     debug_print!("SubjectLocation ");
+     log("SubjectLocation ");
 
          print_data(&data)
 
      
      },
     0xa215 => {
-     debug_print!("ExposureIndex ");
+     log("ExposureIndex ");
 
          print_data(&data)
 
      
      },
     0xa216 => {
-     debug_print!("TIFF-EPStandardID ");
+     log("TIFF-EPStandardID ");
 
          print_data(&data)
 
      
      },
     0xa217 => {
-     debug_print!("SensingMethod ");
+     log("SensingMethod ");
 
          print_data(&data)
 
      
      },
     0xa300 => {
-     debug_print!("FileSource ");
+     log("FileSource ");
 
          print_data(&data)
 
      
      },
     0xa301 => {
-     debug_print!("SceneType ");
+     log("SceneType ");
 
          print_data(&data)
 
      
      },
     0xa302 => {
-     debug_print!("CFAPattern ");
+     log("CFAPattern ");
 
          print_data(&data)
 
      
      },
     0xa401 => {
-     debug_print!("CustomRendered ");
+     log("CustomRendered ");
 
          print_data(&data)
 
      
      },
     0xa402 => {
-     debug_print!("ExposureMode ");
+     log("ExposureMode ");
 
          print_data(&data)
 
      
      },
     0xa403 => {
-     debug_print!("WhiteBalance ");
+     log("WhiteBalance ");
 
          print_data(&data)
 
      
      },
     0xa404 => {
-     debug_print!("DigitalZoomRatio ");
+     log("DigitalZoomRatio ");
 
          print_data(&data)
 
      
      },
     0xa405 => {
-     debug_print!("FocalLengthIn35mmFormat ");
+     log("FocalLengthIn35mmFormat ");
 
          print_data(&data)
 
      
      },
     0xa406 => {
-     debug_print!("SceneCaptureType ");
+     log("SceneCaptureType ");
 
          print_data(&data)
 
      
      },
     0xa407 => {
-     debug_print!("GainControl ");
+     log("GainControl ");
 
          print_data(&data)
 
      
      },
     0xa408 => {
-     debug_print!("Contrast ");
+     log("Contrast ");
 
          print_data(&data)
 
      
      },
     0xa409 => {
-     debug_print!("Saturation ");
+     log("Saturation ");
 
          print_data(&data)
 
      
      },
     0xa40a => {
-     debug_print!("Sharpness ");
+     log("Sharpness ");
 
          print_data(&data)
 
      
      },
     0xa40b => {
-     debug_print!("DeviceSettingDescription ");
+     log("DeviceSettingDescription ");
 
          print_data(&data)
 
      
      },
     0xa40c => {
-     debug_print!("SubjectDistanceRange ");
+     log("SubjectDistanceRange ");
 
          print_data(&data)
 
      
      },
     0xa420 => {
-     debug_print!("ImageUniqueID ");
+     log("ImageUniqueID ");
 
          print_data(&data)
 
      
      },
     0xa430 => {
-     debug_print!("OwnerName ");
+     log("OwnerName ");
 
          print_data(&data)
 
      
      },
     0xa431 => {
-     debug_print!("SerialNumber ");
+     log("SerialNumber ");
 
          print_data(&data)
 
      
      },
     0xa432 => {
-     debug_print!("LensInfo ");
+     log("LensInfo ");
 
          print_data(&data)
 
      
      },
     0xa433 => {
-     debug_print!("LensMake ");
+     log("LensMake ");
 
          print_data(&data)
 
      
      },
     0xa434 => {
-     debug_print!("LensModel ");
+     log("LensModel ");
 
          print_data(&data)
 
      
      },
     0xa435 => {
-     debug_print!("LensSerialNumber ");
+     log("LensSerialNumber ");
 
          print_data(&data)
 
      
      },
     0xa460 => {
-     debug_print!("CompositeImage ");
+     log("CompositeImage ");
 
          print_data(&data)
 
      
      },
     0xa461 => {
-     debug_print!("CompositeImageCount ");
+     log("CompositeImageCount ");
 
          print_data(&data)
 
      
      },
     0xa462 => {
-     debug_print!("CompositeImageExposureTimes ");
+     log("CompositeImageExposureTimes ");
 
          print_data(&data)
 
      
      },
     0xa480 => {
-     debug_print!("GDALMetadata ");
+     log("GDALMetadata ");
 
          print_data(&data)
 
      
      },
     0xa481 => {
-     debug_print!("GDALNoData ");
+     log("GDALNoData ");
 
          print_data(&data)
 
      
      },
     0xa500 => {
-     debug_print!("Gamma ");
+     log("Gamma ");
 
          print_data(&data)
 
      
      },
     0xafc0 => {
-     debug_print!("ExpandSoftware ");
+     log("ExpandSoftware ");
 
          print_data(&data)
 
      
      },
     0xafc1 => {
-     debug_print!("ExpandLens ");
+     log("ExpandLens ");
 
          print_data(&data)
 
      
      },
     0xafc2 => {
-     debug_print!("ExpandFilm ");
+     log("ExpandFilm ");
 
          print_data(&data)
 
      
      },
     0xafc3 => {
-     debug_print!("ExpandFilterLens ");
+     log("ExpandFilterLens ");
 
          print_data(&data)
 
      
      },
     0xafc4 => {
-     debug_print!("ExpandScanner ");
+     log("ExpandScanner ");
 
          print_data(&data)
 
      
      },
     0xafc5 => {
-     debug_print!("ExpandFlashLamp ");
+     log("ExpandFlashLamp ");
 
          print_data(&data)
 
      
      },
     0xb4c3 => {
-     debug_print!("HasselbladRawImage ");
+     log("HasselbladRawImage ");
 
          print_data(&data)
 
      
      },
     0xbc01 => {
-     debug_print!("PixelFormat ");
+     log("PixelFormat ");
 
          print_data(&data)
 
      
      },
     0xbc02 => {
-     debug_print!("Transformation ");
+     log("Transformation ");
 
          print_data(&data)
 
      
      },
     0xbc03 => {
-     debug_print!("Uncompressed ");
+     log("Uncompressed ");
 
          print_data(&data)
 
      
      },
     0xbc04 => {
-     debug_print!("ImageType ");
+     log("ImageType ");
 
          print_data(&data)
 
      
      },
     0xbc80 => {
-     debug_print!("ImageWidth ");
+     log("ImageWidth ");
 
          print_data(&data)
 
      
      },
     0xbc81 => {
-     debug_print!("ImageHeight ");
+     log("ImageHeight ");
 
          print_data(&data)
 
      
      },
     0xbc82 => {
-     debug_print!("WidthResolution ");
+     log("WidthResolution ");
 
          print_data(&data)
 
      
      },
     0xbc83 => {
-     debug_print!("HeightResolution ");
+     log("HeightResolution ");
 
          print_data(&data)
 
      
      },
     0xbcc0 => {
-     debug_print!("ImageOffset ");
+     log("ImageOffset ");
 
          print_data(&data)
 
      
      },
     0xbcc1 => {
-     debug_print!("ImageByteCount ");
+     log("ImageByteCount ");
 
          print_data(&data)
 
      
      },
     0xbcc2 => {
-     debug_print!("AlphaOffset ");
+     log("AlphaOffset ");
 
          print_data(&data)
 
      
      },
     0xbcc3 => {
-     debug_print!("AlphaByteCount ");
+     log("AlphaByteCount ");
 
          print_data(&data)
 
      
      },
     0xbcc4 => {
-     debug_print!("ImageDataDiscard ");
+     log("ImageDataDiscard ");
 
          print_data(&data)
 
      
      },
     0xbcc5 => {
-     debug_print!("AlphaDataDiscard ");
+     log("AlphaDataDiscard ");
 
          print_data(&data)
 
      
      },
     0xc427 => {
-     debug_print!("OceScanjobDesc ");
+     log("OceScanjobDesc ");
 
          print_data(&data)
 
      
      },
     0xc428 => {
-     debug_print!("OceApplicationSelector ");
+     log("OceApplicationSelector ");
 
          print_data(&data)
 
      
      },
     0xc429 => {
-     debug_print!("OceIDNumber ");
+     log("OceIDNumber ");
 
          print_data(&data)
 
      
      },
     0xc42a => {
-     debug_print!("OceImageLogic ");
+     log("OceImageLogic ");
 
          print_data(&data)
 
      
      },
     0xc44f => {
-     debug_print!("Annotations ");
+     log("Annotations ");
 
          print_data(&data)
 
      
      },
     0xc4a5 => {
-     debug_print!("PrintIM ");
+     log("PrintIM ");
 
          print_data(&data)
 
      
      },
     0xc51b => {
-     debug_print!("HasselbladExif ");
+     log("HasselbladExif ");
 
          print_data(&data)
 
      
      },
     0xc573 => {
-     debug_print!("OriginalFileName ");
+     log("OriginalFileName ");
 
          print_data(&data)
 
      
      },
     0xc580 => {
-     debug_print!("USPTOOriginalContentType ");
+     log("USPTOOriginalContentType ");
 
          print_data(&data)
 
      
      },
     0xc5e0 => {
-     debug_print!("CR2CFAPattern ");
+     log("CR2CFAPattern ");
 
          print_data(&data)
 
      
      },
     0xc612 => {
-     debug_print!("DNGVersion ");
+     log("DNGVersion ");
 
          print_data(&data)
 
      
      },
     0xc613 => {
-     debug_print!("DNGBackwardVersion ");
+     log("DNGBackwardVersion ");
 
          print_data(&data)
 
      
      },
     0xc614 => {
-     debug_print!("UniqueCameraModel ");
+     log("UniqueCameraModel ");
 
          print_data(&data)
 
      
      },
     0xc615 => {
-     debug_print!("LocalizedCameraModel ");
+     log("LocalizedCameraModel ");
 
          print_data(&data)
 
      
      },
     0xc616 => {
-     debug_print!("CFAPlaneColor ");
+     log("CFAPlaneColor ");
 
          print_data(&data)
 
      
      },
     0xc617 => {
-     debug_print!("CFALayout ");
+     log("CFALayout ");
 
          print_data(&data)
 
      
      },
     0xc618 => {
-     debug_print!("LinearizationTable ");
+     log("LinearizationTable ");
 
          print_data(&data)
 
      
      },
     0xc619 => {
-     debug_print!("BlackLevelRepeatDim ");
+     log("BlackLevelRepeatDim ");
 
          print_data(&data)
 
      
      },
     0xc61a => {
-     debug_print!("BlackLevel ");
+     log("BlackLevel ");
 
          print_data(&data)
 
      
      },
     0xc61b => {
-     debug_print!("BlackLevelDeltaH ");
+     log("BlackLevelDeltaH ");
 
          print_data(&data)
 
      
      },
     0xc61c => {
-     debug_print!("BlackLevelDeltaV ");
+     log("BlackLevelDeltaV ");
 
          print_data(&data)
 
      
      },
     0xc61d => {
-     debug_print!("WhiteLevel ");
+     log("WhiteLevel ");
 
          print_data(&data)
 
      
      },
     0xc61e => {
-     debug_print!("DefaultScale ");
+     log("DefaultScale ");
 
          print_data(&data)
 
      
      },
     0xc61f => {
-     debug_print!("DefaultCropOrigin ");
+     log("DefaultCropOrigin ");
 
          print_data(&data)
 
      
      },
     0xc620 => {
-     debug_print!("DefaultCropSize ");
+     log("DefaultCropSize ");
 
          print_data(&data)
 
      
      },
     0xc621 => {
-     debug_print!("ColorMatrix1 ");
+     log("ColorMatrix1 ");
 
          print_data(&data)
 
      
      },
     0xc622 => {
-     debug_print!("ColorMatrix2 ");
+     log("ColorMatrix2 ");
 
          print_data(&data)
 
      
      },
     0xc623 => {
-     debug_print!("CameraCalibration1 ");
+     log("CameraCalibration1 ");
 
          print_data(&data)
 
      
      },
     0xc624 => {
-     debug_print!("CameraCalibration2 ");
+     log("CameraCalibration2 ");
 
          print_data(&data)
 
      
      },
     0xc625 => {
-     debug_print!("ReductionMatrix1 ");
+     log("ReductionMatrix1 ");
 
          print_data(&data)
 
      
      },
     0xc626 => {
-     debug_print!("ReductionMatrix2 ");
+     log("ReductionMatrix2 ");
 
          print_data(&data)
 
      
      },
     0xc627 => {
-     debug_print!("AnalogBalance ");
+     log("AnalogBalance ");
 
          print_data(&data)
 
      
      },
     0xc628 => {
-     debug_print!("AsShotNeutral ");
+     log("AsShotNeutral ");
 
          print_data(&data)
 
      
      },
     0xc629 => {
-     debug_print!("AsShotWhiteXY ");
+     log("AsShotWhiteXY ");
 
          print_data(&data)
 
      
      },
     0xc62a => {
-     debug_print!("BaselineExposure ");
+     log("BaselineExposure ");
 
          print_data(&data)
 
      
      },
     0xc62b => {
-     debug_print!("BaselineNoise ");
+     log("BaselineNoise ");
 
          print_data(&data)
 
      
      },
     0xc62c => {
-     debug_print!("BaselineSharpness ");
+     log("BaselineSharpness ");
 
          print_data(&data)
 
      
      },
     0xc62d => {
-     debug_print!("BayerGreenSplit ");
+     log("BayerGreenSplit ");
 
          print_data(&data)
 
      
      },
     0xc62e => {
-     debug_print!("LinearResponseLimit ");
+     log("LinearResponseLimit ");
 
          print_data(&data)
 
      
      },
     0xc62f => {
-     debug_print!("CameraSerialNumber ");
+     log("CameraSerialNumber ");
 
          print_data(&data)
 
      
      },
     0xc630 => {
-     debug_print!("DNGLensInfo ");
+     log("DNGLensInfo ");
 
          print_data(&data)
 
      
      },
     0xc631 => {
-     debug_print!("ChromaBlurRadius ");
+     log("ChromaBlurRadius ");
 
          print_data(&data)
 
      
      },
     0xc632 => {
-     debug_print!("AntiAliasStrength ");
+     log("AntiAliasStrength ");
 
          print_data(&data)
 
      
      },
     0xc633 => {
-     debug_print!("ShadowScale ");
+     log("ShadowScale ");
 
          print_data(&data)
 
      
      },
     0xc634 => {
-     debug_print!("SR2Private ");
+     log("SR2Private ");
 
          print_data(&data)
 
      
      },
     0xc635 => {
-     debug_print!("MakerNoteSafety ");
+     log("MakerNoteSafety ");
 
          print_data(&data)
 
      
      },
     0xc640 => {
-     debug_print!("RawImageSegmentation ");
+     log("RawImageSegmentation ");
 
          print_data(&data)
 
      
      },
     0xc65a => {
-     debug_print!("CalibrationIlluminant1 ");
+     log("CalibrationIlluminant1 ");
 
          print_data(&data)
 
      
      },
     0xc65b => {
-     debug_print!("CalibrationIlluminant2 ");
+     log("CalibrationIlluminant2 ");
 
          print_data(&data)
 
      
      },
     0xc65c => {
-     debug_print!("BestQualityScale ");
+     log("BestQualityScale ");
 
          print_data(&data)
 
      
      },
     0xc65d => {
-     debug_print!("RawDataUniqueID ");
+     log("RawDataUniqueID ");
 
          print_data(&data)
 
      
      },
     0xc660 => {
-     debug_print!("AliasLayerMetadata ");
+     log("AliasLayerMetadata ");
 
          print_data(&data)
 
      
      },
     0xc68b => {
-     debug_print!("OriginalRawFileName ");
+     log("OriginalRawFileName ");
 
          print_data(&data)
 
      
      },
     0xc68c => {
-     debug_print!("OriginalRawFileData ");
+     log("OriginalRawFileData ");
 
          print_data(&data)
 
      
      },
     0xc68d => {
-     debug_print!("ActiveArea ");
+     log("ActiveArea ");
 
          print_data(&data)
 
      
      },
     0xc68e => {
-     debug_print!("MaskedAreas ");
+     log("MaskedAreas ");
 
          print_data(&data)
 
      
      },
     0xc68f => {
-     debug_print!("AsShotICCProfile ");
+     log("AsShotICCProfile ");
 
          print_data(&data)
 
      
      },
     0xc690 => {
-     debug_print!("AsShotPreProfileMatrix ");
+     log("AsShotPreProfileMatrix ");
 
          print_data(&data)
 
      
      },
     0xc691 => {
-     debug_print!("CurrentICCProfile ");
+     log("CurrentICCProfile ");
 
          print_data(&data)
 
      
      },
     0xc692 => {
-     debug_print!("CurrentPreProfileMatrix ");
+     log("CurrentPreProfileMatrix ");
 
          print_data(&data)
 
      
      },
     0xc6bf => {
-     debug_print!("ColorimetricReference ");
+     log("ColorimetricReference ");
 
          print_data(&data)
 
      
      },
     0xc6c5 => {
-     debug_print!("SRawType ");
+     log("SRawType ");
 
          print_data(&data)
 
      
      },
     0xc6d2 => {
-     debug_print!("PanasonicTitle ");
+     log("PanasonicTitle ");
 
          print_data(&data)
 
      
      },
     0xc6d3 => {
-     debug_print!("PanasonicTitle2 ");
+     log("PanasonicTitle2 ");
 
          print_data(&data)
 
      
      },
     0xc6f3 => {
-     debug_print!("CameraCalibrationSig ");
+     log("CameraCalibrationSig ");
 
          print_data(&data)
 
      
      },
     0xc6f4 => {
-     debug_print!("ProfileCalibrationSig ");
+     log("ProfileCalibrationSig ");
 
          print_data(&data)
 
      
      },
     0xc6f5 => {
-     debug_print!("ProfileIFD ");
+     log("ProfileIFD ");
 
          print_data(&data)
 
      
      },
     0xc6f6 => {
-     debug_print!("AsShotProfileName ");
+     log("AsShotProfileName ");
 
          print_data(&data)
 
      
      },
     0xc6f7 => {
-     debug_print!("NoiseReductionApplied ");
+     log("NoiseReductionApplied ");
 
          print_data(&data)
 
      
      },
     0xc6f8 => {
-     debug_print!("ProfileName ");
+     log("ProfileName ");
 
          print_data(&data)
 
      
      },
     0xc6f9 => {
-     debug_print!("ProfileHueSatMapDims ");
+     log("ProfileHueSatMapDims ");
 
          print_data(&data)
 
      
      },
     0xc6fa => {
-     debug_print!("ProfileHueSatMapData1 ");
+     log("ProfileHueSatMapData1 ");
 
          print_data(&data)
 
      
      },
     0xc6fb => {
-     debug_print!("ProfileHueSatMapData2 ");
+     log("ProfileHueSatMapData2 ");
 
          print_data(&data)
 
      
      },
     0xc6fc => {
-     debug_print!("ProfileToneCurve ");
+     log("ProfileToneCurve ");
 
          print_data(&data)
 
      
      },
     0xc6fd => {
-     debug_print!("ProfileEmbedPolicy ");
+     log("ProfileEmbedPolicy ");
 
          print_data(&data)
 
      
      },
     0xc6fe => {
-     debug_print!("ProfileCopyright ");
+     log("ProfileCopyright ");
 
          print_data(&data)
 
      
      },
     0xc714 => {
-     debug_print!("ForwardMatrix1 ");
+     log("ForwardMatrix1 ");
 
          print_data(&data)
 
      
      },
     0xc715 => {
-     debug_print!("ForwardMatrix2 ");
+     log("ForwardMatrix2 ");
 
          print_data(&data)
 
      
      },
     0xc716 => {
-     debug_print!("PreviewApplicationName ");
+     log("PreviewApplicationName ");
 
          print_data(&data)
 
      
      },
     0xc717 => {
-     debug_print!("PreviewApplicationVersion ");
+     log("PreviewApplicationVersion ");
 
          print_data(&data)
 
      
      },
     0xc718 => {
-     debug_print!("PreviewSettingsName ");
+     log("PreviewSettingsName ");
 
          print_data(&data)
 
      
      },
     0xc719 => {
-     debug_print!("PreviewSettingsDigest ");
+     log("PreviewSettingsDigest ");
 
          print_data(&data)
 
      
      },
     0xc71a => {
-     debug_print!("PreviewColorSpace ");
+     log("PreviewColorSpace ");
 
          print_data(&data)
 
      
      },
     0xc71b => {
-     debug_print!("PreviewDateTime ");
+     log("PreviewDateTime ");
 
          print_data(&data)
 
      
      },
     0xc71c => {
-     debug_print!("RawImageDigest ");
+     log("RawImageDigest ");
 
          print_data(&data)
 
      
      },
     0xc71d => {
-     debug_print!("OriginalRawFileDigest ");
+     log("OriginalRawFileDigest ");
 
          print_data(&data)
 
      
      },
     0xc71e => {
-     debug_print!("SubTileBlockSize ");
+     log("SubTileBlockSize ");
 
          print_data(&data)
 
      
      },
     0xc71f => {
-     debug_print!("RowInterleaveFactor ");
+     log("RowInterleaveFactor ");
 
          print_data(&data)
 
      
      },
     0xc725 => {
-     debug_print!("ProfileLookTableDims ");
+     log("ProfileLookTableDims ");
 
          print_data(&data)
 
      
      },
     0xc726 => {
-     debug_print!("ProfileLookTableData ");
+     log("ProfileLookTableData ");
 
          print_data(&data)
 
      
      },
     0xc740 => {
-     debug_print!("OpcodeList1 ");
+     log("OpcodeList1 ");
 
          print_data(&data)
 
      
      },
     0xc741 => {
-     debug_print!("OpcodeList2 ");
+     log("OpcodeList2 ");
 
          print_data(&data)
 
      
      },
     0xc74e => {
-     debug_print!("OpcodeList3 ");
+     log("OpcodeList3 ");
 
          print_data(&data)
 
      
      },
     0xc761 => {
-     debug_print!("NoiseProfile ");
+     log("NoiseProfile ");
 
          print_data(&data)
 
      
      },
     0xc763 => {
-     debug_print!("TimeCodes ");
+     log("TimeCodes ");
 
          print_data(&data)
 
      
      },
     0xc764 => {
-     debug_print!("FrameRate ");
+     log("FrameRate ");
 
          print_data(&data)
 
      
      },
     0xc772 => {
-     debug_print!("TStop ");
+     log("TStop ");
 
          print_data(&data)
 
      
      },
     0xc789 => {
-     debug_print!("ReelName ");
+     log("ReelName ");
 
          print_data(&data)
 
      
      },
     0xc791 => {
-     debug_print!("OriginalDefaultFinalSize ");
+     log("OriginalDefaultFinalSize ");
 
          print_data(&data)
 
      
      },
     0xc792 => {
-     debug_print!("OriginalBestQualitySize ");
+     log("OriginalBestQualitySize ");
 
          print_data(&data)
 
      
      },
     0xc793 => {
-     debug_print!("OriginalDefaultCropSize ");
+     log("OriginalDefaultCropSize ");
 
          print_data(&data)
 
      
      },
     0xc7a1 => {
-     debug_print!("CameraLabel ");
+     log("CameraLabel ");
 
          print_data(&data)
 
      
      },
     0xc7a3 => {
-     debug_print!("ProfileHueSatMapEncoding ");
+     log("ProfileHueSatMapEncoding ");
 
          print_data(&data)
 
      
      },
     0xc7a4 => {
-     debug_print!("ProfileLookTableEncoding ");
+     log("ProfileLookTableEncoding ");
 
          print_data(&data)
 
      
      },
     0xc7a5 => {
-     debug_print!("BaselineExposureOffset ");
+     log("BaselineExposureOffset ");
 
          print_data(&data)
 
      
      },
     0xc7a6 => {
-     debug_print!("DefaultBlackRender ");
+     log("DefaultBlackRender ");
 
          print_data(&data)
 
      
      },
     0xc7a7 => {
-     debug_print!("NewRawImageDigest ");
+     log("NewRawImageDigest ");
 
          print_data(&data)
 
      
      },
     0xc7a8 => {
-     debug_print!("RawToPreviewGain ");
+     log("RawToPreviewGain ");
 
          print_data(&data)
 
      
      },
     0xc7aa => {
-     debug_print!("CacheVersion ");
+     log("CacheVersion ");
 
          print_data(&data)
 
      
      },
     0xc7b5 => {
-     debug_print!("DefaultUserCrop ");
+     log("DefaultUserCrop ");
 
          print_data(&data)
 
      
      },
     0xc7d5 => {
-     debug_print!("NikonNEFInfo ");
+     log("NikonNEFInfo ");
 
          print_data(&data)
 
      
      },
     0xc7e9 => {
-     debug_print!("DepthFormat ");
+     log("DepthFormat ");
 
          print_data(&data)
 
      
      },
     0xc7ea => {
-     debug_print!("DepthNear ");
+     log("DepthNear ");
 
          print_data(&data)
 
      
      },
     0xc7eb => {
-     debug_print!("DepthFar ");
+     log("DepthFar ");
 
          print_data(&data)
 
      
      },
     0xc7ec => {
-     debug_print!("DepthUnits ");
+     log("DepthUnits ");
 
          print_data(&data)
 
      
      },
     0xc7ed => {
-     debug_print!("DepthMeasureType ");
+     log("DepthMeasureType ");
 
          print_data(&data)
 
      
      },
     0xc7ee => {
-     debug_print!("EnhanceParams ");
+     log("EnhanceParams ");
 
          print_data(&data)
 
      
      },
     0xcd2d => {
-     debug_print!("ProfileGainTableMap ");
+     log("ProfileGainTableMap ");
 
          print_data(&data)
 
      
      },
     0xcd2e => {
-     debug_print!("SemanticName ");
+     log("SemanticName ");
 
          print_data(&data)
 
      
      },
     0xcd30 => {
-     debug_print!("SemanticInstanceIFD ");
+     log("SemanticInstanceIFD ");
 
          print_data(&data)
 
      
      },
     0xcd31 => {
-     debug_print!("CalibrationIlluminant3 ");
+     log("CalibrationIlluminant3 ");
 
          print_data(&data)
 
      
      },
     0xcd32 => {
-     debug_print!("CameraCalibration3 ");
+     log("CameraCalibration3 ");
 
          print_data(&data)
 
      
      },
     0xcd33 => {
-     debug_print!("ColorMatrix3 ");
+     log("ColorMatrix3 ");
 
          print_data(&data)
 
      
      },
     0xcd34 => {
-     debug_print!("ForwardMatrix3 ");
+     log("ForwardMatrix3 ");
 
          print_data(&data)
 
      
      },
     0xcd35 => {
-     debug_print!("IlluminantData1 ");
+     log("IlluminantData1 ");
 
          print_data(&data)
 
      
      },
     0xcd36 => {
-     debug_print!("IlluminantData2 ");
+     log("IlluminantData2 ");
 
          print_data(&data)
 
      
      },
     0xcd37 => {
-     debug_print!("IlluminantData3 ");
+     log("IlluminantData3 ");
 
          print_data(&data)
 
      
      },
     0xcd38 => {
-     debug_print!("MaskSubArea ");
+     log("MaskSubArea ");
 
          print_data(&data)
 
      
      },
     0xcd39 => {
-     debug_print!("ProfileHueSatMapData3 ");
+     log("ProfileHueSatMapData3 ");
 
          print_data(&data)
 
      
      },
     0xcd3a => {
-     debug_print!("ReductionMatrix3 ");
+     log("ReductionMatrix3 ");
 
          print_data(&data)
 
      
      },
     0xcd3b => {
-     debug_print!("RGBTables ");
+     log("RGBTables ");
 
          print_data(&data)
 
      
      },
     0xea1c => {
-     debug_print!("Padding ");
+     log("Padding ");
 
          print_data(&data)
 
      
      },
     0xea1d => {
-     debug_print!("OffsetSchema ");
+     log("OffsetSchema ");
 
          print_data(&data)
 
      
      },
     0xfde8 => {
-     debug_print!("OwnerName ");
+     log("OwnerName ");
 
          print_data(&data)
 
      
      },
     0xfde9 => {
-     debug_print!("SerialNumber ");
+     log("SerialNumber ");
 
          print_data(&data)
 
      
      },
     0xfdea => {
-     debug_print!("Lens ");
+     log("Lens ");
 
          print_data(&data)
 
      
      },
     0xfe00 => {
-     debug_print!("KDC_IFD ");
+     log("KDC_IFD ");
 
          print_data(&data)
 
      
      },
     0xfe4c => {
-     debug_print!("RawFile ");
+     log("RawFile ");
 
          print_data(&data)
 
      
      },
     0xfe4d => {
-     debug_print!("Converter ");
+     log("Converter ");
 
          print_data(&data)
 
      
      },
     0xfe4e => {
-     debug_print!("WhiteBalance ");
+     log("WhiteBalance ");
 
          print_data(&data)
 
      
      },
     0xfe51 => {
-     debug_print!("Exposure ");
+     log("Exposure ");
 
          print_data(&data)
 
      
      },
     0xfe52 => {
-     debug_print!("Shadows ");
+     log("Shadows ");
 
          print_data(&data)
 
      
      },
     0xfe53 => {
-     debug_print!("Brightness ");
+     log("Brightness ");
 
          print_data(&data)
 
      
      },
     0xfe54 => {
-     debug_print!("Contrast ");
+     log("Contrast ");
 
          print_data(&data)
 
      
      },
     0xfe55 => {
-     debug_print!("Saturation ");
+     log("Saturation ");
 
          print_data(&data)
 
      
      },
     0xfe56 => {
-     debug_print!("Sharpness ");
+     log("Sharpness ");
 
          print_data(&data)
 
      
      },
     0xfe57 => {
-     debug_print!("Smoothness ");
+     log("Smoothness ");
 
          print_data(&data)
 
      
      },
     0xfe58 => {
-     debug_print!("MoireFilter ");
+     log("MoireFilter ");
 
          print_data(&data)
 

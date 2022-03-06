@@ -1,9 +1,9 @@
 /* for EXIF */
+use crate::log;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{SimpleAddMessage};
 use super::tags::gps_mapper;
 use super::tags::tag_mapper;
-use super::super::util::*;
 use super::super::io::*;
 
 
@@ -36,70 +36,69 @@ pub enum DataPack {
 pub fn print_data (data: &DataPack) {
     match data {
         DataPack::Rational(d) => {
-            debug_print!("{} ",d.len());
+            log(&format!("{} ",d.len()));
             for i in 0..d.len() {
-                debug_print!("{}/{} ",d[i].n,d[i].d)
+                log(&format!("{}/{} ",d[i].n,d[i].d));
             }
         },
         DataPack::RationalU64(d) => {
-            debug_print!("{} ",d.len());
+            log(&format!("{} ",d.len()));
             for i in 0..d.len() {
-                debug_print!("{}/{} ",d[i].n,d[i].d)
+                log(&format!("{}/{} ",d[i].n,d[i].d));
             }
         },
         DataPack::Bytes(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::SByte(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::Undef(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::Ascii(s) => {
-            debug_print!("{}", s)
+            log(s);
         },
         DataPack::Short(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::Long(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::SShort(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::SLong(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::Float(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         DataPack::Double(d) => {
             for i in 0..d.len() {
-                debug_print!("{} ",d[i])
+                log(&format!("{}",d[i]));
             }
         },
         _ => {
 
         },
     }
-    debug_println!();
 }
 
 #[allow(unused)]
@@ -124,12 +123,12 @@ pub fn read_tags( buffer: &Vec<u8>) -> Result<TiffHeaders,ImgError>{
 
     if buffer[0] == 'I' as u8 { // Little Endian
         endian = true;
-        debug_println!("Little Endian"); 
+        log("Little Endian"); 
     } else if buffer[0] == 'M' as u8 {      // Big Eindian
         endian = false;
-        debug_println!("Big Endian"); 
+        log("Big Endian"); 
     } else {
-        debug_println!("not TIFF");
+        log("not TIFF");
         return Err(SimpleAddMessage(ErrorKind::IlligalData,"not Tiff".to_string()));
     }
 
@@ -138,7 +137,7 @@ pub fn read_tags( buffer: &Vec<u8>) -> Result<TiffHeaders,ImgError>{
     let ver = read_u16(buffer,ptr,endian);
     ptr = ptr + 2;
     let offset_ifd  = read_u32(buffer,ptr,endian) as usize;
-    debug_println!("Tiff Version {:>08}",ver);
+    log(&format!("Tiff Version {:>08}",ver));
     read_tiff(buffer,offset_ifd,endian)
 }
 
@@ -312,7 +311,7 @@ fn get_data (buffer: &[u8], ptr :usize ,datatype:usize, datalen: usize, endian: 
             data = DataPack::Double(d);
         },
         _ => {
-            debug_println!("Unknown Data type {}",datatype);
+            log(&format!("Unknown Data type {}",datatype));
             let mut d: Vec<u8> = Vec::with_capacity(datalen);
             if datalen <=4 {
                 for i in 0.. datalen { 
@@ -342,18 +341,15 @@ fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> R
     let mut ifd = 0;
     let mut headers :TiffHeaders = TiffHeaders{headers:Vec::new(),exif:None,gps:None,little_endian: endian};
     loop {
-        debug_println!("{}{} {}",if mode == 2 {"GPS"} else if mode == 1 {"EXIF"} else {"IFD"} ,ifd,offset_ifd);    
         let mut ptr = offset_ifd;
         let tag = read_u16(buffer,ptr,endian);
         ptr = ptr + 2;
-        debug_println!("{} tag haves",tag);
  
         for _ in 0..tag {
             let tagid = read_u16(buffer,ptr,endian);
             let datatype = read_u16(buffer,ptr + 2,endian) as usize;
             let datalen = read_u32(buffer,ptr + 4,endian) as usize;
             ptr = ptr + 8;
-            debug_println!("ID {:>04X} datatype {} length {}",tagid,datatype,datalen);
             let data :DataPack = get_data(buffer, ptr, datatype, datalen, endian);
             ptr = ptr + 4;
 
@@ -363,7 +359,6 @@ fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> R
                     0x8769 => {
                         match &data {
                             DataPack::Long(d) => {
-                                debug_println!("Exif Offset: {}", d[0]);
                                 let r = read_tag(buffer, d[0] as usize, endian,1)?; // read exif
                                 headers.exif = Some(r.headers);
 
@@ -375,7 +370,6 @@ fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> R
                     0x8825 => {
                         match &data {
                             DataPack::Long(d) => {
-                                debug_println!("GPS TAG: {}",d[0]);
                                 let r = read_gps(buffer, d[0] as usize, endian)?; // read exif
                                 headers.gps = Some(r.headers);
                         },

@@ -14,7 +14,7 @@ impl ImgError {
         match self {
             Simple(error_kind) => { error_kind.as_str().to_string()},
             SimpleAddMessage(error_kind,s) => {
-                error_kind.as_str().to_string() + &s.to_string()
+                error_kind.as_str().to_string() + " " + &s.to_string()
             },
             Custom(s) => {s.to_string()},
         }
@@ -36,6 +36,7 @@ pub enum ErrorKind {
     WriteError,
     IOError,
     OutboundIndex,
+    IlligalCallback,
     UnknownError,
 }
 
@@ -56,7 +57,8 @@ impl ErrorKind {
             WriteError => {"write error"},
             IOError => {"IO error"},
             OutboundIndex => {"Outbound index"},
-            UnknownError => {"Unkonw error"}
+            IlligalCallback => {"Illigal Callback"},
+            UnknownError => {"Unkonw error"}            
         }
     }
 }

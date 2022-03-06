@@ -17,4 +17,5 @@ pub mod rect;
 pub mod polygram;
 pub mod fill;
 pub mod circle;
-//pub mod image;
+pub mod draw;
+pub mod image;

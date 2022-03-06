@@ -2,7 +2,7 @@
 #[macro_export]
 macro_rules! debug_print {
     ($( $str:expr ),* ) => {
-        print!(
+        println!(
             $(
                 $str,
             )*
@@ -14,6 +14,11 @@ macro_rules! debug_print {
 #[macro_export]
 macro_rules! debug_print {
     ($( $str:expr ),* ) => {
+        println!(
+            $(
+                $str,
+            )*
+        )
     };
 }
 
@@ -33,6 +38,11 @@ macro_rules! debug_println {
 #[macro_export]
 macro_rules! debug_println {
     ($( $str:expr ),* ) => {
+        println!(
+            $(
+                $str,
+            )*
+        )
     };
 }
 

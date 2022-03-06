@@ -1,7 +1,7 @@
+use crate::log;
 use crate::img::error::ImgError::Custom;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{SimpleAddMessage};
-use crate::img::util::{debug_print, debug_println};
 use crate::img::io::*;
 
 /* from SOS */
@@ -109,37 +109,28 @@ impl FrameHeader {
 
         if num & 0x03 == 0x00 {
             baseline = true;
-            debug_print!("Baseline ");
         }
         if num & 0x03 == 0x01 {
             sequantial = true;
-            debug_print!("Sequential ");
         }
         if num & 0x03 == 0x02 
         {
             progressive = true;
-            debug_print!("Progressive ");
         }
         if num & 0x03 == 0x03 {
             lossress = true;
-            debug_print!("Lossress ");
         }
         if num & 0x08 == 0x00 {
             huffman = true;
-            debug_print!("Huffman ");
         } else {
             huffman = false;
-            debug_print!("Arithmetic coding ");
         }
         if num & 0x04 == 0x00 {
             differential = false;
-            debug_print!("non differential");
         }
         if num & 0x04 == 0x04 {
             differential = true;
-            debug_print!("differential");
         }
-        debug_println!("");
 
         let p = read_byte(&buffer,0) as i32;
         bitperpixel = p as usize;
@@ -158,7 +149,7 @@ impl FrameHeader {
             let v = (read_byte(&buffer,ptr + 1) & 0x07) as usize;
             let tq = read_byte(&buffer,ptr + 2) as usize;
             ptr = ptr + 3;
-//            debug_println!("No{} {}x{} Table{}", c,h,v,tq);
+//            log(format!("No{} {}x{} Table{}", c,h,v,tq);
             component.push(Component{c,h,v,tq});
         }
  
@@ -263,10 +254,6 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     let height = read_byte(&buffer,ptr + 8) as usize;
 
 
-                    debug_print!("Version: {:>04X} ",version);
-                    debug_print!("ResolutionUnit: {} ",if unit == 1 {" inches"} else if unit == 2 {"cm"} else {"None"} );
-                    debug_println!("Resolution X{} Y{}",xr,yr);
-                    debug_println!("Thumbnail {}x{}",width,height);
                     let jfif :Jfif  = Jfif{
                         version: version,
                         resolusion_unit: unit,
@@ -309,8 +296,6 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     ptr = ptr + comment.len() + 1;
                     len = len - comment.len() + 1;
                     let copyright = read_string(&buffer,ptr,len);
-                    debug_println!("Quality: {:>08X}",q);
-                    debug_println!("{} {}",comment,copyright);
                     return Ok(JpegAppHeaders::Ducky(Ducky{quality: q,comment: comment,copyright: copyright}));
                 },
                 _ => {
@@ -324,8 +309,8 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     let flag1 = read_byte(&buffer, ptr + 1) as usize;
                     let flag2 = read_byte(&buffer, ptr + 2) as usize;
                     let ct = read_byte(&buffer, ptr + 3) as usize;
-                    debug_println!("DCTEncodeVersion:{} Flag1:{} Flag2:{} ColorTransform {}"
-                        ,ver,flag1,flag2,if ct == 1 {"YCbCr"} else if ct ==2 {"YCCK"} else {"Unknown"} );
+                    log(&format!("DCTEncodeVersion:{} Flag1:{} Flag2:{} ColorTransform {}"
+                        ,ver,flag1,flag2,if ct == 1 {"YCbCr"} else if ct ==2 {"YCCK"} else {"Unknown"} ));
                     return Ok(JpegAppHeaders::Adobe(AdobeApp14{dct_encode_version: ver,flag1 :flag1,flag2: flag2,color_transform: ct}));
                 },
                 _ => {
@@ -340,7 +325,7 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
 
 impl JpegHaeder {
     pub fn new(buffer :&[u8],opt :usize) -> Result<Self,ImgError> {
-        let flag = opt;
+        let _flag = opt;
         let mut _flag = false;
         let mut _dqt_flag = false;
         let mut _dht_flag = false;
@@ -363,7 +348,7 @@ impl JpegHaeder {
 
         while offset < 16 {
             let soi = read_u16be(buffer,offset);
-//            debug_println!("{:>04x}",soi);
+            log(&format!("{:>04x}",soi));
             if soi == 0xffd8 {break};
             offset = offset + 1;
         }
@@ -385,32 +370,32 @@ impl JpegHaeder {
 
                         let mut size :usize = 2;
                         while size < length {
-                            let tc = read_byte(&buffer,offset + 2) >> 4;
-                            let th = read_byte(&buffer,offset + 2) & 0x0f;
-                            let ac = if tc == 0 { false } else { true };
+                            let tc = read_byte(&buffer,offset + size) >> 4;
+                            let th = read_byte(&buffer,offset + size) & 0x0f;
 
+                            let ac = if tc == 0 { false } else { true };
                             let no = th as usize;
                             size = size + 1;
                             let mut pss :usize = 0;
                             let mut len :Vec<usize> = Vec::with_capacity(16);
                             let mut p :Vec<usize> = Vec::with_capacity(16);
                             let mut val :Vec<usize> = Vec::new();
+                            let mut vlen = 0;
                             for i in 0..16 {
                                 let l = read_byte(&buffer,offset + 3 + i) as usize;
-
                                 p.push(pss);
+                                vlen = vlen + l;
                                 len.push(l);
                                 for _ in 0..l {
                                     val.push(read_byte(&buffer,offset + 19 + pss) as usize);
-
                                     pss =  pss + 1;
                                 }
 
                                 size = size + 1;
                             }
 
-                            size = size + pss;
                             _huffman_tables.push(HuffmanTable::new(ac,no,len,p,val));
+                            size = size + vlen;
                         }
 
                         offset = offset + length; // skip
@@ -419,22 +404,13 @@ impl JpegHaeder {
                         if !_sof_flag {
                             _sof_flag = true;
                             let num = (nextbyte & 0x0f) as usize;
-                            if flag & 0x04 != 0 {
-                                debug_print!("\nSOF{} ",num);
-                            }
                             let length = read_u16be(&buffer,offset) as usize;
-                            if flag & 0x04 != 0 {
-                                debug_print!(" {} ",length);
-                            }
                             let buf = read_bytes(&buffer,offset + 2,length - 2);
                             let fh = FrameHeader::new(num,&buf);
-                            debug_println!("{}x{} pixel - {}bit color ",fh.width,fh.height,fh.bitperpixel * fh.plane);
+                            log(&format!("{}x{} pixel - {}bit color ",fh.width,fh.height,fh.bitperpixel * fh.plane));
                             width = fh.width;
                             height = fh.height;
                             bpp = fh.bitperpixel * fh.plane;
-                            if flag & 0x04 != 0 {
-                                debug_println!(" {}byte",length);
-                            }
                             frame_header = Some(fh);
                             offset = offset + length; //skip
                         }
@@ -448,34 +424,22 @@ impl JpegHaeder {
                     0xda=> { // SOS Scan header
                         _sos_flag = true;
                         let length: usize = read_u16be(&buffer,offset) as usize;
-                        if flag & 0x04 == 0x04 {
-                            debug_println!("\nHuffman Scan Header {}byte",length);
-                        }
                         let mut ptr = offset + 2;
                         let ns = read_byte(&buffer,ptr) as usize;
-                        if flag & 0x04 == 0x04 {
-                            debug_println!("ns {}",ns);
-                        }
                         ptr = ptr + 1;
                         let mut csn: Vec<usize> = Vec::with_capacity(ns);
                         let mut tdn: Vec<usize> = Vec::with_capacity(ns);
                         let mut tan: Vec<usize> = Vec::with_capacity(ns);
-                        for i in 0..ns {
+                        for _i in 0..ns {
                             csn.push(read_byte(&buffer,ptr) as usize);
                             tdn.push((read_byte(&buffer,ptr + 1) >> 4) as usize);
                             tan.push((read_byte(&buffer,ptr + 1) & 0xf ) as usize);
                             ptr = ptr + 2;
-                            if flag & 0x04 == 0x04 {
-                                debug_println!("ID {} Tabel DC {} Tabel AC {}",csn[i],tdn[i],tan[i]);
-                            }
                         }
                         let ss = read_byte(&buffer,ptr) as usize;
                         let se = read_byte(&buffer,ptr) as usize;
                         let ah = (read_byte(&buffer,ptr + 2) >> 4) as usize;
                         let al = (read_byte(&buffer,ptr + 2) & 0xf ) as usize;
-                        if flag & 0x04 == 0x04 {
-                            debug_println!("Start {} End {} Shift Before {} Shift After{}",ss,se,ah,al);
-                        }
                         huffman_scan_header = Some(HuffmanScanHeader::new(ns,csn,tdn,tan,ss,se,ah,al));
 
                         offset = offset + length; //skip
@@ -484,7 +448,6 @@ impl JpegHaeder {
                     0xdb =>{ // Define Quantization Table
                         _dqt_flag = true;
                         let length: usize = read_u16be(&buffer,offset) as usize;
-                        debug_println!("\nQuantization Table {}byte",length);
                         // read_dqt;
                         let mut pos :usize = 2;
                         while pos < length {
@@ -492,27 +455,19 @@ impl JpegHaeder {
                             let presision :usize;
                             let p = read_byte(&buffer,pos + offset) >> 4;
                             let no = (read_byte(&buffer,pos + offset) & 0x0f) as usize;
-                            debug_print!("#{} ",no);
                             pos = pos + 1;
                             if p == 0 {
                                 presision = 8;
-                                debug_print!("{}bit ",presision);
                                 for _ in 0..64 {
                                     quantizations.push(read_byte(&buffer,pos + offset) as usize);
-                                    debug_print!("{} ",read_byte(&buffer,pos + offset));
                                     pos = pos + 1;
                                 }
                             } else {
                                 presision = 16;
-                                debug_print!("{}bit ",presision);
                                 for _ in 0..64 {
                                     quantizations.push(read_u16be(&buffer,pos + offset) as usize);
-                                    debug_print!("{} ",read_u16be(&buffer,pos + offset));
                                     pos = pos + 2;
                                 }
-                            }
-                            if flag & 0x04 == 0x04 {
-                                debug_println!(" - {}bytes ",pos);
                             }
                             quantization_tables.push(QuantizationTable::new(presision,no,quantizations));
                         }
@@ -523,33 +478,18 @@ impl JpegHaeder {
                         let length: usize = read_u16be(&buffer,offset) as usize;
                         let nl = read_u16be(&buffer,offset) as usize;
                         line = nl;
-                        if flag & 0x04 == 0x04 {
-                            debug_println!("\nDNL {}",nl);
-                        }
                         // read_dqt;
                         offset = offset + length; // skip
                     },
                     0xdd => { // Define Restart Interval
-                        if flag & 0x04 == 0x04 {
-                            debug_println!("\nDefine Restart Interval");
-                        }
                         let length = read_u16be(&buffer,offset) as usize;
                         let ri = read_u16be(&buffer,offset + 2);
                         interval = ri as usize;
-                        if flag & 0x04 == 0x04 {
-                            debug_println!("Resrart Interval {}",ri);
-                        }
                         offset = offset + length; // skip
                     },
                     0xfe => { // Comment
-                        if flag & 0x01 == 0x01 {    
-                            debug_println!("\nComment");
-                        }
                         let length = read_u16be(&buffer,offset) as usize;
                         comment = Some(String::from_utf8(buffer[offset+2..offset+length].to_vec()).unwrap());
-                        if flag & 0x01 == 0x01 {    
-                            debug_println!("{}", comment.as_ref().unwrap());
-                        }
                         offset = offset + length; // skip
                     },
                     0xe0..=0xef => { // Applications 
@@ -558,11 +498,8 @@ impl JpegHaeder {
                         let tag = read_string(buffer,offset + 2,length -2);
                         let len = length - 2 - tag.len() + 1;
                         let ptr = 2 + tag.len() + 1 + offset;
-//                        if flag & 0x02 == 0x02 {
-                            debug_println!("\nAPP{} {} {}bytes {} {}",num,tag,length,ptr,len);
-                            let result = read_app(num , &tag, &buffer, ptr, len)?;
-                            _jpeg_app_headers.push(result);
-//                        }
+                        let result = read_app(num , &tag, &buffer, ptr, len)?;
+                        _jpeg_app_headers.push(result);
                         offset = offset + length; // skip
                     },
                     0xff => { // padding
@@ -572,18 +509,14 @@ impl JpegHaeder {
                         // skip
                     },
                     0xd0..=0xd7 => {   // REST0-7
-//                        debug_println!("\nRSET {}",nextbyte & 0x7);                
                     },
                     _ => {
-                        debug_println!("unimpriment marker {:>02X}",nextbyte);
                         let length = read_u16be(&buffer,offset) as usize;
                         offset = offset + length;
                     }
                 }
             } else {
-//                debug_print!("{:02x} ",byte);
-//                return Err("Not Jpeg".to_string());
-                offset = offset +1;
+                return Err(SimpleAddMessage(ErrorKind::UnknownFormat,"Not Jpeg".to_string()));
             }
 
         }
