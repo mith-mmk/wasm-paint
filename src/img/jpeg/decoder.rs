@@ -274,16 +274,16 @@ fn extend(mut v:i32,t: i32) -> i32 {
 #[inline]
 fn idct(f :&[i32]) -> Vec<u8> {
     let vals :Vec<u8> = (0..64).map(|i| {
-        let (x,y) = ((i%8) as f64,(i/8) as f64);
+        let (x,y) = ((i%8) as f32,(i/8) as f32);
         // IDCT from CCITT Rec. T.81 (1992 E) p.27 A3.3
-        let mut val: f64=0.0;
+        let mut val: f32=0.0;
         for u in 0..8 {
-            let cu = if u == 0 {1.0_f64 / 2.0_f64.sqrt()} else {1.0};
+            let cu = if u == 0 {1.0 / 2.0_f32.sqrt()} else {1.0};
             for v in 0..8 {
-                let cv = if v == 0 {1.0_f64 / 2.0_f64.sqrt()} else {1.0};
-                val += cu * cv * (f[v*8 + u] as f64)
-                    * ((2.0 * x + 1.0) * u as f64 * PI / 16.0_f64).cos()
-                    * ((2.0 * y + 1.0) * v as f64 * PI / 16.0_f64).cos();
+                let cv = if v == 0 {1.0_f32 / 2.0_f32.sqrt()} else {1.0};
+                val += cu * cv * (f[v*8 + u] as f32)
+                    * ((2.0 * x + 1.0) * u as f32 * PI as f32 / 16.0_f32).cos()
+                    * ((2.0 * y + 1.0) * v as f32 * PI as f32 / 16.0_f32).cos();
             }
         }
         val = val / 4.0;
