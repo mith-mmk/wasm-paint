@@ -2,10 +2,11 @@ use core::f64::consts::PI;
 use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::jpeg::header::JpegHaeder;
-use crate::img::error::ImgError::SimpleAddMessage;
+use crate::img::jpeg::util::print_header;
 use crate::img::jpeg::worning::JPEGWorning::SimpleAddMessage as WorningAddMessage;
 use crate::img::jpeg::worning::JPEGWorning;
 use crate::img::jpeg::worning::WorningKind;
+use crate::img::error::ImgError::SimpleAddMessage;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{Simple};
 use crate::img::DecodeOptions;
@@ -464,7 +465,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
         }
     }
-    let quantization_tables = header.quantization_tables.unwrap();
+    let quantization_tables = header.quantization_tables.as_ref().unwrap();
 
     if fh.huffman == false {
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This decoder suport huffman only".to_string()));
@@ -480,7 +481,12 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
     // Make Huffman Table
 
-    let (ac_decode,dc_decode) = huffman_extend(&header.huffman_tables.unwrap());
+    let (ac_decode,dc_decode) = huffman_extend(&header.huffman_tables.as_ref().unwrap());
+
+    if option.debug_flag > 0 {
+        let boxstr = print_header(&header,option.debug_flag);
+        log(&boxstr);
+    }
 
     log("Decode Start");
 

@@ -35,7 +35,7 @@ pub(crate) static UN_ZIG_ZAG_SEQUENCE:[usize;64] = [
 
   */
 
-pub fn printHeader(header: &JpegHaeder,option: usize) -> Box<String> {
+pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
     let mut str :String = "JPEG\n".to_string();
     match &header.frame_header {
         Some(fh) =>  {
