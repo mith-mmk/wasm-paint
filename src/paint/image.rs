@@ -1,3 +1,4 @@
+use crate::img::jpeg::worning::JPEGWorning;
 use crate::Canvas;
 use crate::log;
 use crate::img::error::ImgError;
@@ -61,6 +62,12 @@ impl DrawCallback for Drawer<'_> {
   }
 }
 
+impl Drop for Drawer<'_> {
+  fn drop(&mut self) { //
+
+  }
+}
+
 
 impl Drawer<'_> {
   pub fn new (canvas: &'static mut Canvas) -> Self {
@@ -72,11 +79,11 @@ impl Drawer<'_> {
   }
 }
 
-pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
+pub fn draw_image (canvas:&mut Canvas,data: &[u8]) -> Result<Option<JPEGWorning>,ImgError> {
   let mut drawer = ImageBuffer::new();
   let callback = Callback::new();
   let mut option = DecodeOptions{
-    debug_flag: 0xa0,
+    debug_flag: 0,
     drawer: &mut drawer,
     callback: callback,
   };
@@ -85,19 +92,14 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
   match r {
     Err(error) => {
       log(&error.fmt());
-      return
+      return Err(error)
     },
-    Ok(worning) => {
-      match worning  {
-        Some(worning) => {
-          log(&worning.fmt());
-        },
-        _ => {}
-      }
-    },
+    _ => {},
   }
 
   let buf = drawer.buffer.unwrap();
+
+  log(&format!("{} {}",drawer.width,drawer.height));
 
   for y in 0..drawer.height {
     if y >= canvas.height() as usize { break;}
@@ -113,5 +115,7 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
           canvas.buffer[offset_dest + 3] = 0xff;
     }
   }
+
+  r
 }
 

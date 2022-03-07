@@ -137,6 +137,19 @@ impl Universe {
     }
 
     pub fn jpeg_decoder(&mut self,buffer: &[u8]) {
-        draw_image(&mut self.canvas,buffer);
+        let r = draw_image(&mut self.canvas,buffer);
+        match r {
+            Err(error) => {
+                alert(&error.fmt());
+            },
+            Ok(s) => {
+                match s {
+                    Some(worning) => {
+                    //    alert(&worning.fmt());
+                    },
+                    _ =>{},
+                }
+            }
+        }
     }
 }
