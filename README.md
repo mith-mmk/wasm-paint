@@ -14,6 +14,8 @@ Color model ABGR uint32LE
 
 2022/02/27 0.0.6 circle/ellipse/arc追加
 
+2022/03/07 0.0.7 jpeg decoder(baselineのみ)追加
+
 Todo 
 - border
 - polyline
