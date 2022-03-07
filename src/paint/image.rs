@@ -76,7 +76,7 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
   let mut drawer = ImageBuffer::new();
   let callback = Callback::new();
   let mut option = DecodeOptions{
-    debug_flag: 0x8f,
+    debug_flag: 0xa0,
     drawer: &mut drawer,
     callback: callback,
   };
@@ -99,8 +99,6 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
 
   let buf = drawer.buffer.unwrap();
 
-  log(&format!("{} {}",drawer.width,drawer.height));
-
   for y in 0..drawer.height {
     if y >= canvas.height() as usize { break;}
     let scanline_src = y * drawer.width * 4;
@@ -115,7 +113,5 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
           canvas.buffer[offset_dest + 3] = 0xff;
     }
   }
-
-
 }
 

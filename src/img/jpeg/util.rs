@@ -103,7 +103,7 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
                         };
 
                         str = str + &format!(
-                            "JFIF Ver{} Resilution Unit X{}{} Y{}{} Thumnail {} {}\n",
+                            "JFIF Ver{:>03x} Resilution Unit X{}{} Y{}{} Thumnail {} {}\n",
                             jfif.version,jfif.x_resolusion,unit,jfif.y_resolusion,unit,jfif.width,jfif.height);
 
                     },

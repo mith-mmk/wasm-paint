@@ -66,6 +66,7 @@ struct BitReader {
     b: u8,
     rst: bool,
     rst_ptr : usize,
+    prev_rst: usize,
     eof_flag: bool,
 }
 
@@ -82,6 +83,7 @@ impl BitReader {
             b: b,
             rst: false,
             rst_ptr: 0,
+            prev_rst: 7,
             eof_flag: false,
         }
     }
@@ -97,7 +99,19 @@ impl BitReader {
     }
 
     fn rst(self: &mut Self) -> Result<bool,ImgError> {
-        Ok(self.rst)
+        if self.buffer[self.ptr] == 0xff {
+            match self.buffer[self.ptr+1] {
+                0xd0..=0xd7 =>  {    // RST    
+                    self.ptr = self.ptr + 2;
+                    self.bptr = 0;
+                    return Ok(true);
+                },
+                _ => {
+                    return Ok(false);
+                },
+            }
+        }
+        Ok(false)
     }
 
     pub fn get_bit_as_i32(self: &mut Self) -> Result<i32,ImgError> {
@@ -109,9 +123,14 @@ impl BitReader {
                         self.b = 0xff;
                     },
                     0xd0..=0xd7 =>  {    // RST    
-                        self.rst = true; 
+                        let rst_no = (self.b & 0x7) as usize;
+                        if rst_no != (self.prev_rst + 1) % 8 {
+                            return Err(SimpleAddMessage(ErrorKind::DecodeError,format!("No Interval RST {} -> {}",self.prev_rst,rst_no)))
+                        }
+
+                        self.prev_rst = rst_no;
+                        self.rst = true;
                         self.rst_ptr = self.ptr;
-                        self.b = 0xff;
                     },
                     0xd9=> { // EOI
                         self.b = 0xff;
@@ -130,16 +149,8 @@ impl BitReader {
 
     pub fn eof(self: &mut Self) -> bool {
         if self.buffer.len() - 2 < self.ptr || self.eof_flag
-         {println!("eof {}",self.buffer.len());self.eof_flag=true}
+         {self.eof_flag=true}
         self.eof_flag
-    }
-
-    pub fn flush(self: &mut Self) {
-        if self.rst == true {
-            self.rst =false;
-            self.bptr = 0;
-//            self.ptr = self.rst_ptr;
-        }
     }
 
     pub fn reset(self: &mut Self) {
@@ -556,24 +567,27 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
             (option.callback.draw)(option.drawer,x*dx,y*dy,dx,dy,&data)?;
 
-            if mcu_interval > 0 {
-                if bitread.rst()? == true {
+            if header.interval > 0 {
+                mcu_interval = mcu_interval - 1;
+                if mcu_interval == 0 { 
+                    if  bitread.rst()? == true {
+                        mcu_interval = header.interval as isize;
+                        for i in 0..preds.len() {
+                            preds[i] = 0;
+                        }
+                    } else {
+                        worning = Some(WorningAddMessage(WorningKind::IlligalRSTMaker,"no mcu interval".to_string()));
+                        return Ok(worning)
+                    }
+                } else if bitread.rst()? == true {
                     worning = Some(WorningAddMessage(WorningKind::IlligalRSTMaker,"mismatch mcu interval".to_string()));
-                    bitread.flush();
+                    mcu_interval = header.interval as isize;
                     for i in 0..preds.len() {
                         preds[i] = 0;
                     }
-//                    mcu_interval = header.interval as isize;
-                    continue;
+   //                 return Ok(worning);
                 }
-            } else if mcu_interval == 0 && header.interval != 0 {
-                mcu_interval = header.interval as isize;
-                bitread.flush();
-                for i in 0..preds.len() {
-                    preds[i] = 0;
-                }
-            } 
-            mcu_interval = mcu_interval - 1;
+            }
         }
     }
     (option.callback.terminate)(option.drawer)?;
