@@ -80,7 +80,7 @@ pub struct Component{
 
 pub struct FrameHeader {
     pub baseline: bool,
-    pub sequantial: bool,
+    pub sequential: bool,
     pub progressive: bool,
     pub lossress: bool,
     pub differential: bool,
@@ -96,7 +96,7 @@ impl FrameHeader {
     #[warn(unused_assignments)]
     pub fn new(num: usize,buffer: &[u8]) -> Self {
         let mut baseline: bool = false;
-        let mut sequantial: bool = false;
+        let mut sequential: bool = false;
         let mut progressive: bool = false;
         let mut lossress: bool = false;
         let mut differential: bool = false;
@@ -111,7 +111,7 @@ impl FrameHeader {
             baseline = true;
         }
         if num & 0x03 == 0x01 {
-            sequantial = true;
+            sequential = true;
         }
         if num & 0x03 == 0x02 
         {
@@ -155,7 +155,7 @@ impl FrameHeader {
  
         Self {
             baseline,
-            sequantial,
+            sequential,
             progressive,
             lossress,
             differential,
@@ -213,7 +213,7 @@ pub struct Ducky {
 pub struct UnknownApp {
     pub number : usize,
     pub tag : String,
-    pub lenghth : usize,
+    pub length : usize,
 }
 
 
@@ -309,9 +309,7 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     let flag1 = read_byte(&buffer, ptr + 1) as usize;
                     let flag2 = read_byte(&buffer, ptr + 2) as usize;
                     let ct = read_byte(&buffer, ptr + 3) as usize;
-                    log(&format!("DCTEncodeVersion:{} Flag1:{} Flag2:{} ColorTransform {}"
-                        ,ver,flag1,flag2,if ct == 1 {"YCbCr"} else if ct ==2 {"YCCK"} else {"Unknown"} ));
-                    return Ok(JpegAppHeaders::Adobe(AdobeApp14{dct_encode_version: ver,flag1 :flag1,flag2: flag2,color_transform: ct}));
+                        return Ok(JpegAppHeaders::Adobe(AdobeApp14{dct_encode_version: ver,flag1 :flag1,flag2: flag2,color_transform: ct}));
                 },
                 _ => {
                 }
@@ -320,7 +318,7 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
         _ => {
         }
     }
-    Ok(JpegAppHeaders::Unknown(UnknownApp{number:num ,tag: tag.to_string(),lenghth: len}))
+    Ok(JpegAppHeaders::Unknown(UnknownApp{number:num ,tag: tag.to_string(),length: len}))
 }
 
 impl JpegHaeder {
@@ -485,6 +483,7 @@ impl JpegHaeder {
                         let length = read_u16be(&buffer,offset) as usize;
                         let ri = read_u16be(&buffer,offset + 2);
                         interval = ri as usize;
+                        log(&format!("DRI {}",interval));
                         offset = offset + length; // skip
                     },
                     0xfe => { // Comment

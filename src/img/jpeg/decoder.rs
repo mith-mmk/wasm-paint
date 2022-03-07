@@ -1,8 +1,11 @@
-use crate::img::jpeg::header::Component;
 use core::f64::consts::PI;
+use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
-use crate::img::error::ImgError::SimpleAddMessage;
 use crate::img::jpeg::header::JpegHaeder;
+use crate::img::error::ImgError::SimpleAddMessage;
+use crate::img::jpeg::worning::JPEGWorning::SimpleAddMessage as WorningAddMessage;
+use crate::img::jpeg::worning::JPEGWorning;
+use crate::img::jpeg::worning::WorningKind;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{Simple};
 use crate::img::DecodeOptions;
@@ -54,6 +57,17 @@ macro_rules! huff_print {
     };
 }
 
+
+struct BitReader {
+    buffer: Vec<u8>,
+    ptr : usize,
+    bptr : usize,
+    b: u8,
+    rst: bool,
+    rst_ptr : usize,
+    eof_flag: bool,
+}
+
 #[allow(unused)]
 impl BitReader {
     pub fn new(buffer:&[u8]) -> Self{
@@ -65,6 +79,8 @@ impl BitReader {
             ptr: ptr,
             bptr: bptr,
             b: b,
+            rst: false,
+            rst_ptr: 0,
             eof_flag: false,
         }
     }
@@ -79,12 +95,32 @@ impl BitReader {
         Ok(self.b)
     }
 
+    fn rst(self: &mut Self) -> Result<bool,ImgError> {
+        Ok(self.rst)
+    }
+
     pub fn get_bit_as_i32(self: &mut Self) -> Result<i32,ImgError> {
         if self.bptr == 0 {
             self.bptr = 8;
             if self.get_byte()? == 0xff {
-                self.ptr = self.ptr + 1;
-                self.b = 0xff;
+                match self.get_byte()? {
+                    0x00 => {
+                        self.b = 0xff;
+                    },
+                    0xd0..=0xd7 =>  {    // RST    
+                        self.rst = true; 
+                        self.rst_ptr = self.ptr;
+                        self.b = 0xff;
+                    },
+                    0xd9=> { // EOI
+                        self.b = 0xff;
+                    },
+                    _ =>{
+//                        log(&format!("{:>02x}",self.b));
+                        self.b = 0xff;
+                        return Err(SimpleAddMessage(ErrorKind::DecodeError,"FF after  00 or RST".to_string()))
+                    },                    
+                }
             }
         }
         self.bptr = self.bptr - 1;
@@ -99,7 +135,11 @@ impl BitReader {
     }
 
     pub fn flush(self: &mut Self) {
-        self.bptr = 0;
+        if self.rst == true {
+            self.rst =false;
+            self.bptr = 0;
+//            self.ptr = self.rst_ptr;
+        }
     }
 
     pub fn reset(self: &mut Self) {
@@ -140,18 +180,11 @@ fn huffman_read (bit_reader:&mut BitReader,table: &HuffmanDecodeTable)  -> Resul
     Ok(v as u32)
 }
 
-struct BitReader {
-    buffer: Vec<u8>,
-    ptr : usize,
-    bptr : usize,
-    b: u8,
-    eof_flag: bool,
-}
 
 #[derive(std::cmp::PartialEq)]
-struct HuffmanDecodeTable<'a> {
-    pos: &'a Vec::<usize>,
-    val: &'a Vec::<usize>,
+pub struct HuffmanDecodeTable {
+    pos: Vec::<usize>,
+    val: Vec::<usize>,
     min: Vec::<i32>,
     max: Vec::<i32>,     
 }
@@ -298,9 +331,8 @@ fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
                 for x in 0..8 {
                     let xx = (x + h * 8) * 4;
                     let cy = gray[y * 8 + x] as f32;
-//                    log(&format!("{} {}",((y + v) / uy) % 8,((x + h) / ux) % 8));
-                    let cb = yuv[u_map_cur][(((y + v) / uy % 8) * 8)  + ((x + h) / ux) % 8] as f32;
-                    let cr = yuv[v_map_cur][(((y + v) / vy % 8) * 8)  + ((x + h) / vx) % 8] as f32;
+                    let cb = yuv[u_map_cur][(((y + v * 8) / uy % 8) * 8)  + ((x + h * 8) / ux) % 8] as f32;
+                    let cr = yuv[v_map_cur][(((y + v * 8) / vy % 8) * 8)  + ((x + h * 8) / vx) % 8] as f32;
 
                     let red  = cy as f32 + 1.402 * (cr - 128.0);
                     let green= cy as f32 - 0.34414 * (cb - 128.0) - 0.71414 * (cr - 128.0);
@@ -322,12 +354,66 @@ fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
     buffer
 }
 
+pub fn huffman_extend(huffman_tables:&Vec<HuffmanTable>) -> (Vec<HuffmanDecodeTable>,Vec<HuffmanDecodeTable>) {
 
-pub fn decode(buffer: &[u8],option:&mut DecodeOptions) 
-    -> Result<Option<usize>,ImgError> {
+    let mut ac_decode : Vec<HuffmanDecodeTable> = Vec::new();
+    let mut dc_decode : Vec<HuffmanDecodeTable> = Vec::new();
+
+    for huffman_table in huffman_tables.iter() {
+
+        let mut current_max: Vec<i32> = Vec::new();
+        let mut current_min: Vec<i32> = Vec::new();
+
+        let mut code :i32 = 0;
+        let mut pos :usize = 0;
+        for l in 0..16 {
+            if huffman_table.len[l] != 0 {
+                current_min.push(code); 
+                for _ in 0..huffman_table.len[l] {
+                    if pos >= huffman_table.val.len() { break;}
+                    pos = pos + 1;
+                    code = code + 1;
+                }
+                current_max.push(code - 1); 
+            } else {
+                current_min.push(-1);
+                current_max.push(-1);
+            }
+            code = code << 1;
+        }
+        
+        if huffman_table.ac {
+            let val : Vec<usize> = huffman_table.val.iter().map(|i| *i).collect();
+            let pos : Vec<usize> = huffman_table.pos.iter().map(|i| *i).collect();
+            ac_decode.push(HuffmanDecodeTable{
+                val: val,
+                pos: pos,
+                max: current_max,
+                min: current_min,
+            });
+        } else {
+            let val : Vec<usize> = huffman_table.val.iter().map(|i| *i).collect();
+            let pos : Vec<usize> = huffman_table.pos.iter().map(|i| *i).collect();
+            dc_decode.push(HuffmanDecodeTable{
+                val: val,
+                pos: pos,
+                max: current_max,
+                min: current_min,
+            });
+        }
+    }
+
+    (ac_decode,dc_decode)
+}
+
+pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions) 
+    -> Result<Option<JPEGWorning>,ImgError> {
+
+    let mut worning: Option<JPEGWorning> = None;
 
      // Scan Header
     let header = JpegHaeder::new(buffer,0)?;
+
     
     match header.huffman_scan_header {
         None => {
@@ -346,7 +432,7 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
 
         }
     }
-    let huffman_tables = header.huffman_tables.as_ref().unwrap();
+
     match header.frame_header {
         None => {
             return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Frame Header".to_string()));
@@ -388,52 +474,14 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This Decoder support Baseline Only".to_string()));
     }
 
+    if fh.differential == true {
+        return Err(SimpleAddMessage(ErrorKind::DecodeError,"This Decoder not support differential".to_string()));
+    }
+
     // Make Huffman Table
 
-    let mut ac_decode : Vec<HuffmanDecodeTable> = Vec::new();
-    let mut dc_decode : Vec<HuffmanDecodeTable> = Vec::new();
+    let (ac_decode,dc_decode) = huffman_extend(&header.huffman_tables.unwrap());
 
-    for i in 0..huffman_tables.len() {
-
-        let huffman_table :&HuffmanTable = &huffman_tables[i];
-
-        let mut current_max: Vec<i32> = Vec::new();
-        let mut current_min: Vec<i32> = Vec::new();
-
-        let mut code :i32 = 0;
-        let mut pos :usize = 0;
-        for l in 0..16 {
-            if huffman_table.len[l] != 0 {
-                current_min.push(code); 
-                for _ in 0..huffman_table.len[l] {
-                    if pos >= huffman_table.val.len() { break;}
-                    pos = pos + 1;
-                    code = code + 1;
-                }
-                current_max.push(code - 1); 
-            } else {
-                current_min.push(-1);
-                current_max.push(-1);
-            }
-            code = code << 1;
-        }
-        
-        if huffman_table.ac {
-            ac_decode.push(HuffmanDecodeTable{
-                val: &huffman_table.val,
-                pos: &huffman_table.pos,
-                max: current_max,
-                min: current_min,
-            });
-        } else {
-            dc_decode.push(HuffmanDecodeTable{
-                val: &huffman_table.val,
-                pos: &huffman_table.pos,
-                max: current_max,
-                min: current_min,
-            });
-        }
-    }
     log("Decode Start");
 
     // decode
@@ -462,17 +510,35 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
         size
     };
 
-
     let mut preds: Vec::<i32> = (0..component.len()).map(|_| 0).collect();
-    for y in 0..(height+dy-1)/dy {
-        for x in 0..(width+dx-1)/dx {
+
+    let mcu_y =(height+dy-1)/dy;
+    let mcu_x =(width+dx-1)/dx;
+
+    let mut mcu_interval = if header.interval > 0 { header.interval as isize} else {-1};
+
+
+    for y in 0..mcu_y {
+        for x in 0..mcu_x {
             let mut yuv :Vec<Vec<u8>> = Vec::new();
             for scannumber in 0..mcu_size {
                 let (dc_current,ac_current,i,tq) = scan[scannumber];
-                let (zz,pred) = baseline_read(bitread
+                log(&format!("mcu dc{} ac{} tq {}",dc_current,ac_current,tq));
+                let ret = baseline_read(bitread
                             ,&dc_decode[dc_current]
                             ,&ac_decode[ac_current]
-                            ,preds[i])?;
+                            ,preds[i]);
+                let (zz,pred);
+                match ret {
+                    Ok((_zz,_pred)) => {
+                        zz = _zz;
+                        pred = _pred; 
+                    }
+                    Err(r) => {
+                        log(&r.fmt());
+                        return Ok(Some(WorningAddMessage(WorningKind::DataCorruption,r.fmt())));
+                    }
+                }
                 preds[i] = pred;
 
                 let sq = &super::util::ZIG_ZAG_SEQUENCE;
@@ -482,11 +548,31 @@ pub fn decode(buffer: &[u8],option:&mut DecodeOptions)
                 let ff = idct(&zz);
                 yuv.push(ff);
             }
+
             let data = if plane == 3 {yuv_to_rgb(&yuv,&component)} else {y_to_rgb(&yuv,&component)};
-//            log(&format!("draw {} {}",x,y));
+
             (option.callback.draw)(option.drawer,x*dx,y*dy,dx,dy,&data)?;
+
+            if mcu_interval > 0 {
+                if bitread.rst()? == true {
+                    worning = Some(WorningAddMessage(WorningKind::IlligalRSTMaker,"mismatch mcu interval".to_string()));
+                    bitread.flush();
+                    for i in 0..preds.len() {
+                        preds[i] = 0;
+                    }
+//                    mcu_interval = header.interval as isize;
+                    continue;
+                }
+            } else if mcu_interval == 0 && header.interval != 0 {
+                mcu_interval = header.interval as isize;
+                bitread.flush();
+                for i in 0..preds.len() {
+                    preds[i] = 0;
+                }
+            } 
+            mcu_interval = mcu_interval - 1;
         }
     }
     (option.callback.terminate)(option.drawer)?;
-    Ok(None)
+    Ok(worning)
 }

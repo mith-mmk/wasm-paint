@@ -103,16 +103,16 @@ pub fn print_data (data: &DataPack) {
 
 #[allow(unused)]
 pub struct TiffHeader {
-    tagid: usize,
-    data: DataPack,
+    pub tagid: usize,
+    pub data: DataPack,
 }
 
 #[allow(unused)]
 pub struct TiffHeaders {
-    headers :Vec<TiffHeader>,
-    exif: Option<Vec<TiffHeader>>,
-    gps: Option<Vec<TiffHeader>>,
-    little_endian: bool,
+    pub headers :Vec<TiffHeader>,
+    pub exif: Option<Vec<TiffHeader>>,
+    pub gps: Option<Vec<TiffHeader>>,
+    pub little_endian: bool,
 }
 
 pub fn read_tags( buffer: &Vec<u8>) -> Result<TiffHeaders,ImgError>{

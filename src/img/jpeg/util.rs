@@ -1,3 +1,7 @@
+use crate::img::jpeg::decoder::huffman_extend;
+use crate::img::jpeg::header::JpegAppHeaders::*;
+use super::header::JpegHaeder;
+
 #[allow(unused)]
 pub(crate) static ZIG_ZAG_SEQUENCE:[usize;64] = [
       0,  1,  5,  6, 14, 15, 27, 28 ,
@@ -10,7 +14,7 @@ pub(crate) static ZIG_ZAG_SEQUENCE:[usize;64] = [
      35, 36, 48, 49, 57, 58, 62, 63 ,
   ];
 
-  pub(crate) static UN_ZIG_ZAG_SEQUENCE:[usize;64] = [
+pub(crate) static UN_ZIG_ZAG_SEQUENCE:[usize;64] = [
       0,  1,  8, 16,  9,  2,  3, 10,
       17, 24, 32, 25, 18, 11,  4,  5,
       12, 19, 26, 33, 40, 48, 41, 34,
@@ -20,3 +24,213 @@ pub(crate) static ZIG_ZAG_SEQUENCE:[usize;64] = [
       58, 59, 52, 45, 38, 31, 39, 46,
       53, 60, 61, 54, 47, 55, 62, 63,
   ];
+
+  /*
+    option
+    0x00 = minimam
+    & 0x01 = Quantitation table
+    & 0x02 = Huffman Table
+    & 0x04 = Huffman Table Extract
+    & 0x10 = Exif
+
+  */
+
+pub fn printHeader(header: &JpegHaeder,option: usize) -> Box<String> {
+    let mut str :String = "JPEG\n".to_string();
+    match &header.frame_header {
+        Some(fh) =>  {
+            str = str + &format!(
+            "SOF\nBaseline {} Progressiv {} Huffman {} Diffelensial {} Sequensial {} Lossless {} \n",
+            fh.baseline,fh.progressive,fh.huffman,fh.differential,fh.sequential,fh.lossress);
+
+            str = str + &format!(
+            "Width {} Height {} {} x {}bit\n",
+            header.width,header.height,fh.plane,fh.bitperpixel);
+            match &fh.component {
+                Some (component) =>{
+                    str = str + &format!(
+                        "Nf {}\n",
+                        component.len());
+                    for c in component.iter() {
+                        str = str + &format!(
+                            "ID {} h{} x v{} Quatize Table #{}\n",
+                            c.c,c.h,c.v,c.tq);
+                    }        
+                },
+                _ => {
+        
+                },
+            }        
+        },
+        _ => {
+            str = str + "SOF is nothing!";
+        },
+    }
+
+    match &header.huffman_scan_header {
+        Some(sos) => {
+            str = str + &format!("\nSOS\n {} ",sos.ns);
+            for i in 0..sos.ns {
+                str = str + &format!("Cs{} Td{} Ta{} ",sos.csn[i],sos.tdcn[i],sos.tacn[i]);
+            }
+            str = str + &format!("Ss {} Se {} Ah {} Al {}\n",sos.ss,sos.se,sos.ah,sos.al);
+        },
+        _ => {
+            str = str + "SOS is nothing!";
+        },
+    }
+
+    match &header.comment {
+        Some(comment) => {
+            str = str + "\nCOM\n" +&comment + "\n";
+        },
+        _ => {
+
+        },
+    }
+
+    match &header.jpeg_app_headers {
+        Some(app_headers) => {
+            for app in app_headers.iter() {
+                match app {
+                    Jfif(jfif) => {
+                        let unit = 
+                        match jfif.resolusion_unit {
+                            0 => {""}, 1 => {"dpi"},
+                            2 => {"dpi"}, _ => {"N/A"}
+                        };
+
+                        str = str + &format!(
+                            "JFIF Ver{} Resilution Unit X{}{} Y{}{} Thumnail {} {}\n",
+                            jfif.version,jfif.x_resolusion,unit,jfif.y_resolusion,unit,jfif.width,jfif.height);
+
+                    },
+                    Exif(exif) => {
+                        if option & 0x10 == 0x10 {  // Exif tag full display flag
+                            str = str + &format!(
+                                "Exif .. noimple Exif has{} tags\n",
+                                exif.headers.len());
+                        } else {
+                            str = str + &format!(
+                                "Exif has{} tags\n",
+                                exif.headers.len());
+                        }
+                    },
+                    Ducky(ducky) => {
+                        str = str + &format!(
+                            "Ducky .. unknow format {} {} {}\n",
+                            ducky.quality,ducky.comment,ducky.copyright);
+
+                    },
+                    Adobe(adobe) => {
+                        str = str + &format!(
+                            "Adobe App14 DCTEncodeVersion:{} Flag1:{} Flag2:{} ColorTransform {}\n"
+                            ,adobe.dct_encode_version
+                            ,adobe.flag1,adobe.flag2,match adobe.color_transform {
+                                    1 => {"YCbCr"}, 2 => {"YCCK"}, _ =>{"Unknown"}});
+
+                    },
+                    Unknown(app) => {
+                        str = str + &format!("App{} {} {}bytes is unknown\n",app.number,app.tag,app.length);
+                    },
+                }
+
+            }
+        },
+        _ => {
+
+        },
+    }
+
+    if header.interval > 0 {  //DRI
+        str = str +  &format!("Restart Interval {}\n",header.interval);
+    }
+
+    if header.line > 0 { //DNL
+        str = str +  &format!("Define number of lines {}\n",header.line);
+    }
+
+    if option & 0x01 == 0x01 { // Define Quatization Table Flags
+        match &(header.quantization_tables) {
+            Some(qts) => {
+                str = str + "DQT\n";
+                for qt in qts.iter()  {
+                    str = str + &format!("Pq{}(bytes) Tq{}\n",qt.presision + 1,qt.no);
+                    for (i,q) in qt.q.iter().enumerate() {
+                        str = str +&format!("{:3}",q);
+                        if i % 8 == 7 { str = str + "\n"} else { str = str + ","}
+                    }
+                }
+            },
+            _ => {
+                str = str + "DQT in nothing!\n\n";
+            }
+    
+        }
+    }
+
+    if option & 0x02 == 0x02 { // Define Huffman Table Flags
+        match &header.huffman_tables {
+            Some(hts) => {
+                str = str + "DHT\n";
+                for ht in hts.iter()  {
+                    str = str + &format!("{} Table{}\n",if ht.ac == true {"AC"} else {"DC"},ht.no);
+                    str = str + "L ";
+                    for l in ht.len.iter() {
+                        str = str + &l.to_string() + " ";
+                    }
+                    str = str + "\n V ";
+                    for v in ht.val.iter()  {
+                        str = str + &v.to_string() + " ";                    
+                    }
+                    str = str + "\n";
+                }
+            },
+            _ => {
+                str = str + "DQT in nothing!\n\n";
+            }
+    
+        }
+    }
+
+    if option & 0x04 == 0x04 { // Define Huffman Table Decoded
+        match &header.huffman_tables {
+            Some(huffman_tables) => {
+                for (i,huffman_table) in huffman_tables.iter().enumerate() {
+                    let mut current_max: Vec<i32> = Vec::new();
+                    let mut current_min: Vec<i32> = Vec::new();
+
+                    if huffman_table.ac {
+                        str = str + &format!("Huffman Table AC {}\n",i);
+                    } else {
+                        str = str + &format!("Huffman Table DC {}\n",i);
+                    }
+
+                    let mut code :i32 = 0;
+                    let mut pos :usize = 0;
+                    for l in 0..16 {
+                        if huffman_table.len[l] != 0 {
+                            current_min.push(code);
+                            for _ in 0..huffman_table.len[l] {
+                                if pos >= huffman_table.val.len() { break;}
+                                str = str + &format!("{:>02b}  {:>02x}\n",code,huffman_table.val[pos]);
+                                pos = pos + 1;
+                                code = code + 1;
+                            }
+                            current_max.push(code - 1); 
+                        } else {
+                            current_min.push(-1);
+                            current_max.push(-1);
+                        }
+                        code = code << 1;
+                    }                    
+                }
+            },
+            _  =>  {}
+        }
+    }
+            
+    let strbox :Box<String> = Box::new(str);
+
+    strbox
+}

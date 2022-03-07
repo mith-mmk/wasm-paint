@@ -36,6 +36,7 @@ pub enum ErrorKind {
     WriteError,
     IOError,
     OutboundIndex,
+    Reset,
     IlligalCallback,
     UnknownError,
 }
@@ -56,6 +57,7 @@ impl ErrorKind {
             DecodeError => {"decode error"},
             WriteError => {"write error"},
             IOError => {"IO error"},
+            Reset => {"Decoder Reset command"},
             OutboundIndex => {"Outbound index"},
             IlligalCallback => {"Illigal Callback"},
             UnknownError => {"Unkonw error"}            

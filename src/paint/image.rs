@@ -93,8 +93,13 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
       log(&error.fmt());
       return
     },
-    _ => {
-
+    Ok(worning) => {
+      match worning  {
+        Some(worning) => {
+          log(&worning.fmt());
+        },
+        _ => {}
+      }
     },
   }
 

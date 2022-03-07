@@ -4,11 +4,9 @@ pub mod tiff;
 pub mod error;
 pub mod util;
 
-use crate::log;
 use crate::img::error::ImgError;
 use crate::img::error::ErrorKind;
 use core::any::Any;
-use self::util::*;
 
 /* Dynamic Select Callback System */
 
