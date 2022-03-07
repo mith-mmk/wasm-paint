@@ -1,4 +1,4 @@
-use crate::img::jpeg::decoder::huffman_extend;
+
 use crate::img::jpeg::header::JpegAppHeaders::*;
 use super::header::JpegHaeder;
 
@@ -14,6 +14,7 @@ pub(crate) static ZIG_ZAG_SEQUENCE:[usize;64] = [
      35, 36, 48, 49, 57, 58, 62, 63 ,
   ];
 
+  /*
 pub(crate) static UN_ZIG_ZAG_SEQUENCE:[usize;64] = [
       0,  1,  8, 16,  9,  2,  3, 10,
       17, 24, 32, 25, 18, 11,  4,  5,
@@ -24,8 +25,9 @@ pub(crate) static UN_ZIG_ZAG_SEQUENCE:[usize;64] = [
       58, 59, 52, 45, 38, 31, 39, 46,
       53, 60, 61, 54, 47, 55, 62, 63,
   ];
+*/
 
-  /*
+/*
     option
     0x00 = minimam
     & 0x01 = Quantitation table

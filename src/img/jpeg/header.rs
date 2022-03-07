@@ -362,7 +362,7 @@ impl JpegHaeder {
                 offset = offset + 2;
 
                 match nextbyte {
-                    0xc4 => { // DHT maker
+                    0xc4 => { // DHT maker  //BUG
                         _dht_flag = true;
                         let length: usize = (buffer[offset] as usize) << 8 | buffer[offset + 1] as usize;
 
@@ -380,17 +380,16 @@ impl JpegHaeder {
                             let mut val :Vec<usize> = Vec::new();
                             let mut vlen = 0;
                             for i in 0..16 {
-                                let l = read_byte(&buffer,offset + 3 + i) as usize;
+                                let l = read_byte(&buffer,offset + size + i) as usize; // Fix!
                                 p.push(pss);
                                 vlen = vlen + l;
                                 len.push(l);
                                 for _ in 0..l {
-                                    val.push(read_byte(&buffer,offset + 19 + pss) as usize);
+                                    val.push(read_byte(&buffer,offset + size + 16 + pss) as usize); // Fix!
                                     pss =  pss + 1;
                                 }
-
-                                size = size + 1;
                             }
+                            size = size + 16;
 
                             _huffman_tables.push(HuffmanTable::new(ac,no,len,p,val));
                             size = size + vlen;

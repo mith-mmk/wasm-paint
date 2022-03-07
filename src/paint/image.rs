@@ -61,12 +61,6 @@ impl DrawCallback for Drawer<'_> {
   }
 }
 
-impl Drop for Drawer<'_> {
-  fn drop(&mut self) { //
-
-  }
-}
-
 
 impl Drawer<'_> {
   pub fn new (canvas: &'static mut Canvas) -> Self {
@@ -82,7 +76,7 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) {
   let mut drawer = ImageBuffer::new();
   let callback = Callback::new();
   let mut option = DecodeOptions{
-    debug_flag: 0,
+    debug_flag: 0x8f,
     drawer: &mut drawer,
     callback: callback,
   };

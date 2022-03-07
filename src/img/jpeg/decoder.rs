@@ -117,7 +117,6 @@ impl BitReader {
                         self.b = 0xff;
                     },
                     _ =>{
-//                        log(&format!("{:>02x}",self.b));
                         self.b = 0xff;
                         return Err(SimpleAddMessage(ErrorKind::DecodeError,"FF after  00 or RST".to_string()))
                     },                    
@@ -529,7 +528,6 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
             let mut yuv :Vec<Vec<u8>> = Vec::new();
             for scannumber in 0..mcu_size {
                 let (dc_current,ac_current,i,tq) = scan[scannumber];
-                log(&format!("mcu dc{} ac{} tq {}",dc_current,ac_current,tq));
                 let ret = baseline_read(bitread
                             ,&dc_decode[dc_current]
                             ,&ac_decode[ac_current]
@@ -541,7 +539,6 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                         pred = _pred; 
                     }
                     Err(r) => {
-                        log(&r.fmt());
                         return Ok(Some(WorningAddMessage(WorningKind::DataCorruption,r.fmt())));
                     }
                 }

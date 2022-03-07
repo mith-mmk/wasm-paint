@@ -27,7 +27,9 @@ pub enum WorningKind {
       BufferOverrun,
   }
 
-  impl WorningKind {
+#[allow(unused)]
+#[allow(non_snake_case)]
+impl WorningKind {
     pub(crate) fn as_str(&self) -> &'static str {
         match &*self {
             IlligalRSTMaker => {"Illigal RST Maker"},
