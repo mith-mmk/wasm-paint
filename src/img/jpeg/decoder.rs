@@ -341,17 +341,24 @@ fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
                 let offset = ((y + v * 8) * (8 * hv_maps[0].h)) * 4;
                 for x in 0..8 {
                     let xx = (x + h * 8) * 4;
-                    let cy = gray[y * 8 + x] as f32;
-                    let cb = yuv[u_map_cur][(((y + v * 8) / uy % 8) * 8)  + ((x + h * 8) / ux) % 8] as f32;
-                    let cr = yuv[v_map_cur][(((y + v * 8) / vy % 8) * 8)  + ((x + h * 8) / vx) % 8] as f32;
+                    let shift = 4090;
+                    let cy = gray[y * 8 + x] as i32;
+                    let cb = yuv[u_map_cur][(((y + v * 8) / uy % 8) * 8)  + ((x + h * 8) / ux) % 8] as i32;
+                    let cr = yuv[v_map_cur][(((y + v * 8) / vy % 8) * 8)  + ((x + h * 8) / vx) % 8] as i32;
 
-                    let red  = cy as f32 + 1.402 * (cr - 128.0);
-                    let green= cy as f32 - 0.34414 * (cb - 128.0) - 0.71414 * (cr - 128.0);
-                    let blue = cy as f32 + 1.772 * (cb - 128.0);
+                    let crr = (1.402 * shift as f32) as i32;
+                    let cbg = (- 0.34414 * shift as f32) as i32;
+                    let crg = (- 0.71414 * shift as f32) as i32;
+                    let cbb = (1.772 * shift as f32) as i32;
 
-                    let red = if red > 255.0 {255} else if red < 0.0 {0} else {red as u8};
-                    let green = if green > 255.0 {255} else if green < 0.0 {0} else {green as u8};
-                    let blue = if blue > 255.0 {255} else if blue < 0.0 {0} else {blue as u8};
+
+                    let red  = cy + (crr * (cr - 128))/shift;
+                    let green= cy + (cbg * (cb - 128) + crg * (cr - 128))/shift;
+                    let blue = cy + (cbb * (cb - 128))/shift;
+
+                    let red = if red > 255 {255} else if red < 0 {0} else {red as u8};
+                    let green = if green > 255 {255} else if green < 0 {0} else {green as u8};
+                    let blue = if blue > 255 {255} else if blue < 0 {0} else {blue as u8};
 
                     buffer[xx + offset    ] = red; //R
                     buffer[xx + offset + 1] = green; //G
