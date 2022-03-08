@@ -1,4 +1,4 @@
-use core::f64::consts::PI;
+use core::f32::consts::PI;
 use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::jpeg::header::JpegHaeder;
@@ -271,7 +271,7 @@ fn extend(mut v:i32,t: i32) -> i32 {
     v
 }
 
-#[inline]
+/* fast idct is pre-calculate cos from fn idct
 fn idct(f :&[i32]) -> Vec<u8> {
     let vals :Vec<u8> = (0..64).map(|i| {
         let (x,y) = ((i%8) as f32,(i/8) as f32);
@@ -282,14 +282,49 @@ fn idct(f :&[i32]) -> Vec<u8> {
             for v in 0..8 {
                 let cv = if v == 0 {1.0_f32 / 2.0_f32.sqrt()} else {1.0};
                 val += cu * cv * (f[v*8 + u] as f32)
-                    * ((2.0 * x + 1.0) * u as f32 * PI as f32 / 16.0_f32).cos()
-                    * ((2.0 * y + 1.0) * v as f32 * PI as f32 / 16.0_f32).cos();
+                    * ((2.0 * x + 1.0) * u as f32 * PI / 16.0_f32).cos()
+                    * ((2.0 * y + 1.0) * v as f32 * PI / 16.0_f32).cos();
             }
         }
         val = val / 4.0;
 
         // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
         let v = val.round() as i32 + 128;
+        if v < 0 {0} else if v > 255 {255} else {v as u8}
+    }).collect();
+    vals
+}
+*/
+
+#[inline]
+fn fast_idct (f :&[i32]) -> Vec<u8> {
+    let cos_table :[[f32;8];8] = [
+        [1.0,0.98078525,0.9238795,0.8314696,0.70710677,0.5555702,0.38268343,0.19509023,],
+        [1.0,0.8314696,0.38268343,-0.19509032,-0.70710677,-0.9807853,-0.9238795,-0.55557,],
+        [1.0,0.5555702,-0.38268352,-0.9807853,-0.70710665,0.19509041,0.92387956,0.83146936,],
+        [1.0,0.19509023,-0.9238796,-0.55557,0.707107,0.83146936,-0.3826839,-0.9807852,],
+        [1.0,-0.19509032,-0.9238795,0.5555704,0.70710677,-0.8314698,-0.38268298,0.9807854,],
+        [1.0,-0.55557036,-0.38268313,0.98078525,-0.70710725,-0.19509022,0.9238793,-0.8314696,],
+        [1.0,-0.83146966,0.3826836,0.19509007,-0.70710653,0.9807853,-0.92387974,0.55557114,],
+        [1.0,-0.9807853,0.92387956,-0.8314698,0.7071068,-0.55557084,0.3826839,-0.19509155,],
+    ];
+ 
+    let vals :Vec<u8> = (0..64).map(|i| {
+    let (x,y) = ((i%8) as usize,(i/8) as usize);
+        // IDCT from CCITT Rec. T.81 (1992 E) p.27 A3.3
+        let mut val = 0.0;
+        for u in 0..8 {
+            for v in 0..8 {
+                let cucv :f32 = if u == 0 && v ==0 {0.5} 
+                        else if  u==0 || v==0 {1.0 / 2.0_f32.sqrt()}
+                        else {1.0};
+                val += cucv * f[v*8 + u] as f32 * cos_table[x][u] * cos_table[y][v];
+            }
+        }
+        val = val / 4.0;
+
+        // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
+        let v = val.round() as isize + 128 ;
         if v < 0 {0} else if v > 255 {255} else {v as u8}
     }).collect();
     vals
@@ -566,7 +601,8 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                 let zz :Vec<i32> = (0..64).map(|i| 
                     zz[i] * quantization_tables[tq].q[i] as i32).collect();
                 let zz :Vec<i32> = (0..64).map(|i| zz[sq[i]]).collect();
-                let ff = idct(&zz);
+//                let ff = idct(&zz);
+                let ff = fast_idct(&zz);
                 yuv.push(ff);
             }
 

@@ -19,6 +19,12 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[wasm_bindgen(start)]
+pub fn initialization() {
+    utils::set_panic_hook();
+}
+
+
 #[wasm_bindgen]
 extern {
     fn alert(s: &str);
