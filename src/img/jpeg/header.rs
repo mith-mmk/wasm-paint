@@ -487,7 +487,7 @@ impl JpegHaeder {
                     },
                     0xfe => { // Comment
                         let length = read_u16be(&buffer,offset) as usize;
-                        comment = Some(String::from_utf8(buffer[offset+2..offset+length].to_vec()).unwrap());
+                        comment = Some(read_string(buffer, offset, length- 2));
                         offset = offset + length; // skip
                     },
                     0xe0..=0xef => { // Applications 

@@ -1,4 +1,3 @@
-use core::f32::consts::PI;
 use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::jpeg::header::JpegHaeder;
@@ -183,12 +182,13 @@ fn huffman_read (bit_reader:&mut BitReader,table: &HuffmanDecodeTable)  -> Resul
         if table.max[l] >= d {
             let p = d as usize - table.min[l] as usize + table.pos[l] as usize;
             v = table.val[p];
-                        
-            break;
+            return Ok(v as u32)                      
+//            break;
         }
         ll = ll + 1;
     }
-    Ok(v as u32)
+    Err(SimpleAddMessage(ErrorKind::OutboundIndex,"Huffman read Overflow".to_string()))  
+//    Ok(v as u32)
 }
 
 
