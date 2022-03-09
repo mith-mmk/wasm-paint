@@ -29,10 +29,10 @@ pub(crate) static UN_ZIG_ZAG_SEQUENCE:[usize;64] = [
 
 /*
     option
-    0x00 = minimam
-    & 0x01 = Quantitation table
+      0x01 = minimam
     & 0x02 = Huffman Table
     & 0x04 = Huffman Table Extract
+    & 0x08 = Quantitation table
     & 0x10 = Exif
 
   */
@@ -43,7 +43,7 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
         Some(fh) =>  {
             str = str + &format!(
             "SOF\nBaseline {} Progressiv {} Huffman {} Diffelensial {} Sequensial {} Lossless {} \n",
-            fh.baseline,fh.progressive,fh.huffman,fh.differential,fh.sequential,fh.lossress);
+            fh.is_baseline,fh.is_progressive,fh.is_huffman,fh.is_differential,fh.is_sequential,fh.is_lossress);
 
             str = str + &format!(
             "Width {} Height {} {} x {}bit\n",
@@ -152,7 +152,7 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
         str = str +  &format!("Define number of lines {}\n",header.line);
     }
 
-    if option & 0x01 == 0x01 { // Define Quatization Table Flags
+    if option & 0x08 == 0x08 { // Define Quatization Table Flags
         match &(header.quantization_tables) {
             Some(qts) => {
                 str = str + "DQT\n";

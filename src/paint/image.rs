@@ -60,6 +60,11 @@ impl DrawCallback for Drawer<'_> {
   fn next(_: &mut Dynamic, _: Vec<u8>) -> Result<Option<isize>,ImgError> {
     Ok(None) 
   }
+
+  fn verbose(_: &mut Dynamic, _: &str) -> Result<Option<isize>,ImgError> {
+    Ok(None)
+  }
+
 }
 
 impl Drop for Drawer<'_> {
@@ -79,11 +84,18 @@ impl Drawer<'_> {
   }
 }
 
-pub fn draw_image (canvas:&mut Canvas,data: &[u8]) -> Result<Option<JPEGWorning>,ImgError> {
+pub fn write_log(_: &mut Dynamic,str: &str) -> Result<Option<isize>,ImgError> {
+  log(str);
+  Ok(None)
+}
+
+pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<JPEGWorning>,ImgError> {
   let mut drawer = ImageBuffer::new();
-  let callback = Callback::new();
+  let mut callback = Callback::new();
+  callback.set_verbose(write_log);
+
   let mut option = DecodeOptions{
-    debug_flag: 0,
+    debug_flag: verbose,
     drawer: &mut drawer,
     callback: callback,
   };
@@ -91,15 +103,12 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8]) -> Result<Option<JPEGWorning>
   let r = crate::img::jpeg::decoder::decode(data, &mut option);
   match r {
     Err(error) => {
-      log(&error.fmt());
       return Err(error)
     },
     _ => {},
   }
 
   let buf = drawer.buffer.unwrap();
-
-  log(&format!("{} {}",drawer.width,drawer.height));
 
   for y in 0..drawer.height {
     if y >= canvas.height() as usize { break;}

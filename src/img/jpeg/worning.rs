@@ -25,6 +25,7 @@ pub enum WorningKind {
       UnfindEOIMaker,
       DataCorruption,
       BufferOverrun,
+      UnexpectMaker,
   }
 
 #[allow(unused)]
@@ -36,6 +37,7 @@ impl WorningKind {
             OutOfMemory => {"Out of memory"},
             DataCorruption => {"Data Corruption"},
             BufferOverrun => {"Buffer Overrun"},
+            UnexpectMaker => {"Unexpect Maker"},
         }
     }
 }

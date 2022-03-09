@@ -38,7 +38,7 @@ canvas.addEventListener('drop', (ev) => {
       ibuf.set(buffer);
       universe.clear(0x000000);
       console.time("decode");
-      universe.jpeg_decoder(buffer); 
+      universe.jpeg_decoder(buffer,0xf9); 
       console.timeEnd("decode");
       img = new ImageData(buf, universe.width(), universe.height());
       ctx.putImageData(img, 0, 0);

@@ -142,8 +142,8 @@ impl Universe {
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 
-    pub fn jpeg_decoder(&mut self,buffer: &[u8]) {
-        let r = draw_image(&mut self.canvas,buffer);
+    pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
+        let r = draw_image(&mut self.canvas,buffer,verbose);
         match r {
             Err(error) => {
                 alert(&error.fmt());
@@ -151,7 +151,7 @@ impl Universe {
             Ok(s) => {
                 match s {
                     Some(worning) => {
-                    //    alert(&worning.fmt());
+                        log(&worning.fmt());
                     },
                     _ =>{},
                 }

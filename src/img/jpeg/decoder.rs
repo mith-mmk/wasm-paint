@@ -10,8 +10,6 @@ use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{Simple};
 use crate::img::DecodeOptions;
 
-use crate::log;
-
 
 #[allow(unused)]
 #[cfg(not(debug_assertions))]
@@ -113,6 +111,18 @@ impl BitReader {
         Ok(false)
     }
 
+    fn next_marker(self: &mut Self) -> Result<u8,ImgError> {
+        if self.get_byte()? != 0xff {
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Nonthing maker".to_string()));
+        }
+        loop {
+            let b = self.get_byte()?; 
+            if b != 0xff {
+                return Ok(b);
+            }
+        }
+    }
+
     pub fn get_bit_as_i32(self: &mut Self) -> Result<i32,ImgError> {
         if self.bptr == 0 {
             self.bptr = 8;
@@ -174,21 +184,17 @@ impl BitReader {
 }
 
 fn huffman_read (bit_reader:&mut BitReader,table: &HuffmanDecodeTable)  -> Result<u32,ImgError>{
-    let mut v = 0;
     let mut d :i32 = 0;
     let mut ll = 1;
     for l in 0..16 {
         d = (d << 1) | bit_reader.get_bit_as_i32()?;
         if table.max[l] >= d {
             let p = d as usize - table.min[l] as usize + table.pos[l] as usize;
-            v = table.val[p];
-            return Ok(v as u32)                      
-//            break;
+            return Ok(table.val[p] as u32)                      
         }
         ll = ll + 1;
     }
     Err(SimpleAddMessage(ErrorKind::OutboundIndex,"Huffman read Overflow".to_string()))  
-//    Ok(v as u32)
 }
 
 
@@ -463,19 +469,19 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
     -> Result<Option<JPEGWorning>,ImgError> {
 
     let mut worning: Option<JPEGWorning> = None;
-
-     // Scan Header
+        // Make Huffman Table
+    // Scan Header
     let header = JpegHaeder::new(buffer,0)?;
 
-    
-    match header.huffman_scan_header {
-        None => {
-            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Huffman Scan Header".to_string()));
-        },
-        _ => {
-
-        }
+    if option.debug_flag > 0 {
+        let boxstr = print_header(&header,option.debug_flag);
+        (option.callback.verbose)(option.drawer,&boxstr)?;
     }
+    
+    if header.is_hierachical {
+        return Err(SimpleAddMessage(ErrorKind::DecodeError,"Hierachical is not support".to_string()));
+    }
+
     let huffman_scan_header  = header.huffman_scan_header.as_ref().unwrap();
     match header.huffman_tables {
         None => {
@@ -519,32 +525,22 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
     }
     let quantization_tables = header.quantization_tables.as_ref().unwrap();
 
-    if fh.huffman == false {
+    if fh.is_huffman == false {
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This decoder suport huffman only".to_string()));
     }
 
-    if fh.baseline == false {
+    if fh.is_baseline == false {
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This Decoder support Baseline Only".to_string()));
     }
 
-    if fh.differential == true {
+    if fh.is_differential == true {
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This Decoder not support differential".to_string()));
     }
 
-    // Make Huffman Table
-
     let (ac_decode,dc_decode) = huffman_extend(&header.huffman_tables.as_ref().unwrap());
-
-    if option.debug_flag > 0 {
-        let boxstr = print_header(&header,option.debug_flag);
-        log(&boxstr);
-    }
-
-    log("Decode Start");
 
     // decode
     (option.callback.init)(option.drawer,width,height)?;
-
 
     let slice = &buffer[header.imageoffset..];
     let bitread :&mut BitReader = &mut BitReader::new(&slice);
@@ -634,5 +630,25 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
         }
     }
     (option.callback.terminate)(option.drawer)?;
+    match bitread.next_marker()? {
+        0xd9 => {   // EOI
+        },
+        0xdd => {
+            return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"DNL,No Support Multi scan/frame".to_string())))
+        },
+        _ => {
+            return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"No Support Multi scan/frame".to_string())))
+            // offset = bitread.offset() -2
+            // new_jpeg_header = read_makers(buffer[offset:],opt,false,true);
+            // jpeg_header <= new Huffman Table if exit
+            // jpeg_header <= new Quantize Table if exit
+            // jpeg_header <= new Restart Interval if exit
+            // jpeg_header <= new Add Comment Table if exit
+            // jpeg_header <= new Add Appn if exit
+            // goto loop
+        }
+
+    }
     Ok(worning)
+
 }

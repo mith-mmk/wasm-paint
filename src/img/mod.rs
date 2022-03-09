@@ -13,6 +13,7 @@ use core::any::Any;
 pub type Dynamic = (dyn Any + Send + Sync);
 pub type FnInit = fn(&mut Dynamic,usize,usize) -> Result<Option<isize>,ImgError>;
 pub type FnDraw = fn(&mut Dynamic,usize,usize,usize,usize,&[u8]) -> Result<Option<isize>,ImgError>;
+pub type FnVerbose = fn(&mut Dynamic,&str) -> Result<Option<isize>,ImgError>;
 pub type FnNext = fn(&mut Dynamic,Vec<u8>) -> Result<Option<isize>,ImgError>;
 pub type FnTerminate = fn(&mut Dynamic) -> Result<Option<isize>,ImgError>;
 
@@ -20,8 +21,9 @@ pub trait DrawCallback {
     fn init(any: &mut Dynamic,width: usize,height: usize) -> Result<Option<isize>,ImgError>;
     fn draw(any: &mut Dynamic,start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8])
              -> Result<Option<isize>,ImgError>;
-    fn terminate(any: &mut (dyn Any + Send + Sync)) -> Result<Option<isize>,ImgError>;
-    fn next(any: &mut (dyn Any + Send + Sync), _: Vec<u8>) -> Result<Option<isize>,ImgError>;
+    fn terminate(any: &mut Dynamic) -> Result<Option<isize>,ImgError>;
+    fn next(any: &mut Dynamic, _next: Vec<u8>) -> Result<Option<isize>,ImgError>;
+    fn verbose(any: &mut Dynamic, _verbose: &str ) -> Result<Option<isize>,ImgError>;
 }
 
 #[allow(unused)]
@@ -47,6 +49,7 @@ pub struct Callback {
     draw: FnDraw,
     next: FnNext,
     terminate: FnTerminate,
+    verbose: FnVerbose,
 }
 
 #[allow(unused)]
@@ -57,6 +60,7 @@ impl Callback {
             draw: Self::default_draw,
             next: Self::default_next,
             terminate: Self::default_terminate,
+            verbose: Self::default_verbose,
         }
     }
 
@@ -71,6 +75,9 @@ impl Callback {
     }
     pub fn set_terminate(self:&mut Self,terminate :FnTerminate) {
         self.terminate = terminate;
+    }
+    pub fn set_verbose(self:&mut Self,verbose: FnVerbose) {
+        self.verbose = verbose;
     }
 
 
@@ -111,6 +118,10 @@ impl Callback {
     }
 
     fn default_next(any: &mut Dynamic, _: Vec<u8>) -> Result<Option<isize>,ImgError> {
+        Ok(None) 
+    }
+
+    fn default_verbose(any: &mut Dynamic, _: &str) -> Result<Option<isize>,ImgError> {
         Ok(None) 
     }
 }

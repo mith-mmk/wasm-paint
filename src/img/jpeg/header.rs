@@ -1,4 +1,3 @@
-use crate::log;
 use crate::img::error::ImgError::Custom;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{SimpleAddMessage};
@@ -79,12 +78,12 @@ pub struct Component{
 }
 
 pub struct FrameHeader {
-    pub baseline: bool,
-    pub sequential: bool,
-    pub progressive: bool,
-    pub lossress: bool,
-    pub differential: bool,
-    pub huffman: bool,
+    pub is_baseline: bool,
+    pub is_sequential: bool,
+    pub is_progressive: bool,
+    pub is_lossress: bool,
+    pub is_differential: bool,
+    pub is_huffman: bool,
     pub width: usize,
     pub height: usize,
     pub bitperpixel: usize,
@@ -95,12 +94,12 @@ pub struct FrameHeader {
 impl FrameHeader {
     #[warn(unused_assignments)]
     pub fn new(num: usize,buffer: &[u8]) -> Self {
-        let mut baseline: bool = false;
-        let mut sequential: bool = false;
-        let mut progressive: bool = false;
-        let mut lossress: bool = false;
-        let mut differential: bool = false;
-        let huffman;
+        let mut is_baseline: bool = false;
+        let mut is_sequential: bool = false;
+        let mut is_progressive: bool = false;
+        let mut is_lossress: bool = false;
+        let mut is_differential: bool = false;
+        let is_huffman;
         let width: usize;
         let height: usize;
         let bitperpixel: usize;
@@ -108,28 +107,28 @@ impl FrameHeader {
         let mut component: Vec<Component>;
 
         if num & 0x03 == 0x00 {
-            baseline = true;
+            is_baseline = true;
         }
         if num & 0x03 == 0x01 {
-            sequential = true;
+            is_sequential = true;
         }
         if num & 0x03 == 0x02 
         {
-            progressive = true;
+            is_progressive = true;
         }
         if num & 0x03 == 0x03 {
-            lossress = true;
+            is_lossress = true;
         }
         if num & 0x08 == 0x00 {
-            huffman = true;
+            is_huffman = true;
         } else {
-            huffman = false;
+            is_huffman = false;
         }
         if num & 0x04 == 0x00 {
-            differential = false;
+            is_differential = false;
         }
         if num & 0x04 == 0x04 {
-            differential = true;
+            is_differential = true;
         }
 
         let p = read_byte(&buffer,0) as i32;
@@ -154,12 +153,12 @@ impl FrameHeader {
         }
  
         Self {
-            baseline,
-            sequential,
-            progressive,
-            lossress,
-            differential,
-            huffman,
+            is_baseline,
+            is_sequential,
+            is_progressive,
+            is_lossress,
+            is_differential,
+            is_huffman,
             width,
             height,
             bitperpixel,
@@ -230,6 +229,7 @@ pub struct JpegHaeder {
     pub imageoffset: usize,
     pub comment: Option<String>,
     pub jpeg_app_headers: Option<Vec<JpegAppHeaders>>,
+    pub is_hierachical: bool,
 }
 
 #[allow(unused)]
@@ -323,12 +323,33 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
 
 impl JpegHaeder {
     pub fn new(buffer :&[u8],opt :usize) -> Result<Self,ImgError> {
+        let mut offset = 0;
+
+        while offset < 16 { //SOI check
+            let soi = read_u16be(buffer,offset);
+            if soi == 0xffd8 {break};
+            offset = offset + 1;
+        }
+
+        if offset >= 16 {
+            return Err(Custom("Not Jpeg".to_string()))
+        }
+
+        return Self::read_makers(&buffer[offset..],opt,true,false)
+    }
+
+    /* 
+     * is_only_tables = only allow DQT,DHT,DAC,DRI,COM,APPn
+     */
+
+    pub fn read_makers(buffer :&[u8],opt :usize,include_soi:bool,is_only_tables:bool) ->  Result<Self,ImgError> {
         let _flag = opt;
         let mut _flag = false;
         let mut _dqt_flag = false;
         let mut _dht_flag = false;
-        let mut _sof_flag = false;
+        let mut _sof_flag = is_only_tables;
         let mut _sos_flag = false;
+        let mut is_hierachical = false;
         let mut width : usize = 0;
         let mut height: usize = 0;
         let mut bpp: usize = 0;
@@ -344,17 +365,6 @@ impl JpegHaeder {
         let jpeg_app_headers: Option<Vec<JpegAppHeaders>>;
         let mut offset = 0;
 
-        while offset < 16 {
-            let soi = read_u16be(buffer,offset);
-            log(&format!("{:>04x}",soi));
-            if soi == 0xffd8 {break};
-            offset = offset + 1;
-        }
-
-        if offset >= 16 {
-            return Err(Custom("Not Jpeg".to_string()))
-        }
-
         while offset < buffer.len() {
             let byte = buffer[offset];  // read byte
             if byte == 0xff { // header head
@@ -362,9 +372,9 @@ impl JpegHaeder {
                 offset = offset + 2;
 
                 match nextbyte {
-                    0xc4 => { // DHT maker  //BUG
+                    0xc4 => { // DHT maker
                         _dht_flag = true;
-                        let length: usize = (buffer[offset] as usize) << 8 | buffer[offset + 1] as usize;
+                        let length = read_u16be(&buffer,offset) as usize;
 
                         let mut size :usize = 2;
                         while size < length {
@@ -380,12 +390,12 @@ impl JpegHaeder {
                             let mut val :Vec<usize> = Vec::new();
                             let mut vlen = 0;
                             for i in 0..16 {
-                                let l = read_byte(&buffer,offset + size + i) as usize; // Fix!
+                                let l = read_byte(&buffer,offset + size + i) as usize;
                                 p.push(pss);
                                 vlen = vlen + l;
                                 len.push(l);
                                 for _ in 0..l {
-                                    val.push(read_byte(&buffer,offset + size + 16 + pss) as usize); // Fix!
+                                    val.push(read_byte(&buffer,offset + size + 16 + pss) as usize);
                                     pss =  pss + 1;
                                 }
                             }
@@ -397,23 +407,32 @@ impl JpegHaeder {
 
                         offset = offset + length; // skip
                     },
+                    0xcc => {   //DAC no impl
+                        let length = read_u16be(&buffer,offset) as usize;
+                        offset = offset + length; // skip
+                    },
                     0xc0..=0xcf => {  // SOF Frame Headers;
-                        if !_sof_flag {
+                        if !_sof_flag  {
                             _sof_flag = true;
                             let num = (nextbyte & 0x0f) as usize;
                             let length = read_u16be(&buffer,offset) as usize;
                             let buf = read_bytes(&buffer,offset + 2,length - 2);
                             let fh = FrameHeader::new(num,&buf);
-                            log(&format!("{}x{} pixel - {}bit color ",fh.width,fh.height,fh.bitperpixel * fh.plane));
                             width = fh.width;
                             height = fh.height;
                             bpp = fh.bitperpixel * fh.plane;
                             frame_header = Some(fh);
                             offset = offset + length; //skip
+                        } else {
+                            return Err(SimpleAddMessage(ErrorKind::DecodeError,"SOF Header Multiple".to_string()))
                         }
                     },
                     0xd8 => { // Start of Image
-                        _flag = true;
+                        if include_soi {
+                            _flag = true;
+                        } else {
+                            return Err(SimpleAddMessage(ErrorKind::DecodeError,"SOI Header Mutiple".to_string()))
+                        }
                     },
                     0xd9=> { // End of Image
                         return Err(SimpleAddMessage(ErrorKind::DecodeError ,"Unexpect EOI".to_string()));
@@ -472,6 +491,9 @@ impl JpegHaeder {
                     },
                     0xdc =>{ // DNL Define Number Lines
                         _dqt_flag = true;
+                        if is_only_tables {
+                            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Disallow DNL Header".to_string()))
+                        }
                         let length: usize = read_u16be(&buffer,offset) as usize;
                         let nl = read_u16be(&buffer,offset) as usize;
                         line = nl;
@@ -482,7 +504,21 @@ impl JpegHaeder {
                         let length = read_u16be(&buffer,offset) as usize;
                         let ri = read_u16be(&buffer,offset + 2);
                         interval = ri as usize;
-                        log(&format!("DRI {}",interval));
+                        offset = offset + length; // skip
+                    },
+                    0xde => {   // DHP Hierachical mode
+                        if is_only_tables {
+                            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Disallow DNP Header".to_string()))
+                        }
+                        let length = read_u16be(&buffer,offset) as usize;
+                        is_hierachical = true;
+                        offset = offset + length; // skip
+                    },
+                    0xdf => {   //EXP
+                        if is_only_tables {
+                            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Disallow EXP Header".to_string()))
+                        }
+                        let length = read_u16be(&buffer,offset) as usize;
                         offset = offset + length; // skip
                     },
                     0xfe => { // Comment
@@ -548,6 +584,7 @@ impl JpegHaeder {
             imageoffset:  offset,
             comment,
             jpeg_app_headers,
+            is_hierachical,
         })
     }
 }
