@@ -113,7 +113,7 @@ impl BitReader {
 
     fn next_marker(self: &mut Self) -> Result<u8,ImgError> {
         if self.get_byte()? != 0xff {
-            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Nonthing maker".to_string()));
+            return Err(SimpleAddMessage(ErrorKind::DecodeError,"Nothing marker".to_string()));
         }
         loop {
             let b = self.get_byte()?; 
@@ -556,10 +556,9 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                 scan.push((huffman_scan_header.tdcn[i],
                             huffman_scan_header.tacn[i],
                             i,tq));
-            } 
-
+            }
             dx = usize::max(component[i].h * 8 ,dx);
-            dy = usize::max(component[i].v * 8 ,dx);
+            dy = usize::max(component[i].v * 8 ,dy);
         }
         size
     };
@@ -630,25 +629,33 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
         }
     }
     (option.callback.terminate)(option.drawer)?;
-    match bitread.next_marker()? {
-        0xd9 => {   // EOI
+/*
+    match bitread.next_marker() {
+        Ok(marker) => {
+            match marker {
+                0xd9 => {   // EOI
+                },
+                0xdd => {
+                    return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"DNL,No Support Multi scan/frame".to_string())))
+                },
+               _ => {
+                    return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"No Support Multi scan/frame".to_string())))
+                // offset = bitread.offset() -2
+                // new_jpeg_header = read_makers(buffer[offset:],opt,false,true);
+                // jpeg_header <= new Huffman Table if exit
+                // jpeg_header <= new Quantize Table if exit
+                // jpeg_header <= new Restart Interval if exit
+                // jpeg_header <= new Add Comment Table if exit
+                // jpeg_header <= new Add Appn if exit
+                // goto loop
+               },
+            }
         },
-        0xdd => {
-            return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"DNL,No Support Multi scan/frame".to_string())))
-        },
-        _ => {
-            return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"No Support Multi scan/frame".to_string())))
-            // offset = bitread.offset() -2
-            // new_jpeg_header = read_makers(buffer[offset:],opt,false,true);
-            // jpeg_header <= new Huffman Table if exit
-            // jpeg_header <= new Quantize Table if exit
-            // jpeg_header <= new Restart Interval if exit
-            // jpeg_header <= new Add Comment Table if exit
-            // jpeg_header <= new Add Appn if exit
-            // goto loop
+        Err(..) => {
+            worning = Some(WorningAddMessage(WorningKind::UnexpectMaker,"Not found EOI".to_string()));
         }
-
     }
+*/
     Ok(worning)
 
 }

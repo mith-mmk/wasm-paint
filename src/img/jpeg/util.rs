@@ -109,9 +109,8 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
                     },
                     Exif(exif) => {
                         if option & 0x10 == 0x10 {  // Exif tag full display flag
-                            str = str + &format!(
-                                "Exif .. noimple Exif has{} tags\n",
-                                exif.headers.len());
+                            str = str + "Exif\n";
+                            str = str + &crate::img::tiff::util::print_tags(&exif);
                         } else {
                             str = str + &format!(
                                 "Exif has{} tags\n",

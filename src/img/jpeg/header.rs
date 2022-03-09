@@ -280,7 +280,8 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                         .map(|i| {buffer[ptr + i]})
                         .collect();
 
-                    super::super::tiff::header::read_tags(&buf)?;
+                    let exif = super::super::tiff::header::read_tags(&buf)?;
+                    return Ok(JpegAppHeaders::Exif(exif))
                 },
                 _ => {
                 }

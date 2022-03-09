@@ -4,26 +4,35 @@ pub mod tiff;
 pub mod error;
 pub mod util;
 
+use crate::img::ImgError::SimpleAddMessage;
 use crate::img::error::ImgError;
 use crate::img::error::ErrorKind;
 use core::any::Any;
 
 /* Dynamic Select Callback System */
 
+pub enum DrawNextOptions {
+    Continue,
+    NextImage,
+    ClearNext,
+    WaitTime(usize),
+    None,
+}
+
 pub type Dynamic = (dyn Any + Send + Sync);
 pub type FnInit = fn(&mut Dynamic,usize,usize) -> Result<Option<isize>,ImgError>;
 pub type FnDraw = fn(&mut Dynamic,usize,usize,usize,usize,&[u8]) -> Result<Option<isize>,ImgError>;
 pub type FnVerbose = fn(&mut Dynamic,&str) -> Result<Option<isize>,ImgError>;
-pub type FnNext = fn(&mut Dynamic,Vec<u8>) -> Result<Option<isize>,ImgError>;
+pub type FnNext = fn(&mut Dynamic,Option<DrawNextOptions>) -> Result<Option<isize>,ImgError>;
 pub type FnTerminate = fn(&mut Dynamic) -> Result<Option<isize>,ImgError>;
 
 pub trait DrawCallback {
-    fn init(any: &mut Dynamic,width: usize,height: usize) -> Result<Option<isize>,ImgError>;
-    fn draw(any: &mut Dynamic,start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8])
+    fn init(&mut self,width: usize,height: usize) -> Result<Option<isize>,ImgError>;
+    fn draw(&mut self,start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8])
              -> Result<Option<isize>,ImgError>;
-    fn terminate(any: &mut Dynamic) -> Result<Option<isize>,ImgError>;
-    fn next(any: &mut Dynamic, _next: Vec<u8>) -> Result<Option<isize>,ImgError>;
-    fn verbose(any: &mut Dynamic, _verbose: &str ) -> Result<Option<isize>,ImgError>;
+    fn terminate(&mut self) -> Result<Option<isize>,ImgError>;
+    fn next(&mut self, _next: Vec<u8>) -> Result<Option<isize>,ImgError>;
+    fn verbose(&mut self, _verbose: &str ) -> Result<Option<isize>,ImgError>;
 }
 
 #[allow(unused)]
@@ -103,11 +112,13 @@ impl Callback {
             for x in 0..w {
                 let offset_src = scanline_src + x * 4;
                 let offset_dest = scanline_dest + (x + start_x) * 4;
+                if offset_src + 3 >= data.len() {
+                    return Err(SimpleAddMessage(ErrorKind::OutboundIndex,format!("decoder buffer in draw {}",data.len())))
+                }
                 buffer[offset_dest    ] = data[offset_src];
                 buffer[offset_dest + 1] = data[offset_src + 1];
                 buffer[offset_dest + 2] = data[offset_src + 2];
                 buffer[offset_dest + 3] = data[offset_src + 3];
-
             }
         }
         Ok(None)
@@ -117,7 +128,7 @@ impl Callback {
         Ok(None)
     }
 
-    fn default_next(any: &mut Dynamic, _: Vec<u8>) -> Result<Option<isize>,ImgError> {
+    fn default_next(any: &mut Dynamic, _: Option<DrawNextOptions>) -> Result<Option<isize>,ImgError> {
         Ok(None) 
     }
 
@@ -125,6 +136,7 @@ impl Callback {
         Ok(None) 
     }
 }
+
 
 pub struct DecodeOptions<'a> {
     pub debug_flag: usize,

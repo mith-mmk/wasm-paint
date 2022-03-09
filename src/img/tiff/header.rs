@@ -1,5 +1,4 @@
 /* for EXIF */
-use crate::log;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{SimpleAddMessage};
 use super::tags::gps_mapper;
@@ -33,73 +32,6 @@ pub enum DataPack {
     Undef(Vec<u8>),
 }
 
-pub fn print_data (data: &DataPack) {
-    match data {
-        DataPack::Rational(d) => {
-            log(&format!("{} ",d.len()));
-            for i in 0..d.len() {
-                log(&format!("{}/{} ",d[i].n,d[i].d));
-            }
-        },
-        DataPack::RationalU64(d) => {
-            log(&format!("{} ",d.len()));
-            for i in 0..d.len() {
-                log(&format!("{}/{} ",d[i].n,d[i].d));
-            }
-        },
-        DataPack::Bytes(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::SByte(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::Undef(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::Ascii(s) => {
-            log(s);
-        },
-        DataPack::Short(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::Long(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::SShort(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::SLong(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::Float(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        DataPack::Double(d) => {
-            for i in 0..d.len() {
-                log(&format!("{}",d[i]));
-            }
-        },
-        _ => {
-
-        },
-    }
-}
 
 #[allow(unused)]
 pub struct TiffHeader {
@@ -109,6 +41,7 @@ pub struct TiffHeader {
 
 #[allow(unused)]
 pub struct TiffHeaders {
+    pub version :u16,
     pub headers :Vec<TiffHeader>,
     pub exif: Option<Vec<TiffHeader>>,
     pub gps: Option<Vec<TiffHeader>>,
@@ -123,12 +56,9 @@ pub fn read_tags( buffer: &Vec<u8>) -> Result<TiffHeaders,ImgError>{
 
     if buffer[0] == 'I' as u8 { // Little Endian
         endian = true;
-        log("Little Endian"); 
     } else if buffer[0] == 'M' as u8 {      // Big Eindian
         endian = false;
-        log("Big Endian"); 
     } else {
-        log("not TIFF");
         return Err(SimpleAddMessage(ErrorKind::IlligalData,"not Tiff".to_string()));
     }
 
@@ -137,8 +67,7 @@ pub fn read_tags( buffer: &Vec<u8>) -> Result<TiffHeaders,ImgError>{
     let ver = read_u16(buffer,ptr,endian);
     ptr = ptr + 2;
     let offset_ifd  = read_u32(buffer,ptr,endian) as usize;
-    log(&format!("Tiff Version {:>08}",ver));
-    read_tiff(buffer,offset_ifd,endian)
+    read_tiff(ver,buffer,offset_ifd,endian)
 }
 
 fn get_data (buffer: &[u8], ptr :usize ,datatype:usize, datalen: usize, endian: bool) -> DataPack {
@@ -311,7 +240,6 @@ fn get_data (buffer: &[u8], ptr :usize ,datatype:usize, datalen: usize, endian: 
             data = DataPack::Double(d);
         },
         _ => {
-            log(&format!("Unknown Data type {}",datatype));
             let mut d: Vec<u8> = Vec::with_capacity(datalen);
             if datalen <=4 {
                 for i in 0.. datalen { 
@@ -329,17 +257,17 @@ fn get_data (buffer: &[u8], ptr :usize ,datatype:usize, datalen: usize, endian: 
     data
 }
 
-fn read_tiff (buffer: &[u8], offset_ifd: usize,endian: bool) -> Result<TiffHeaders,ImgError>{
-    read_tag(buffer,offset_ifd,endian,0)
+fn read_tiff (version:u16,buffer: &[u8], offset_ifd: usize,endian: bool) -> Result<TiffHeaders,ImgError>{
+    read_tag(version,buffer,offset_ifd,endian,0)
 }
 
-fn read_gps (buffer: &[u8], offset_ifd: usize,endian: bool) -> Result<TiffHeaders,ImgError> {
-    read_tag(buffer,offset_ifd,endian,2)
+fn read_gps (version:u16,buffer: &[u8], offset_ifd: usize,endian: bool) -> Result<TiffHeaders,ImgError> {
+    read_tag(version,buffer,offset_ifd,endian,2)
 }
 
-fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> Result<TiffHeaders,ImgError>{
+fn read_tag (version:u16,buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> Result<TiffHeaders,ImgError>{
     let mut ifd = 0;
-    let mut headers :TiffHeaders = TiffHeaders{headers:Vec::new(),exif:None,gps:None,little_endian: endian};
+    let mut headers :TiffHeaders = TiffHeaders{version,headers:Vec::new(),exif:None,gps:None,little_endian: endian};
     loop {
         let mut ptr = offset_ifd;
         let tag = read_u16(buffer,ptr,endian);
@@ -359,7 +287,7 @@ fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> R
                     0x8769 => {
                         match &data {
                             DataPack::Long(d) => {
-                                let r = read_tag(buffer, d[0] as usize, endian,1)?; // read exif
+                                let r = read_tag(version,buffer, d[0] as usize, endian,1)?; // read exif
                                 headers.exif = Some(r.headers);
 
                             },
@@ -370,7 +298,7 @@ fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> R
                     0x8825 => {
                         match &data {
                             DataPack::Long(d) => {
-                                let r = read_gps(buffer, d[0] as usize, endian)?; // read exif
+                                let r = read_gps(version,buffer, d[0] as usize, endian)?; // read exif
                                 headers.gps = Some(r.headers);
                         },
                         _  => {
@@ -383,6 +311,7 @@ fn read_tag (buffer: &[u8], mut offset_ifd: usize,endian: bool,mode: usize) -> R
                     }
                 }
             } else {
+                #[cfg(debug_assertions)]
                 gps_mapper(tagid ,&data);
             }
             headers.headers.push(TiffHeader{tagid: tagid as usize,data: data});
