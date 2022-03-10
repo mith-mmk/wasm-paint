@@ -1,0 +1,12 @@
+#wasm_verbose {
+    white-space: pre;
+    font-family: monospace;
+    background-color: black;
+    color: antiquewhite;
+    font-size: smaller;
+    box-sizing: border-box;
+    border: 2px splid gray;
+    width: 1024px;
+    height: 512px;
+    overflow: scroll;
+}

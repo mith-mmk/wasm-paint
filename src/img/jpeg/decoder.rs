@@ -90,7 +90,6 @@ impl BitReader {
             return Err(Simple(ErrorKind::OutboundIndex));
         }
         self.b = self.buffer[self.ptr];
-//        println!("{:>04X} {:>02x} {:08b} ",self.ptr,self.b,self.b);
         self.ptr = self.ptr + 1;
         Ok(self.b)
     }
@@ -123,7 +122,7 @@ impl BitReader {
         }
     }
 
-    pub fn get_bit_as_i32(self: &mut Self) -> Result<i32,ImgError> {
+    pub fn get_bit(self: &mut Self) -> Result<usize,ImgError> {
         if self.bptr == 0 {
             self.bptr = 8;
             if self.get_byte()? == 0xff {
@@ -151,8 +150,8 @@ impl BitReader {
                 }
             }
         }
-        self.bptr = self.bptr - 1;
-        let r:i32 = (self.b  >> self.bptr) as i32 & 0x1;
+        self.bptr -= 1;
+        let r = (self.b  >> self.bptr) as usize & 0x1;
         Ok(r)
     }
 
@@ -184,12 +183,12 @@ impl BitReader {
 }
 
 fn huffman_read (bit_reader:&mut BitReader,table: &HuffmanDecodeTable)  -> Result<u32,ImgError>{
-    let mut d :i32 = 0;
+    let mut d = 0;
     let mut ll = 1;
     for l in 0..16 {
-        d = (d << 1) | bit_reader.get_bit_as_i32()?;
-        if table.max[l] >= d {
-            let p = d as usize - table.min[l] as usize + table.pos[l] as usize;
+        d = (d << 1) | bit_reader.get_bit()?;
+        if table.max[l] >= d as i32 {
+            let p = d  - table.min[l] as usize + table.pos[l];
             return Ok(table.val[p] as u32)                      
         }
         ll = ll + 1;
@@ -258,9 +257,9 @@ fn receive(bitread: &mut BitReader, ssss :i32) -> Result<i32,ImgError>{
   let mut v = 0;
 
   for _ in 0..ssss {
-    v = (v << 1) + bitread.get_bit_as_i32()?;
+    v = (v << 1) + bitread.get_bit()?;
   }
-  Ok(v)
+  Ok(v as i32)
 }
 
 #[inline]
@@ -304,35 +303,72 @@ fn idct(f :&[i32]) -> Vec<u8> {
 
 #[inline]
 fn fast_idct (f :&[i32]) -> Vec<u8> {
-    let cos_table :[[f32;8];8] = [
-        [1.0,0.98078525,0.9238795,0.8314696,0.70710677,0.5555702,0.38268343,0.19509023,],
-        [1.0,0.8314696,0.38268343,-0.19509032,-0.70710677,-0.9807853,-0.9238795,-0.55557,],
-        [1.0,0.5555702,-0.38268352,-0.9807853,-0.70710665,0.19509041,0.92387956,0.83146936,],
-        [1.0,0.19509023,-0.9238796,-0.55557,0.707107,0.83146936,-0.3826839,-0.9807852,],
-        [1.0,-0.19509032,-0.9238795,0.5555704,0.70710677,-0.8314698,-0.38268298,0.9807854,],
-        [1.0,-0.55557036,-0.38268313,0.98078525,-0.70710725,-0.19509022,0.9238793,-0.8314696,],
-        [1.0,-0.83146966,0.3826836,0.19509007,-0.70710653,0.9807853,-0.92387974,0.55557114,],
-        [1.0,-0.9807853,0.92387956,-0.8314698,0.7071068,-0.55557084,0.3826839,-0.19509155,],
-    ];
- 
-    let vals :Vec<u8> = (0..64).map(|i| {
-    let (x,y) = ((i%8) as usize,(i/8) as usize);
+    let c_table :[[f32;8];8] = 
+    [[ 0.70710678,  0.98078528,  0.92387953,  0.83146961,  0.70710678, 0.55557023,  0.38268343,  0.19509032],
+    [ 0.70710678,  0.83146961,  0.38268343, -0.19509032, -0.70710678, -0.98078528, -0.92387953, -0.55557023],
+    [ 0.70710678,  0.55557023, -0.38268343, -0.98078528, -0.70710678, 0.19509032,  0.92387953,  0.83146961],
+    [ 0.70710678,  0.19509032, -0.92387953, -0.55557023,  0.70710678, 0.83146961, -0.38268343, -0.98078528],
+    [ 0.70710678, -0.19509032, -0.92387953,  0.55557023,  0.70710678, -0.83146961, -0.38268343,  0.98078528],
+    [ 0.70710678, -0.55557023, -0.38268343,  0.98078528, -0.70710678, -0.19509032,  0.92387953, -0.83146961],
+    [ 0.70710678, -0.83146961,  0.38268343,  0.19509032, -0.70710678, 0.98078528, -0.92387953,  0.55557023],
+    [ 0.70710678, -0.98078528,  0.92387953, -0.83146961,  0.70710678, -0.55557023,  0.38268343, -0.19509032]];
+    let mut vals :Vec<u8> = (0..64).map(|_| 0).collect();
+    for i in 0..16 {
+        let (x,y) = ((i%4) as usize,(i/4) as usize);
         // IDCT from CCITT Rec. T.81 (1992 E) p.27 A3.3
-        let mut val = 0.0;
+        let mut val11 = 0.0;
+        let mut val12 = 0.0;
+        let mut val21 = 0.0;
+        let mut val22 = 0.0;
+        let mut plus_minus = 1.0;
         for u in 0..8 {
-            for v in 0..8 {
-                let cucv :f32 = if u == 0 && v ==0 {0.5} 
-                        else if  u==0 || v==0 {1.0 / 2.0_f32.sqrt()}
-                        else {1.0};
-                val += cucv * f[v*8 + u] as f32 * cos_table[x][u] * cos_table[y][v];
-            }
+            let mut uval1 = 0.0;
+            let mut uval2 = 0.0;
+            uval1 += f[0*8 + u] as f32 * c_table[y][0];
+            uval2 += f[0*8 + u] as f32 * c_table[y][0];
+
+            uval1 += f[1*8 + u] as f32 * c_table[y][1];
+            uval2 += f[1*8 + u] as f32 *-c_table[y][1];
+
+            uval1 += f[2*8 + u] as f32 * c_table[y][2];
+            uval2 += f[2*8 + u] as f32 * c_table[y][2];
+
+            uval1 += f[3*8 + u] as f32 * c_table[y][3];
+            uval2 += f[3*8 + u] as f32 *-c_table[y][3];
+
+            uval1 += f[4*8 + u] as f32 * c_table[y][4];
+            uval2 += f[4*8 + u] as f32 * c_table[y][4];
+
+            uval1 += f[5*8 + u] as f32 * c_table[y][5];
+            uval2 += f[5*8 + u] as f32 *-c_table[y][5];
+
+            uval1 += f[6*8 + u] as f32 * c_table[y][6];
+            uval2 += f[6*8 + u] as f32 * c_table[y][6];
+
+            uval1 += f[7*8 + u] as f32 * c_table[y][7];
+            uval2 += f[7*8 + u] as f32 *-c_table[y][7];
+
+            val11 += uval1 * c_table[x][u];
+            val12 += uval1 * c_table[x][u] * plus_minus;
+            val21 += uval2 * c_table[x][u];
+            val22 += uval2 * c_table[x][u] * plus_minus;
+            plus_minus *= -1.0;
         }
-        val = val / 4.0;
+        val11 /= 4.0;
+        val12 /= 4.0;
+        val21 /= 4.0;
+        val22 /= 4.0;
 
         // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
-        let v = val.round() as isize + 128 ;
-        if v < 0 {0} else if v > 255 {255} else {v as u8}
-    }).collect();
+        let v = val11.round() as isize + 128 ;
+        vals[y *8 + x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        let v = val12.round() as isize + 128 ;
+        vals[y *8 + 7-x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        let v = val21.round() as isize + 128 ;
+        vals[(7 - y) *8 + x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        let v = val22.round() as isize + 128 ;
+        vals[(7 - y) *8 + 7-x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+    }
     vals
 }
 
@@ -523,7 +559,6 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
         }
     }
-    let quantization_tables = header.quantization_tables.as_ref().unwrap();
 
     if fh.is_huffman == false {
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This decoder suport huffman only".to_string()));
@@ -537,10 +572,22 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This Decoder not support differential".to_string()));
     }
 
-    let (ac_decode,dc_decode) = huffman_extend(&header.huffman_tables.as_ref().unwrap());
-
     // decode
     (option.callback.init)(option.drawer,width,height)?;
+    // take buffer for progressive 
+    // progressive has 2mode
+    //  - Spectral selection control
+    //  - Successive approximation control
+    /*  huffman for progressive
+        EOBn -> 1 << n + get.bits(n)
+        todo()
+    */
+
+    // loop start    
+
+    let quantization_tables = header.quantization_tables.as_ref().unwrap();
+    let (ac_decode,dc_decode) = huffman_extend(&header.huffman_tables.as_ref().unwrap());
+
 
     let slice = &buffer[header.imageoffset..];
     let bitread :&mut BitReader = &mut BitReader::new(&slice);
@@ -628,8 +675,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
             }
         }
     }
-    (option.callback.terminate)(option.drawer)?;
-/*
+
     match bitread.next_marker() {
         Ok(marker) => {
             match marker {
@@ -655,7 +701,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
             worning = Some(WorningAddMessage(WorningKind::UnexpectMaker,"Not found EOI".to_string()));
         }
     }
-*/
+    (option.callback.terminate)(option.drawer)?;
     Ok(worning)
 
 }

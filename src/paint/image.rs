@@ -1,10 +1,35 @@
+use wasm_bindgen::JsCast;
 use crate::img::jpeg::worning::JPEGWorning;
 use crate::Canvas;
 use crate::log;
 use crate::img::error::ImgError;
 use crate::img::*;
+use web_sys::HtmlElement;
 
 pub fn write_log(_: &mut Dynamic,str: &str) -> Result<Option<isize>,ImgError> {
+  match web_sys::window() {
+    Some(window) => {
+      match window.document() {
+        Some(document) => {
+          match document.get_element_by_id("wasm_verbose"){
+            Some(elmid) => {
+              match elmid.dyn_ref::<HtmlElement>(){
+                Some(elm) =>{
+                  elm.set_inner_text(str);
+                },
+                _  => {},
+              }
+            },
+            _ =>{}
+          }
+        },
+        _ =>{
+        }
+      }
+    },
+    _ => {
+    }
+  }
   log(str);
   Ok(None)
 }

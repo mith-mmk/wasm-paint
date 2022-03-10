@@ -10,7 +10,19 @@ let width = 1024;
 let height =1024;
 canvas.width = width;
 canvas.height = height;
-
+const reader = new FileReader();
+reader.onloadend = (event) => {
+  let buffer = new Uint8Array(reader.result);
+  universe.input_buffer_set_length(buffer.length);
+  let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
+  ibuf.set(buffer);
+  universe.clear(0x000000);
+  console.time("decode");
+  universe.jpeg_decoder(buffer,0xf9); 
+  console.timeEnd("decode");
+  img = new ImageData(buf, universe.width(), universe.height());
+  ctx.putImageData(img, 0, 0);
+};
 // Drag and Drop
 canvas.addEventListener('dragover', (ev) => {
     ev.stopPropagation();
@@ -27,22 +39,7 @@ canvas.addEventListener('drop', (ev) => {
       return;
     }
     if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
-    const reader = new FileReader();
-    reader.onloadend = (event) => {
-      console.log(memory);
-      let buffer = new Uint8Array(reader.result);
-      universe.input_buffer_set_length(buffer.length);
-      let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
-      console.log(buffer.length);
-      console.log(ibuf.length);
-      ibuf.set(buffer);
-      universe.clear(0x000000);
-      console.time("decode");
-      universe.jpeg_decoder(buffer,0xf9); 
-      console.timeEnd("decode");
-      img = new ImageData(buf, universe.width(), universe.height());
-      ctx.putImageData(img, 0, 0);
-    };
+
     console.log("load start");
     reader.readAsArrayBuffer(files[0]);
   }, false);
@@ -55,6 +52,19 @@ init().then((wasm) => {
     universe.clear(0x000000);
     img = new ImageData(buf, width, height);
     ctx.putImageData(img, 0, 0);
+    fetch('./sample/sample01.jpg')
+      .then(res => res.blob())
+      .then(blob => blob.arrayBuffer())
+      .then(arraybuffer => {
+        let buffer = new Uint8Array(arraybuffer);      
+        universe.input_buffer_set_length(buffer.length);
+        let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
+        ibuf.set(buffer);    
+        universe.jpeg_decoder(buffer,0xf9); 
+        img = new ImageData(buf, width, height);
+        ctx.putImageData(img, 0, 0);
+      });
+
 });
 
 
