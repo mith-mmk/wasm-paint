@@ -295,14 +295,14 @@ fn idct(f :&[i32]) -> Vec<u8> {
 
         // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
         let v = val.round() as i32 + 128;
-        if v < 0 {0} else if v > 255 {255} else {v as u8}
+        v.clamp(0,255) as u8
     }).collect();
     vals
 }
 */
 
 #[inline]
-fn fast_idct (f :&[i32]) -> Vec<u8> {
+fn idct (f :&[i32]) -> Vec<u8> {
     let c_table :[[f32;8];8] = 
     [[ 0.70710678,  0.98078528,  0.92387953,  0.83146961,  0.70710678, 0.55557023,  0.38268343,  0.19509032],
     [ 0.70710678,  0.83146961,  0.38268343, -0.19509032, -0.70710678, -0.98078528, -0.92387953, -0.55557023],
@@ -322,32 +322,15 @@ fn fast_idct (f :&[i32]) -> Vec<u8> {
         let mut val22 = 0.0;
         let mut plus_minus = 1.0;
         for u in 0..8 {
-            let mut uval1 = 0.0;
-            let mut uval2 = 0.0;
-            uval1 += f[0*8 + u] as f32 * c_table[y][0];
-            uval2 += f[0*8 + u] as f32 * c_table[y][0];
+            let temp1 = f[0*8 + u] as f32 * c_table[y][0] + f[2*8 + u] as f32 * c_table[y][2]
+                      + f[4*8 + u] as f32 * c_table[y][4] + f[6*8 + u] as f32 * c_table[y][6];
 
-            uval1 += f[1*8 + u] as f32 * c_table[y][1];
-            uval2 += f[1*8 + u] as f32 *-c_table[y][1];
+            let temp2 = f[1*8 + u] as f32 * c_table[y][0] + f[3*8 + u] as f32 * c_table[y][2]
+                      + f[5*8 + u] as f32 * c_table[y][4] + f[7*8 + u] as f32 * c_table[y][6];
 
-            uval1 += f[2*8 + u] as f32 * c_table[y][2];
-            uval2 += f[2*8 + u] as f32 * c_table[y][2];
-
-            uval1 += f[3*8 + u] as f32 * c_table[y][3];
-            uval2 += f[3*8 + u] as f32 *-c_table[y][3];
-
-            uval1 += f[4*8 + u] as f32 * c_table[y][4];
-            uval2 += f[4*8 + u] as f32 * c_table[y][4];
-
-            uval1 += f[5*8 + u] as f32 * c_table[y][5];
-            uval2 += f[5*8 + u] as f32 *-c_table[y][5];
-
-            uval1 += f[6*8 + u] as f32 * c_table[y][6];
-            uval2 += f[6*8 + u] as f32 * c_table[y][6];
-
-            uval1 += f[7*8 + u] as f32 * c_table[y][7];
-            uval2 += f[7*8 + u] as f32 *-c_table[y][7];
-
+            let uval1 = temp1 + temp2;
+            let uval2 = temp1 - temp2;
+          
             val11 += uval1 * c_table[x][u];
             val12 += uval1 * c_table[x][u] * plus_minus;
             val21 += uval2 * c_table[x][u];
@@ -361,17 +344,213 @@ fn fast_idct (f :&[i32]) -> Vec<u8> {
 
         // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
         let v = val11.round() as isize + 128 ;
-        vals[y *8 + x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        vals[y *8 + x] = v.clamp(0,255) as u8;
         let v = val12.round() as isize + 128 ;
-        vals[y *8 + 7-x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        vals[y *8 + 7-x] = v.clamp(0,255) as u8;
         let v = val21.round() as isize + 128 ;
-        vals[(7 - y) *8 + x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        vals[(7 - y) *8 + x] = v.clamp(0,255) as u8;
         let v = val22.round() as isize + 128 ;
-        vals[(7 - y) *8 + 7-x] = if v < 0 {0} else if v > 255 {255} else {v as u8};
+        vals[(7 - y) *8 + 7-x] = v.clamp(0,255) as u8;
     }
     vals
 }
 
+/* fast_idct 
+ * for application note 922 AP-922
+ *   A Fast Precise Implementation of 8x8 Discrete Cosine
+ *   Transform Using the Streaming SIMD Extensions and
+ *   MMX™ Instructions
+ *   Version 1.0
+ *
+ *   Copyright © Intel Corporation 1999
+ *
+ * base code from https://qiita.com/tobira-code/items/91f3578cd7ed5b19c1f9
+ */
+#[inline]
+fn fast_idct (f :&[i32]) -> Vec<u8> {
+    let g4 = 0.707106781186548 as f32;
+    let g:[[f32;7];4]  = [
+    /* row 0, 4 */
+      [
+        0.1733799806652680, /* g1 * 0.25 * g4 */
+        0.1633203706095470, /* g2 * 0.25 * g4 */
+        0.1469844503024200, /* g3 * 0.25 * g4 */
+        0.1250000000000000, /* g4 * 0.25 * g4 */
+        0.0982118697983878, /* g5 * 0.25 * g4 */
+        0.0676495125182746, /* g6 * 0.25 * g4 */
+        0.0344874224103679, /* g7 * 0.25 * g4 */
+      ],
+      /* row 1, 7 */
+      [
+        0.2404849415639110, /* g1 * 0.25 * g1 */
+        0.2265318615882220, /* g2 * 0.25 * g1 */
+        0.2038732892122290, /* g3 * 0.25 * g1 */
+        0.1733799806652680, /* g4 * 0.25 * g1 */
+        0.1362237766939550, /* g5 * 0.25 * g1 */
+        0.0938325693794663, /* g6 * 0.25 * g1 */
+        0.0478354290456362, /* g7 * 0.25 * g1 */
+      ],
+      /* row 2, 6 */
+      [
+        0.2265318615882220, /* g1 * 0.25 * g2 */
+        0.2133883476483180, /* g2 * 0.25 * g2 */
+        0.1920444391778540, /* g3 * 0.25 * g2 */
+        0.1633203706095470, /* g4 * 0.25 * g2 */
+        0.1283199917898340, /* g5 * 0.25 * g2 */
+        0.0883883476483185, /* g6 * 0.25 * g2 */
+        0.0450599888754343, /* g7 * 0.25 * g2 */
+      ],
+      /* row 3, 5 */
+      [
+        0.2038732892122290, /* g1 * 0.25 * g3 */
+        0.1920444391778540, /* g2 * 0.25 * g3 */
+        0.1728354290456360, /* g3 * 0.25 * g3 */
+        0.1469844503024200, /* g4 * 0.25 * g3 */
+        0.1154849415639110, /* g5 * 0.25 * g3 */
+        0.0795474112858021, /* g6 * 0.25 * g3 */
+        0.0405529186026822, /* g7 * 0.25 * g3 */
+      ]];
+    let t:[f32;3] = [
+        0.414213562373095  /* t1 = g6/g2 */,
+        0.198912367379658 /* t2 = g7/g1 */,
+        0.668178637919299 /* t3 = g5/g3 */,
+    ];
+    
+    let row2idx = [0,1,2,3,0,3,2,1];
+    let mut _f = [[0_f32;8];8];
+    let mut vals :Vec<u8> = (0..64).map(|_| 0).collect();
+
+    for i in 0..8 {
+        let idx = row2idx[i];
+        /* P */
+        let p = [
+                f[0 +i] as f32,  /* 1 0 0 0 0 0 0 0 */
+                f[2*8+i] as f32,  /* 0 0 1 0 0 0 0 0 */
+                f[4*8+i] as f32,  /* 0 0 0 0 1 0 0 0 */
+                f[6*8+i] as f32,  /* 0 0 0 0 0 0 1 0 */
+                f[1*8+i] as f32,  /* 0 1 0 0 0 0 0 0 */
+                f[3*8+i] as f32,  /* 0 0 0 1 0 0 0 0 */
+                f[5*8+i] as f32,  /* 0 0 0 0 0 1 0 0 */
+                f[7*8+i] as f32];  /* 0 0 0 0 0 0 0 1 */
+        let tmp = [
+            p[0] * g[idx][3],
+            p[1] * g[idx][1],
+            p[1] * g[idx][5],
+            p[2] * g[idx][3],
+            p[3] * g[idx][5],
+            p[3] * g[idx][1]];
+        /* M */
+        let m = [
+            tmp[0] + tmp[1] + tmp[3] + tmp[4],                                         /*  g4  g2  g4  g6  0  0  0  0 */
+            tmp[0] + tmp[2] - tmp[3] - tmp[5],                                         /*  g4  g6 -g4 -g2  0  0  0  0 */
+            tmp[0] - tmp[2] - tmp[3] + tmp[5],                                         /*  g4 -g6 -g4  g2  0  0  0  0 */
+            tmp[0] - tmp[1] + tmp[3] - tmp[4],                                         /*  g4 -g2  g4 -g6  0  0  0  0 */
+            p[4] * g[idx][0] + p[5] * g[idx][2] + p[6] * g[idx][4] + p[7] * g[idx][6], /*  0  0  0  0  g1  g3  g5  g7 */
+            p[4] * g[idx][2] - p[5] * g[idx][6] - p[6] * g[idx][0] - p[7] * g[idx][4], /*  0  0  0  0  g3 -g7 -g1 -g5 */
+            p[4] * g[idx][4] - p[5] * g[idx][0] + p[6] * g[idx][6] + p[7] * g[idx][2], /*  0  0  0  0  g5 -g1  g7  g3 */
+            p[4] * g[idx][6] - p[5] * g[idx][4] + p[6] * g[idx][2] - p[7] * g[idx][0], /*  0  0  0  0  g7 -g5  g3 -g1 */
+        ];
+        /* A */
+        _f[0][i]  = m[0] + m[4];  /*  1  0  0  0  1  0  0  0 */
+        _f[1][i]  = m[1] + m[5];  /*  0  1  0  0  0  1  0  0 */
+        _f[2][i]  = m[2] + m[6];  /*  0  0  1  0  0  0  1  0 */
+        _f[3][i]  = m[3] + m[7];  /*  0  0  0  1  0  0  0  1 */
+        _f[4][i]  = m[3] - m[7];  /*  0  0  0  1  0  0  0 -1 */
+        _f[5][i]  = m[2] - m[6];  /*  0  0  1  0  0  0 -1  0 */
+        _f[6][i]  = m[1] - m[5];  /*  0  1  0  0  0 -1  0  0 */
+        _f[7][i]  = m[0] - m[4];  /*  1  0  0  0 -1  0  0  0 */
+      }
+    
+      // column
+      // add 8*26 = 208
+      // mul 8*8  = 64
+      // C = A F E B D P
+      for i in 0..8 {
+        /* P */
+        let p = [
+            _f[i][0],  /* 1 0 0 0 0 0 0 0 */
+            _f[i][2],  /* 0 0 1 0 0 0 0 0 */
+            _f[i][4],  /* 0 0 0 0 1 0 0 0 */
+            _f[i][6],  /* 0 0 0 0 0 0 1 0 */
+            _f[i][1],  /* 0 1 0 0 0 0 0 0 */
+            _f[i][3],  /* 0 0 0 1 0 0 0 0 */
+            _f[i][5],  /* 0 0 0 0 0 1 0 0 */
+            _f[i][7],  /* 0 0 0 0 0 0 0 1 */
+        ];
+        /* D */
+        /* g4  0  0  0  0  0  0  0 */
+        /*  0  0 g4  0  0  0  0  0 */
+        /*  0 g2  0  0  0  0  0  0 */
+        /*  0  0  0 g2  0  0  0  0 */
+        /*  0  0  0  0 g1  0  0  0 */
+        /*  0  0  0  0  0  0  0 g1 */
+        /*  0  0  0  0  0 g3  0  0 */
+        /*  0  0  0  0  0  0 g3  0 */
+        let d = [p[0],p[2],p[1],p[3], p[4],p[7],p[5],p[6]];
+    
+        /* B t1=g6/g2, t2=g7/g1, t3=g5/g3 */
+        /*  1  1  0  0  0  0  0  0 */
+        /*  1 -1  0  0  0  0  0  0 */
+        /*  0  0  1 t1  0  0  0  0 */
+        /*  0  0 t1 -1  0  0  0  0 */
+        /*  0  0  0  0  1 t2  0  0 */
+        /*  0  0  0  0 t2 -1  0  0 */
+        /*  0  0  0  0  0  0  1 t3 */
+        /*  0  0  0  0  0  0 t3 -1 */
+        let b = [
+                      d[0] +        d[1],
+                      d[0] -        d[1],
+                      d[2] + t[0] * d[3],
+               t[0] * d[2] -        d[3],
+                      d[4] + t[1] * d[5],
+               t[1] * d[4] -        d[5],
+                      d[6] + t[2] * d[7],
+               t[2] * d[6] -        d[7],
+        ];
+    
+        /* E */
+        let e = [
+            b[0] + b[2], /* 1  0  1  0  0  0  0  0 */
+            b[1] + b[3], /* 0  1  0  1  0  0  0  0 */
+            b[1] - b[3], /* 0  1  0 -1  0  0  0  0 */
+            b[0] - b[2], /* 1  0 -1  0  0  0  0  0 */
+            b[4] + b[6], /* 0  0  0  0  1  0  1  0 */
+            b[4] - b[6], /* 0  0  0  0  1  0 -1  0 */
+            b[5] + b[7], /* 0  0  0  0  0  1  0  1 */
+            b[5] - b[7], /* 0  0  0  0  0  1  0 -1 */
+        ];
+        /* F g=g4*/
+        let _f = [
+            e[0],               /* 1  0  0  0  0  0  0  0 */
+            e[1],               /* 0  1  0  0  0  0  0  0 */
+            e[2],               /* 0  0  1  0  0  0  0  0 */
+            e[3],               /* 0  0  0  1  0  0  0  0 */
+            e[4],               /* 0  0  0  0  1  0  0  0 */
+            g4 * (e[5] + e[6]), /* 0  0  0  0  0  g  g  0 */
+            g4 * (e[5] - e[6]), /* 0  0  0  0  0  g -g  0 */
+            e[7],               /* 0  0  0  0  0  0  0  1 */
+        ];
+        /* A */
+        let v = (_f[0] + _f[4]).round()  as isize + 128;
+        vals[i*8+0]  = v.clamp(0,255) as u8;    /* 1  0  0  0  1  0  0  0 */
+        let v = (_f[1] + _f[5]).round()  as isize + 128;
+        vals[i*8+1]  = v.clamp(0,255) as u8;    /* 0  1  0  0  0  1  0  0 */
+        let v = (_f[2] + _f[6]).round()  as isize + 128;
+        vals[i*8+2]  = v.clamp(0,255) as u8;    /* 0  0  1  0  0  0  1  0 */
+        let v = (_f[3] + _f[7]).round()  as isize + 128;
+        vals[i*8+3]  = v.clamp(0,255) as u8;    /* 0  0  0  1  0  0  0  1 */
+        let v = (_f[3] - _f[7]).round()  as isize + 128;
+        vals[i*8+4]  = v.clamp(0,255) as u8;    /* 0  0  0  1  0  0  0 -1 */
+        let v = (_f[2] - _f[6]).round()  as isize + 128;
+        vals[i*8+5]  = v.clamp(0,255) as u8;    /* 0  0  1  0  0  0 -1  0 */
+        let v = (_f[1] - _f[5]).round()  as isize + 128;
+        vals[i*8+6]  = v.clamp(0,255) as u8;    /* 0  1  0  0  0 -1  0  0 */
+        let v = (_f[0] - _f[4]).round()  as isize + 128;
+        vals[i*8+7]  = v.clamp(0,255) as u8;    /* 1  0  0  0 -1  0  0  0 */
+    }
+
+    vals
+}
 // Glayscale
 fn y_to_rgb  (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
     let mut buffer:Vec<u8> = (0 .. hv_maps[0].h * hv_maps[0].v * 64 * 4).map(|_| 0).collect();

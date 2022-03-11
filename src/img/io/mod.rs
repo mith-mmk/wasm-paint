@@ -191,8 +191,15 @@ pub fn read_string (buf: &[u8],ptr: usize ,num: usize) -> String {
         if buf[ptr + i] == 0 {break;}
         s.push(buf[ptr + i]);
     }
-    let string = String::from_utf8(s).unwrap();
-    string
+    let res = String::from_utf8(s);
+    match res {
+        Ok(strings) => {
+            return strings;
+        },
+        _ => {
+            return "".to_string();
+        }
+    }
 }
 
 #[inline]
