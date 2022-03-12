@@ -302,61 +302,6 @@ fn idct(f :&[i32]) -> Vec<u8> {
     vals
 }
 */
-/*
-#[inline]
-fn idct (f :&[i32]) -> Vec<u8> {
-    let c_table :[[f32;8];8] = 
-    [[ 0.70710678,  0.98078528,  0.92387953,  0.83146961,  0.70710678, 0.55557023,  0.38268343,  0.19509032],
-    [ 0.70710678,  0.83146961,  0.38268343, -0.19509032, -0.70710678, -0.98078528, -0.92387953, -0.55557023],
-    [ 0.70710678,  0.55557023, -0.38268343, -0.98078528, -0.70710678, 0.19509032,  0.92387953,  0.83146961],
-    [ 0.70710678,  0.19509032, -0.92387953, -0.55557023,  0.70710678, 0.83146961, -0.38268343, -0.98078528],
-    [ 0.70710678, -0.19509032, -0.92387953,  0.55557023,  0.70710678, -0.83146961, -0.38268343,  0.98078528],
-    [ 0.70710678, -0.55557023, -0.38268343,  0.98078528, -0.70710678, -0.19509032,  0.92387953, -0.83146961],
-    [ 0.70710678, -0.83146961,  0.38268343,  0.19509032, -0.70710678, 0.98078528, -0.92387953,  0.55557023],
-    [ 0.70710678, -0.98078528,  0.92387953, -0.83146961,  0.70710678, -0.55557023,  0.38268343, -0.19509032]];
-    let mut vals :Vec<u8> = (0..64).map(|_| 0).collect();
-    for i in 0..16 {
-        let (x,y) = ((i%4) as usize,(i/4) as usize);
-        // IDCT from CCITT Rec. T.81 (1992 E) p.27 A3.3
-        let mut val11 = 0.0;
-        let mut val12 = 0.0;
-        let mut val21 = 0.0;
-        let mut val22 = 0.0;
-        let mut plus_minus = 1.0;
-        for u in 0..8 {
-            let temp1 = f[0*8 + u] as f32 * c_table[y][0] + f[2*8 + u] as f32 * c_table[y][2]
-                      + f[4*8 + u] as f32 * c_table[y][4] + f[6*8 + u] as f32 * c_table[y][6];
-
-            let temp2 = f[1*8 + u] as f32 * c_table[y][0] + f[3*8 + u] as f32 * c_table[y][2]
-                      + f[5*8 + u] as f32 * c_table[y][4] + f[7*8 + u] as f32 * c_table[y][6];
-
-            let uval1 = temp1 + temp2;
-            let uval2 = temp1 - temp2;
-          
-            val11 += uval1 * c_table[x][u];
-            val12 += uval1 * c_table[x][u] * plus_minus;
-            val21 += uval2 * c_table[x][u];
-            val22 += uval2 * c_table[x][u] * plus_minus;
-            plus_minus *= -1.0;
-        }
-        val11 /= 4.0;
-        val12 /= 4.0;
-        val21 /= 4.0;
-        val22 /= 4.0;
-
-        // level shift from CCITT Rec. T.81 (1992 E) p.26 A3.1
-        let v = val11.round() as isize + 128 ;
-        vals[y *8 + x] = v.clamp(0,255) as u8;
-        let v = val12.round() as isize + 128 ;
-        vals[y *8 + 7-x] = v.clamp(0,255) as u8;
-        let v = val21.round() as isize + 128 ;
-        vals[(7 - y) *8 + x] = v.clamp(0,255) as u8;
-        let v = val22.round() as isize + 128 ;
-        vals[(7 - y) *8 + 7-x] = v.clamp(0,255) as u8;
-    }
-    vals
-}
-*/
 
 #[inline]
 // AAN algorythm

@@ -16,6 +16,8 @@ Color model ABGR uint32LE
 
 2022/03/07 0.0.7 jpeg decoder(baselineのみ)追加
 
+2022/03/12 0.0.8 callback systemの変更、jpegの高速化(AANアルゴリズム)
+
 Todo 
 - border
 - polyline

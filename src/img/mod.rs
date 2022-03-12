@@ -5,11 +5,9 @@ pub mod error;
 pub mod util;
 pub mod iccprofile;
 
-
 use crate::img::ImgError::SimpleAddMessage;
 use crate::img::error::ImgError;
 use crate::img::error::ErrorKind;
-use core::any::Any;
 
 /* Dynamic Select Callback System */
 
