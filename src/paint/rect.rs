@@ -1,6 +1,5 @@
-use crate::paint::canvas::Screen;
 use super::utils::*;
-use super::canvas::Canvas;
+use super::canvas::*;
 
 
 pub fn rect(canvas: &mut Canvas,x0: i32,y0: i32,x1: i32,y1: i32, color: u32){ 

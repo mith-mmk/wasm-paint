@@ -1,7 +1,11 @@
-use crate::paint::canvas::Screen;
-use super::utils::*;
+/*
+ * fill.rs  Mith@mmk (C) 2022
+ * 
+ */
+
+ use super::utils::*;
 use super::line::*;
-use super::canvas::Canvas;
+use super::canvas::*;
 
 pub struct ScanStack {
     pub sx :u32, 

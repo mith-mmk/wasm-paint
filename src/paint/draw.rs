@@ -1,5 +1,9 @@
-use crate::paint::canvas::Screen;
-use super::canvas::Canvas;
+/*
+ * draw.rs  Mith@mmk (C) 2022
+ * 
+ */
+
+ use super::canvas::*;
 use super::utils::calc_alphablend;
 
 pub fn canvas_to_canvas(src:&Canvas,dest:&mut Canvas, dest_x: u32, dest_y: u32) {

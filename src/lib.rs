@@ -1,7 +1,6 @@
 mod utils;
 pub mod paint;
 pub mod img;
-use crate::paint::canvas::Screen;
 use crate::paint::image::draw_image;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
@@ -9,7 +8,7 @@ use crate::paint::polygram::*;
 use crate::paint::rect::rect;
 use crate::paint::line::line;
 use crate::paint::point::point_antialias;
-use crate::paint::canvas::Canvas;
+use crate::paint::canvas::{Canvas,Screen};
 
 use wasm_bindgen::prelude::*;
 

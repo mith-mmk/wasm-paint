@@ -1,3 +1,8 @@
+/*
+ * tiff/tags.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 use super::super::io::read_string;
 use super::header::DataPack;
 use super::util::print_data;

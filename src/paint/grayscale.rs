@@ -1,5 +1,9 @@
-use crate::paint::canvas::Screen;
-use super::canvas::Canvas;
+/*
+ * galyscale.rs  Mith@mmk (C) 2022
+ * 
+ */
+
+use super::canvas::*;
 
 pub enum Weights {
     Jpeg,

@@ -1,12 +1,12 @@
 /*
- *  line.rs
+ *  line.rs (C)2022 Mith@mmk 
  *  Create 2022/02/21
  *  Update 2022/02/27
+ *  Update 2022/03/13
  */
 
-use crate::paint::canvas::Screen;
 use super::utils::color_taple;
-use super::canvas::Canvas;
+use super::canvas::*;
 
 
 // use for line only _point function

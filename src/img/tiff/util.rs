@@ -1,3 +1,8 @@
+/*
+ * tiff/util.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 use crate::img::tiff::header::DataPack;
 use crate::img::tiff::tags::gps_mapper;
 use crate::img::tiff::tags::tag_mapper;

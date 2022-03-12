@@ -3,9 +3,7 @@
  *  update 2022/02/28  internal point method change
  */
 
-
-use crate::paint::canvas::Screen;
-use super::canvas::Canvas;
+use super::canvas::*;
 use super::utils::*;
 
 fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8, weight :f32) {

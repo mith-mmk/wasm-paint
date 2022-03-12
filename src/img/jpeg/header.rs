@@ -1,3 +1,8 @@
+/*
+ * jpeg/header.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 use crate::img::error::ImgError::Custom;
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{SimpleAddMessage};

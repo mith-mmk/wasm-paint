@@ -1,7 +1,10 @@
+/*
+ * jpeg/util.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 use crate::img::iccprofile::{icc_profile_print,icc_profile_header_print};
 use crate::img::iccprofile::ICCProfile;
-use crate::img::io::read_string;
-use crate::img::io::read_u32be;
 use super::header::JpegAppHeaders::*;
 use super::header::JpegHaeder;
 use super::header::ICCProfileData;

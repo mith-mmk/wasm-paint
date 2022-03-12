@@ -1,3 +1,8 @@
+/*
+ * tiff/header.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 /* for EXIF */
 use crate::img::error::{ImgError,ErrorKind};
 use crate::img::error::ImgError::{SimpleAddMessage};

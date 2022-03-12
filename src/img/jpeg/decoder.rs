@@ -1,5 +1,8 @@
+/*
+ * jpeg/decoder.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
 
-use core::cmp::min;
 use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::jpeg::header::JpegHaeder;

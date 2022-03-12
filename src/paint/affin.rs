@@ -1,3 +1,8 @@
+/*
+ * affine.rs  Mith@mmk (C) 2022
+ * update 2022/03/13
+ */
+
 pub struct Affin {
     affin: [f32;9],    // 3*3
 }

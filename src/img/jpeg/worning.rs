@@ -1,6 +1,10 @@
+/*
+ * jpeg/worning.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 use self::JPEGWorning::*;
 use self::WorningKind::*;
-
 
 pub enum JPEGWorning {
       Simple(WorningKind),

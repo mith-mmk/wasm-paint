@@ -1,5 +1,9 @@
-use crate::paint::canvas::Screen;
-use super::canvas::Canvas;
+/*
+ * clear.rs  Mith@mmk (C) 2022
+ * 
+ */
+
+use super::canvas::*;
 
 // add 2022/02/22
 pub fn clear(canvas: &mut Canvas) {

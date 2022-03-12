@@ -1,3 +1,7 @@
+/*
+ * io/mod.rs  Mith@mmk (C) 2022
+ * 
+ */
 
 #[inline]
 pub fn read_f32 (buf: &[u8],ptr: usize,flag: bool) -> f32 {

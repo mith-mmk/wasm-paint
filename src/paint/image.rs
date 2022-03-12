@@ -1,7 +1,10 @@
-use crate::paint::canvas::Screen;
+/* image.rs
+ * (C)2022 Mith@mmk 
+ */
+
 use wasm_bindgen::JsCast;
 use crate::img::jpeg::worning::JPEGWorning;
-use crate::Canvas;
+use super::canvas::*;
 use crate::log;
 use crate::img::error::ImgError;
 use crate::img::*;

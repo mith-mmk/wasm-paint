@@ -1,3 +1,8 @@
+/*
+ * polygram.rs  Mith@mmk (C) 2022
+ * use MIT License
+ */
+
 use core::f32::consts::PI;
 use super::line::*;
 use super::canvas::Canvas;

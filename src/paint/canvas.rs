@@ -1,3 +1,8 @@
+/*
+ * canvas.rs  Mith@mmk (C) 2022
+ * update 2022/03/13
+ */
+
 use super::pen::Pen;
 use super::clear::fillrect;
 
