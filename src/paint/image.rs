@@ -6,7 +6,7 @@ use crate::img::error::ImgError;
 use crate::img::*;
 use web_sys::HtmlElement;
 
-pub fn write_log(_: &mut Dynamic,str: &str) -> Result<Option<isize>,ImgError> {
+pub fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
   match web_sys::window() {
     Some(window) => {
       match window.document() {
@@ -16,6 +16,7 @@ pub fn write_log(_: &mut Dynamic,str: &str) -> Result<Option<isize>,ImgError> {
               match elmid.dyn_ref::<HtmlElement>(){
                 Some(elm) =>{
                   elm.set_inner_text(str);
+                  return Ok(None)
                 },
                 _  => {},
               }
@@ -36,13 +37,12 @@ pub fn write_log(_: &mut Dynamic,str: &str) -> Result<Option<isize>,ImgError> {
 
 pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<JPEGWorning>,ImgError> {
   let mut drawer = ImageBuffer::new();
-  let mut callback = Callback::new();
-  callback.set_verbose(write_log);
+  drawer.set_verbose(write_log);
 
   let mut option = DecodeOptions{
     debug_flag: verbose,
     drawer: &mut drawer,
-    callback: callback,
+
   };
 
   let r = crate::img::jpeg::decoder::decode(data, &mut option);

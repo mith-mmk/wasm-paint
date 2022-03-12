@@ -1,3 +1,7 @@
+use crate::img::iccprofile::{icc_profile_print,icc_profile_header_print};
+use crate::img::iccprofile::ICCProfile;
+use crate::img::io::read_string;
+use crate::img::io::read_u32be;
 use super::header::JpegAppHeaders::*;
 use super::header::JpegHaeder;
 use super::header::ICCProfileData;
@@ -91,6 +95,9 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
 
         },
     }
+    let mut icc_profile_header :Option<ICCProfile> = None;
+
+    let mut icc_profile_data :Vec<u8> = Vec::new();
 
     match &header.jpeg_app_headers {
         Some(app_headers) => {
@@ -135,28 +142,20 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
                     ICCProfile(icc_profile) => {
                         str = str + &format!(
                             "ICC Profile {} of {}\n",icc_profile.number,icc_profile.total);
-                            match &icc_profile.data {
-                            ICCProfileData::Header(header) => {
-                                str += &format!("ICC Profile {}\n",icc_profile.number);
-                                str += &format!("cmmid {}\n",String::from_utf8_lossy(&header.cmmid.to_be_bytes()));
-                                str += &format!("version {:08x}\n",&header.version);
-                                str += &format!("Device Class {}\n",String::from_utf8_lossy(&header.device_class.to_be_bytes()));
-                                str += &format!("Color Space {}\n",String::from_utf8_lossy(&header.color_space.to_be_bytes()));
-                                str += &format!("PCS {}\n",String::from_utf8_lossy(&header.pcs.to_be_bytes()));
-                                str += &format!("DATE {}\n",header.create_date);
-                                str += &format!("It MUST be 'assp' {}\n",String::from_utf8_lossy(&header.magicnumber_ascp.to_be_bytes()));
-                                str += &format!("Platform {}\n",String::from_utf8_lossy(&header.platform.to_be_bytes()));
-                                str += &format!("flags {}\n",&header.flags);
-                                str += &format!("Manuacture {}\n",String::from_utf8_lossy(&header.manufacturer.to_be_bytes()));
-                                str += &format!("Model {:>04x}\n",&header.model);
-                                str += &format!("Attributes {:>064b}\n",&header.attributes);
-                                str += &format!("Illiuminate X:{} Y:{} Z:{}\n",&header.illuminate[0],&header.illuminate[1],&header.illuminate[2]);
-                                str += &format!("Creator {}\n",String::from_utf8_lossy(&header.creator.to_be_bytes()));
-                                str += &format!("Profile ID (MD5 {:>16x}\n",&header.profile_id);
-                                str += &format!("Data length {}bytes\n",&header.data.len());
+                        match &icc_profile.data {
+                            ICCProfileData::Header(ref header) => {
+                                if option & 0x20 != 0x20 {  // ICC Profile
+                                    str += &icc_profile_header_print(&header);
+                                } else {
+                                    icc_profile_header = Some(ICCProfile::new(header));
+                                    icc_profile_data = header.data.to_vec();
+                                }
                             },
                             ICCProfileData::Data(data) => {
                                 str += &format!("Data length {}bytes\n",&data.len());
+                                if icc_profile_data.len() > 0 {
+                                    icc_profile_data.append(&mut data.to_vec());
+                                }
                             },
                         }
                     }
@@ -171,6 +170,7 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
 
         },
     }
+
 
     if header.interval > 0 {  //DRI
         str = str +  &format!("Restart Interval {}\n",header.interval);
@@ -259,6 +259,15 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
             _  =>  {}
         }
     }
+
+    if option & 0x20 == 0x20 {  // ICC Profile decode
+        if icc_profile_header.is_some() {
+            let mut icc_profile = icc_profile_header.unwrap();
+            icc_profile.data = icc_profile_data;
+            str += &icc_profile_print(&icc_profile);
+        }
+    }
+
             
     let strbox :Box<String> = Box::new(str);
 

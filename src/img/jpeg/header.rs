@@ -209,37 +209,16 @@ pub struct Ducky {
 }
 
 pub enum ICCProfileData {
-    Header(ICCProfileHeader),
+    Header(crate::img::iccprofile::ICCProfile),
     Data(Vec<u8>),
 }
 
-pub struct ICCProfile {
+pub struct ICCProfilePacker {
     pub number : usize,
     pub total: usize,
     pub data: ICCProfileData,
 }
 
-pub struct ICCProfileHeader {
-    pub length : u32,
-    pub cmmid : u32,
-    pub version :u32,
-    pub device_class :u32,
-    pub color_space : u32,
-    pub pcs : u32,
-    pub create_date: String,
-    pub magicnumber_ascp: u32,
-    pub platform: u32,
-    pub flags: u32,
-    pub manufacturer: u32,
-    pub model: u32,
-    pub attributes: u64,
-    pub rendering_intent: u32,
-    pub illuminate :[u32;3],
-    pub creator: u32,
-    pub profile_id: u128,
-    pub reserved :Vec<u8>,  // 27byte,
-    pub data: Vec<u8>   // left data
-}
 
 
 
@@ -266,7 +245,6 @@ pub struct JpegHaeder {
     pub jpeg_app_headers: Option<Vec<JpegAppHeaders>>,
     pub is_hierachical: bool,
     pub adobe_color_transform: usize,
-    pub icc_profile: Option<ICCProfileHeader>,
 }
 
 #[allow(unused)]
@@ -275,7 +253,7 @@ pub enum JpegAppHeaders {
     Exif(Exif),
     Ducky(Ducky),
     Adobe(AdobeApp14),
-    ICCProfile(ICCProfile),
+    ICCProfile(ICCProfilePacker),
     Unknown(UnknownApp),
 }
 
@@ -334,7 +312,7 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     ptr = ptr + 1;
                     if number != 1 {
                         let data = buffer[ptr..].to_vec();
-                        let icc_profile = ICCProfile{
+                        let icc_profile = ICCProfilePacker{
                             number: number,
                             total: total,
                             data: ICCProfileData::Data(data),
@@ -390,15 +368,17 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     let creator = read_u32be(&buffer,ptr);
                     ptr = ptr + 4;
                     let profile_id = read_u128be(&buffer, ptr);
-                    let reserved :Vec<u8> = (0..27).map(|i| buffer[i]).collect();
-                    ptr = ptr + 27;
+                    ptr = ptr + 16;
+                    let reserved :Vec<u8> = (0..28).map(|i| buffer[i]).collect();
+                    ptr = ptr + 28;
                     let data :Vec<u8> = buffer[ptr..len].to_vec();
+
                     let create_date = format!("{:>4}/{:>2}/{:>2} {:>02}:{:>02}:{:>02}",
                         year,month,day,hour,minute,second);
-                    let icc_profile = ICCProfile{
+                    let icc_profile = ICCProfilePacker{
                         number: number,
                         total: total,
-                        data: ICCProfileData::Header(ICCProfileHeader{
+                        data: ICCProfileData::Header(crate::img::iccprofile::ICCProfile{
                             length,
                             cmmid,
                             version,
@@ -504,7 +484,6 @@ impl JpegHaeder {
         let mut _jpeg_app_headers: Vec<JpegAppHeaders> = Vec::new();
         let jpeg_app_headers: Option<Vec<JpegAppHeaders>>;
         let mut adobe_color_transform = 0;
-        let mut icc_profile = None;
         let mut offset = 0;
 
         while offset < buffer.len() {
@@ -736,7 +715,6 @@ impl JpegHaeder {
             jpeg_app_headers,
             is_hierachical,
             adobe_color_transform,
-            icc_profile,
         })
     }
 }

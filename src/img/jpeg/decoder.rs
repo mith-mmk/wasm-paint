@@ -1,4 +1,5 @@
 
+use core::cmp::min;
 use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::jpeg::header::JpegHaeder;
@@ -447,62 +448,62 @@ fn fast_idct(f: &[i32]) -> Vec<u8> {
     }
     
     for i in 0..8 {
-            let g0 = _f[i*8 + 0] as f32 * s0;
-            let g1 = _f[i*8 + 4] as f32 * s4;
-            let g2 = _f[i*8 + 2] as f32 * s2;
-            let g3 = _f[i*8 + 6] as f32 * s6;
-            let g4 = _f[i*8 + 5] as f32 * s5;
-            let g5 = _f[i*8 + 1] as f32 * s1;
-            let g6 = _f[i*8 + 7] as f32 * s7;
-            let g7 = _f[i*8 + 3] as f32 * s3;
-        
-            let f0 = g0;
-            let f1 = g1;
-            let f2 = g2;
-            let f3 = g3;
-            let f4 = g4 - g7;
-            let f5 = g5 + g6;
-            let f6 = g5 - g6;
-            let f7 = g4 + g7;
-        
-            let e0 = f0;
-            let e1 = f1;
-            let e2 = f2 - f3;
-            let e3 = f2 + f3;
-            let e4 = f4;
-            let e5 = f5 - f7;
-            let e6 = f6;
-            let e7 = f5 + f7;
-            let e8 = f4 + f6;
-        
-            let d0 = e0;
-            let d1 = e1;
-            let d2 = e2 * m1;
-            let d3 = e3;
-            let d4 = e4 * m2;
-            let d5 = e5 * m3;
-            let d6 = e6 * m4;
-            let d7 = e7;
-            let d8 = e8 * m5;
-        
-            let c0 = d0 + d1;
-            let c1 = d0 - d1;
-            let c2 = d2 - d3;
-            let c3 = d3;
-            let c4 = d4 + d8;
-            let c5 = d5 + d7;
-            let c6 = d6 - d8;
-            let c7 = d7;
-            let c8 = c5 - c6;
-        
-            let b0 = c0 + c3;
-            let b1 = c1 + c2;
-            let b2 = c1 - c2;
-            let b3 = c0 - c3;
-            let b4 = c4 - c8;
-            let b5 = c8;
-            let b6 = c6 - c7;
-            let b7 = c7;
+        let g0 = _f[i*8 + 0] as f32 * s0;
+        let g1 = _f[i*8 + 4] as f32 * s4;
+        let g2 = _f[i*8 + 2] as f32 * s2;
+        let g3 = _f[i*8 + 6] as f32 * s6;
+        let g4 = _f[i*8 + 5] as f32 * s5;
+        let g5 = _f[i*8 + 1] as f32 * s1;
+        let g6 = _f[i*8 + 7] as f32 * s7;
+        let g7 = _f[i*8 + 3] as f32 * s3;
+    
+        let f0 = g0;
+        let f1 = g1;
+        let f2 = g2;
+        let f3 = g3;
+        let f4 = g4 - g7;
+        let f5 = g5 + g6;
+        let f6 = g5 - g6;
+        let f7 = g4 + g7;
+    
+        let e0 = f0;
+        let e1 = f1;
+        let e2 = f2 - f3;
+        let e3 = f2 + f3;
+        let e4 = f4;
+        let e5 = f5 - f7;
+        let e6 = f6;
+        let e7 = f5 + f7;
+        let e8 = f4 + f6;
+    
+        let d0 = e0;
+        let d1 = e1;
+        let d2 = e2 * m1;
+        let d3 = e3;
+        let d4 = e4 * m2;
+        let d5 = e5 * m3;
+        let d6 = e6 * m4;
+        let d7 = e7;
+        let d8 = e8 * m5;
+    
+        let c0 = d0 + d1;
+        let c1 = d0 - d1;
+        let c2 = d2 - d3;
+        let c3 = d3;
+        let c4 = d4 + d8;
+        let c5 = d5 + d7;
+        let c6 = d6 - d8;
+        let c7 = d7;
+        let c8 = c5 - c6;
+    
+        let b0 = c0 + c3;
+        let b1 = c1 + c2;
+        let b2 = c1 - c2;
+        let b3 = c0 - c3;
+        let b4 = c4 - c8;
+        let b5 = c8;
+        let b6 = c6 - c7;
+        let b7 = c7;
         
         vals[i * 8 + 0] = ((b0 + b7) as i32 + 128).clamp(0,255) as u8;
         vals[i * 8 + 1] = ((b1 + b6) as i32 + 128).clamp(0,255) as u8;
@@ -515,6 +516,7 @@ fn fast_idct(f: &[i32]) -> Vec<u8> {
     }
     vals.to_vec()
 }
+
 
 // Glayscale
 fn y_to_rgb  (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
@@ -671,33 +673,33 @@ fn ycck_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,
 
 /* spec known */
 fn cmyk_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,usize)) -> Vec<u8> {
-    let mut buffer:Vec<u8> = (0..hv_maps[3].h * hv_maps[3].v * 64 * 4).map(|_| 0).collect();
+    let mut buffer:Vec<u8> = (0..h_max * v_max * 64 * 4).map(|_| 0).collect();
     let k_map = 0;
-    let c_map = k_map + hv_maps[0].h * hv_maps[0].v;
-    let m_map = c_map + hv_maps[1].h * hv_maps[1].v;
-    let y_map = m_map + hv_maps[2].h * hv_maps[2].v;
+    let m_map = k_map + hv_maps[0].h * hv_maps[0].v;
+    let c_map = m_map + hv_maps[1].h * hv_maps[1].v;
+    let y_map = c_map + hv_maps[2].h * hv_maps[2].v;
 
-    let cy = hv_maps[0].v / hv_maps[0].v as usize;
-    let my = hv_maps[0].v / hv_maps[1].v as usize;
-    let yy = hv_maps[0].v / hv_maps[2].v as usize;
-//    let ky = hv_maps[0].v / hv_maps[3].v as usize;
+    let ky = v_max / hv_maps[0].v as usize;
+    let cy = v_max / hv_maps[1].v as usize;
+    let my = v_max / hv_maps[2].v as usize;
+    let yy = v_max / hv_maps[3].v as usize;
 
-    let cx = h_max / hv_maps[0].h as usize;
-    let mx = h_max / hv_maps[1].h as usize;
-    let yx = h_max / hv_maps[2].h as usize;
-//    let kx = hv_maps[0].h / hv_maps[3].h as usize;
+    let kx = h_max / hv_maps[0].h as usize;
+    let cx = h_max / hv_maps[1].h as usize;
+    let mx = h_max / hv_maps[2].h as usize;
+    let yx = h_max / hv_maps[3].h as usize;
 
     for v in 0..v_max {
-        let mut c_map_cur = c_map + v / v_max;
-        let mut m_map_cur = m_map + v / v_max;
-        let mut y_map_cur = y_map + v / v_max;
-        let mut k_map_cur = k_map + v / v_max;
+        let mut c_map_cur = c_map + v / cy;
+        let mut m_map_cur = m_map + v / my;
+        let mut y_map_cur = y_map + v / yy;
+        let mut k_map_cur = k_map + v / ky;
 
         for h in 0..h_max {
-            c_map_cur = c_map_cur + h / h_max;
-            m_map_cur = m_map_cur + h / h_max;
-            y_map_cur = y_map_cur + h / h_max;
-            k_map_cur = k_map_cur + h / h_max;
+            c_map_cur = c_map_cur + h / cx;
+            m_map_cur = m_map_cur + h / mx;
+            y_map_cur = y_map_cur + h / yx;
+            k_map_cur = k_map_cur + h / kx;
 
             for y in 0..8 {
                 let offset = ((y + v * 8) * (8 * h_max)) * 4;
@@ -706,17 +708,11 @@ fn cmyk_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,
                     let cc = yuv[c_map_cur][(((y + v * 8) / cy % 8) * 8)  + ((x + h * 8) / cx) % 8] as i32;
                     let cm = yuv[m_map_cur][(((y + v * 8) / my % 8) * 8)  + ((x + h * 8) / mx) % 8] as i32;
                     let cy = yuv[y_map_cur][(((y + v * 8) / yy % 8) * 8)  + ((x + h * 8) / yx) % 8] as i32;
-                    let ck = yuv[k_map_cur][(((y + v * 8) % 8) * 8)  + (x + h * 8) % 8] as i32;
-                    let rvk = 256 - ck as i32;
+                    let ck = yuv[k_map_cur][(((y + v * 8) / ky % 8) * 8)  + ((x + h * 8) / kx) % 8] as i32;
 
-                    // △ cm cc cy ck
-                    // x ck cc cy cm
-                    // x cm ck cy cc
-                    // cn cc ck cy
-
-                    let red   = (rvk*(255 - cm) / 256).clamp(0,255) as u8;
-                    let green = (rvk*(255 - cc) / 256).clamp(0,255) as u8;
-                    let blue  = (rvk*(255 - cy) / 256).clamp(0,255) as u8;
+                    let red   = (cy as i32).clamp(0,255) as u8;
+                    let green = (cm as i32).clamp(0,255) as u8;
+                    let blue  = (cc as i32).clamp(0,255) as u8;
 
                     buffer[xx + offset    ] = red; //R
                     buffer[xx + offset + 1] = green; //G
@@ -793,7 +789,8 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
     if option.debug_flag > 0 {
         let boxstr = print_header(&header,option.debug_flag);
-        (option.callback.verbose)(option.drawer,&boxstr)?;
+        option.drawer.verbose(&boxstr)?;
+//        (option.callback.verbose)(option.drawer,&boxstr)?;
     }
     
     if header.is_hierachical {
@@ -863,7 +860,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
     }
 
     // decode
-    (option.callback.init)(option.drawer,width,height)?;
+    option.drawer.init(width,height)?;
     // take buffer for progressive 
     // progressive has 2mode
     //  - Spectral selection control
@@ -948,7 +945,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                          }
                          else {y_to_rgb(&yuv,&component)}; // g / ga
 
-            (option.callback.draw)(option.drawer,mcu_x*dx,mcu_y*dy,dx,dy,&data)?;
+            option.drawer.draw(mcu_x*dx,mcu_y*dy,dx,dy,&data)?;
 
             if header.interval > 0 {
                 mcu_interval = mcu_interval - 1;
@@ -999,7 +996,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
             worning = Some(WorningAddMessage(WorningKind::UnexpectMaker,"Not found EOI".to_string()));
         }
     }
-    (option.callback.terminate)(option.drawer)?;
+    option.drawer.terminate()?;
     Ok(worning)
 
 }

@@ -38,6 +38,7 @@ pub enum ErrorKind {
     OutboundIndex,
     Reset,
     IlligalCallback,
+    NotInitializedImageBuffer,
     UnknownError,
 }
 
@@ -60,6 +61,7 @@ impl ErrorKind {
             Reset => {"Decoder Reset command"},
             OutboundIndex => {"Outbound index"},
             IlligalCallback => {"Illigal Callback"},
+            NotInitializedImageBuffer => {"Not initialized Image Buffer"},
             UnknownError => {"Unkonw error"}            
         }
     }
