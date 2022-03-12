@@ -333,7 +333,7 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     let total = read_byte(&buffer, ptr) as usize;
                     ptr = ptr + 1;
                     if number != 1 {
-                        let data = [0].to_vec();
+                        let data = buffer[ptr..].to_vec();
                         let icc_profile = ICCProfile{
                             number: number,
                             total: total,
@@ -392,7 +392,7 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     let profile_id = read_u128be(&buffer, ptr);
                     let reserved :Vec<u8> = (0..27).map(|i| buffer[i]).collect();
                     ptr = ptr + 27;
-                    let data :Vec<u8>  = [0].to_vec();
+                    let data :Vec<u8> = buffer[ptr..len].to_vec();
                     let create_date = format!("{:>4}/{:>2}/{:>2} {:>02}:{:>02}:{:>02}",
                         year,month,day,hour,minute,second);
                     let icc_profile = ICCProfile{
@@ -674,7 +674,7 @@ impl JpegHaeder {
                         let tag = read_string(buffer,offset + 2,length -2);
                         let len = length - 2 - tag.len() + 1;
                         let ptr = 2 + tag.len() + 1 + offset;
-                        let result = read_app(num , &tag, &buffer, ptr, len)?;
+                        let result = read_app(num , &tag, &buffer[ptr..len+ptr], 0, len)?;
                         match &result {
                             JpegAppHeaders::Adobe(ref app) => {
                                 adobe_color_transform = app.color_transform;
@@ -718,6 +718,8 @@ impl JpegHaeder {
         } else {
             huffman_tables = None;
         }
+
+
 
         Ok(Self {
             width,

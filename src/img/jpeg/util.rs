@@ -153,8 +153,11 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
                                 str += &format!("Illiuminate X:{} Y:{} Z:{}\n",&header.illuminate[0],&header.illuminate[1],&header.illuminate[2]);
                                 str += &format!("Creator {}\n",String::from_utf8_lossy(&header.creator.to_be_bytes()));
                                 str += &format!("Profile ID (MD5 {:>16x}\n",&header.profile_id);
+                                str += &format!("Data length {}bytes\n",&header.data.len());
                             },
-                            _ => {},
+                            ICCProfileData::Data(data) => {
+                                str += &format!("Data length {}bytes\n",&data.len());
+                            },
                         }
                     }
                     Unknown(app) => {
