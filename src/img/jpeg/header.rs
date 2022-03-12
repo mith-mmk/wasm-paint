@@ -208,6 +208,41 @@ pub struct Ducky {
     pub copyright: String,
 }
 
+pub enum ICCProfileData {
+    Header(ICCProfileHeader),
+    Data(Vec<u8>),
+}
+
+pub struct ICCProfile {
+    pub number : usize,
+    pub total: usize,
+    pub data: ICCProfileData,
+}
+
+pub struct ICCProfileHeader {
+    pub length : u32,
+    pub cmmid : u32,
+    pub version :u32,
+    pub device_class :u32,
+    pub color_space : u32,
+    pub pcs : u32,
+    pub create_date: String,
+    pub magicnumber_ascp: u32,
+    pub platform: u32,
+    pub flags: u32,
+    pub manufacturer: u32,
+    pub model: u32,
+    pub attributes: u64,
+    pub rendering_intent: u32,
+    pub illuminate :[u32;3],
+    pub creator: u32,
+    pub profile_id: u128,
+    pub reserved :Vec<u8>,  // 27byte,
+    pub data: Vec<u8>   // left data
+}
+
+
+
 #[allow(unused)]
 pub struct UnknownApp {
     pub number : usize,
@@ -230,6 +265,8 @@ pub struct JpegHaeder {
     pub comment: Option<String>,
     pub jpeg_app_headers: Option<Vec<JpegAppHeaders>>,
     pub is_hierachical: bool,
+    pub adobe_color_transform: usize,
+    pub icc_profile: Option<ICCProfileHeader>,
 }
 
 #[allow(unused)]
@@ -238,6 +275,7 @@ pub enum JpegAppHeaders {
     Exif(Exif),
     Ducky(Ducky),
     Adobe(AdobeApp14),
+    ICCProfile(ICCProfile),
     Unknown(UnknownApp),
 }
 
@@ -284,6 +322,107 @@ fn read_app(num: usize,tag :&String,buffer :&[u8],mut ptr :usize,mut len :usize)
                     return Ok(JpegAppHeaders::Exif(exif))
                 },
                 _ => {
+                }
+            }
+        },
+        2 => {
+            match tag.as_str() {
+                "ICC_PROFILE" => {
+                    let number = read_byte(&buffer, ptr) as usize;
+                    ptr = ptr + 1;
+                    let total = read_byte(&buffer, ptr) as usize;
+                    ptr = ptr + 1;
+                    if number != 1 {
+                        let data = [0].to_vec();
+                        let icc_profile = ICCProfile{
+                            number: number,
+                            total: total,
+                            data: ICCProfileData::Data(data),
+                        };
+
+                        return Ok(JpegAppHeaders::ICCProfile(icc_profile))
+                    };
+                    let length = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let cmmid = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let version = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let device_class = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let color_space = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let pcs = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let year = read_u16be(&buffer,ptr);
+                    ptr = ptr + 2;
+                    let month = read_u16be(&buffer,ptr);
+                    ptr = ptr + 2;
+                    let day = read_u16be(&buffer,ptr);
+                    ptr = ptr + 2;
+                    let hour = read_u16be(&buffer,ptr);
+                    ptr = ptr + 2;
+                    let minute = read_u16be(&buffer,ptr);
+                    ptr = ptr + 2;
+                    let second = read_u16be(&buffer,ptr);
+                    ptr = ptr + 2;
+                    let magicnumber_ascp = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let platform = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let flags = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let manufacturer = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let model = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let attributes = read_u64be(&buffer,ptr);
+                    ptr = ptr + 8;
+                    let rendering_intent = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let mut illuminate = [0_u32;3];
+                    illuminate[0] = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    illuminate[1] = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    illuminate[2] = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let creator = read_u32be(&buffer,ptr);
+                    ptr = ptr + 4;
+                    let profile_id = read_u128be(&buffer, ptr);
+                    let reserved :Vec<u8> = (0..27).map(|i| buffer[i]).collect();
+                    ptr = ptr + 27;
+                    let data :Vec<u8>  = [0].to_vec();
+                    let create_date = format!("{:>4}/{:>2}/{:>2} {:>02}:{:>02}:{:>02}",
+                        year,month,day,hour,minute,second);
+                    let icc_profile = ICCProfile{
+                        number: number,
+                        total: total,
+                        data: ICCProfileData::Header(ICCProfileHeader{
+                            length,
+                            cmmid,
+                            version,
+                            device_class,
+                            color_space,
+                            pcs,
+                            create_date,
+                            magicnumber_ascp,
+                            platform,
+                            flags,
+                            manufacturer,
+                            model,
+                            attributes,
+                            rendering_intent,
+                            illuminate,
+                            creator,
+                            profile_id,
+                            reserved,
+                            data,
+                        })};
+                    return Ok(JpegAppHeaders::ICCProfile(icc_profile))
+                },
+                _ => {
+
                 }
             }
         },
@@ -364,6 +503,8 @@ impl JpegHaeder {
         let mut comment: Option<String> = None;
         let mut _jpeg_app_headers: Vec<JpegAppHeaders> = Vec::new();
         let jpeg_app_headers: Option<Vec<JpegAppHeaders>>;
+        let mut adobe_color_transform = 0;
+        let mut icc_profile = None;
         let mut offset = 0;
 
         while offset < buffer.len() {
@@ -534,6 +675,12 @@ impl JpegHaeder {
                         let len = length - 2 - tag.len() + 1;
                         let ptr = 2 + tag.len() + 1 + offset;
                         let result = read_app(num , &tag, &buffer, ptr, len)?;
+                        match &result {
+                            JpegAppHeaders::Adobe(ref app) => {
+                                adobe_color_transform = app.color_transform;
+                            }, 
+                            _ => {},
+                        }
                         _jpeg_app_headers.push(result);
                         offset = offset + length; // skip
                     },
@@ -586,6 +733,8 @@ impl JpegHaeder {
             comment,
             jpeg_app_headers,
             is_hierachical,
+            adobe_color_transform,
+            icc_profile,
         })
     }
 }

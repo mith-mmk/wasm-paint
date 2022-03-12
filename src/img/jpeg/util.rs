@@ -1,6 +1,7 @@
-
-use crate::img::jpeg::header::JpegAppHeaders::*;
+use super::header::JpegAppHeaders::*;
 use super::header::JpegHaeder;
+use super::header::ICCProfileData;
+
 
 #[allow(unused)]
 pub(crate) static ZIG_ZAG_SEQUENCE:[usize;64] = [
@@ -125,12 +126,37 @@ pub fn print_header(header: &JpegHaeder,option: usize) -> Box<String> {
                     },
                     Adobe(adobe) => {
                         str = str + &format!(
-                            "Adobe App14 DCTEncodeVersion:{} Flag1:{} Flag2:{} ColorTransform {}\n"
+                            "Adobe App14 DCTEncodeVersion:{} Flag1:{} Flag2:{} ColorTransform {} {}\n"
                             ,adobe.dct_encode_version
-                            ,adobe.flag1,adobe.flag2,match adobe.color_transform {
+                            ,adobe.flag1,adobe.flag2,adobe.color_transform,match adobe.color_transform {
                                     1 => {"YCbCr"}, 2 => {"YCCK"}, _ =>{"Unknown"}});
 
                     },
+                    ICCProfile(icc_profile) => {
+                        str = str + &format!(
+                            "ICC Profile {} of {}\n",icc_profile.number,icc_profile.total);
+                            match &icc_profile.data {
+                            ICCProfileData::Header(header) => {
+                                str += &format!("ICC Profile {}\n",icc_profile.number);
+                                str += &format!("cmmid {}\n",String::from_utf8_lossy(&header.cmmid.to_be_bytes()));
+                                str += &format!("version {:08x}\n",&header.version);
+                                str += &format!("Device Class {}\n",String::from_utf8_lossy(&header.device_class.to_be_bytes()));
+                                str += &format!("Color Space {}\n",String::from_utf8_lossy(&header.color_space.to_be_bytes()));
+                                str += &format!("PCS {}\n",String::from_utf8_lossy(&header.pcs.to_be_bytes()));
+                                str += &format!("DATE {}\n",header.create_date);
+                                str += &format!("It MUST be 'assp' {}\n",String::from_utf8_lossy(&header.magicnumber_ascp.to_be_bytes()));
+                                str += &format!("Platform {}\n",String::from_utf8_lossy(&header.platform.to_be_bytes()));
+                                str += &format!("flags {}\n",&header.flags);
+                                str += &format!("Manuacture {}\n",String::from_utf8_lossy(&header.manufacturer.to_be_bytes()));
+                                str += &format!("Model {:>04x}\n",&header.model);
+                                str += &format!("Attributes {:>064b}\n",&header.attributes);
+                                str += &format!("Illiuminate X:{} Y:{} Z:{}\n",&header.illuminate[0],&header.illuminate[1],&header.illuminate[2]);
+                                str += &format!("Creator {}\n",String::from_utf8_lossy(&header.creator.to_be_bytes()));
+                                str += &format!("Profile ID (MD5 {:>16x}\n",&header.profile_id);
+                            },
+                            _ => {},
+                        }
+                    }
                     Unknown(app) => {
                         str = str + &format!("App{} {} {}bytes is unknown\n",app.number,app.tag,app.length);
                     },

@@ -1,3 +1,4 @@
+
 use crate::img::jpeg::header::Component;
 use crate::img::jpeg::header::HuffmanTable;
 use crate::img::jpeg::header::JpegHaeder;
@@ -217,7 +218,7 @@ fn dc_read(bitread: &mut BitReader,dc_decode:&HuffmanDecodeTable,pred:i32) -> Re
 #[inline]
 fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<i32>,ImgError> {
     let mut zigzag : usize= 1;
-    let mut zz :Vec<i32> = (0..64).map(|_| 0).collect();
+    let mut zz  = [0_i32;64];
     loop {  // F2.2.2
         let ac = huffman_read(bitread,&ac_decode)?;
         
@@ -225,20 +226,20 @@ fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<
         let rrrr = ac >> 4;
         if ssss == 0 {
             if ac == 0x00 { //EOB
-                return Ok(zz)
+                return Ok(zz.to_vec())
             }
             if rrrr == 15 { //ZRL
                 zigzag = zigzag + 16;
                 continue
             }
-            return Ok(zz)   // N/A
+            return Ok(zz.to_vec())   // N/A
         } else {
             zigzag = zigzag + rrrr as usize;
             let v =  receive(bitread,ssss as i32)?;
             zz[zigzag] = extend(v,ssss as i32);
         }
         if zigzag >= 63 {
-            return Ok(zz)
+            return Ok(zz.to_vec())
         }
         zigzag = zigzag + 1;
     }
@@ -300,7 +301,7 @@ fn idct(f :&[i32]) -> Vec<u8> {
     vals
 }
 */
-
+/*
 #[inline]
 fn idct (f :&[i32]) -> Vec<u8> {
     let c_table :[[f32;8];8] = 
@@ -354,203 +355,167 @@ fn idct (f :&[i32]) -> Vec<u8> {
     }
     vals
 }
+*/
 
-/* fast_idct 
- * for application note 922 AP-922
- *   A Fast Precise Implementation of 8x8 Discrete Cosine
- *   Transform Using the Streaming SIMD Extensions and
- *   MMX™ Instructions
- *   Version 1.0
- *
- *   Copyright © Intel Corporation 1999
- *
- * base code from https://qiita.com/tobira-code/items/91f3578cd7ed5b19c1f9
- */
 #[inline]
-fn fast_idct (f :&[i32]) -> Vec<u8> {
-    let g4 = 0.707106781186548 as f32;
-    let g:[[f32;7];4]  = [
-    /* row 0, 4 */
-      [
-        0.1733799806652680, /* g1 * 0.25 * g4 */
-        0.1633203706095470, /* g2 * 0.25 * g4 */
-        0.1469844503024200, /* g3 * 0.25 * g4 */
-        0.1250000000000000, /* g4 * 0.25 * g4 */
-        0.0982118697983878, /* g5 * 0.25 * g4 */
-        0.0676495125182746, /* g6 * 0.25 * g4 */
-        0.0344874224103679, /* g7 * 0.25 * g4 */
-      ],
-      /* row 1, 7 */
-      [
-        0.2404849415639110, /* g1 * 0.25 * g1 */
-        0.2265318615882220, /* g2 * 0.25 * g1 */
-        0.2038732892122290, /* g3 * 0.25 * g1 */
-        0.1733799806652680, /* g4 * 0.25 * g1 */
-        0.1362237766939550, /* g5 * 0.25 * g1 */
-        0.0938325693794663, /* g6 * 0.25 * g1 */
-        0.0478354290456362, /* g7 * 0.25 * g1 */
-      ],
-      /* row 2, 6 */
-      [
-        0.2265318615882220, /* g1 * 0.25 * g2 */
-        0.2133883476483180, /* g2 * 0.25 * g2 */
-        0.1920444391778540, /* g3 * 0.25 * g2 */
-        0.1633203706095470, /* g4 * 0.25 * g2 */
-        0.1283199917898340, /* g5 * 0.25 * g2 */
-        0.0883883476483185, /* g6 * 0.25 * g2 */
-        0.0450599888754343, /* g7 * 0.25 * g2 */
-      ],
-      /* row 3, 5 */
-      [
-        0.2038732892122290, /* g1 * 0.25 * g3 */
-        0.1920444391778540, /* g2 * 0.25 * g3 */
-        0.1728354290456360, /* g3 * 0.25 * g3 */
-        0.1469844503024200, /* g4 * 0.25 * g3 */
-        0.1154849415639110, /* g5 * 0.25 * g3 */
-        0.0795474112858021, /* g6 * 0.25 * g3 */
-        0.0405529186026822, /* g7 * 0.25 * g3 */
-      ]];
-    let t:[f32;3] = [
-        0.414213562373095  /* t1 = g6/g2 */,
-        0.198912367379658 /* t2 = g7/g1 */,
-        0.668178637919299 /* t3 = g5/g3 */,
-    ];
-    
-    let row2idx = [0,1,2,3,0,3,2,1];
-    let mut _f = [[0_f32;8];8];
-    let mut vals :Vec<u8> = (0..64).map(|_| 0).collect();
+// AAN algorythm
+fn fast_idct(f: &[i32]) -> Vec<u8> {
+    let mut _f  = [0_f32;64];
+    let mut vals = [0_u8;64];
+    let m0 = 1.847759;
+    let m1 = 1.4142135;
+    let m3 = 1.4142135;
+    let m5 = 0.76536685;
+    let m2 = m0 - m5;
+    let m4 = m0 + m5;
 
+    let s0 = 0.35355338;
+    let s1 = 0.49039263;
+    let s2 = 0.46193975;
+    let s3 = 0.4157348;
+    let s4 = 0.35355338;
+    let s5 = 0.2777851;
+    let s6 = 0.19134171;
+    let s7 = 0.09754512;
+    
     for i in 0..8 {
-        let idx = row2idx[i];
-        /* P */
-        let p = [
-                f[0 +i] as f32,  /* 1 0 0 0 0 0 0 0 */
-                f[2*8+i] as f32,  /* 0 0 1 0 0 0 0 0 */
-                f[4*8+i] as f32,  /* 0 0 0 0 1 0 0 0 */
-                f[6*8+i] as f32,  /* 0 0 0 0 0 0 1 0 */
-                f[1*8+i] as f32,  /* 0 1 0 0 0 0 0 0 */
-                f[3*8+i] as f32,  /* 0 0 0 1 0 0 0 0 */
-                f[5*8+i] as f32,  /* 0 0 0 0 0 1 0 0 */
-                f[7*8+i] as f32];  /* 0 0 0 0 0 0 0 1 */
-        let tmp = [
-            p[0] * g[idx][3],
-            p[1] * g[idx][1],
-            p[1] * g[idx][5],
-            p[2] * g[idx][3],
-            p[3] * g[idx][5],
-            p[3] * g[idx][1]];
-        /* M */
-        let m = [
-            tmp[0] + tmp[1] + tmp[3] + tmp[4],                                         /*  g4  g2  g4  g6  0  0  0  0 */
-            tmp[0] + tmp[2] - tmp[3] - tmp[5],                                         /*  g4  g6 -g4 -g2  0  0  0  0 */
-            tmp[0] - tmp[2] - tmp[3] + tmp[5],                                         /*  g4 -g6 -g4  g2  0  0  0  0 */
-            tmp[0] - tmp[1] + tmp[3] - tmp[4],                                         /*  g4 -g2  g4 -g6  0  0  0  0 */
-            p[4] * g[idx][0] + p[5] * g[idx][2] + p[6] * g[idx][4] + p[7] * g[idx][6], /*  0  0  0  0  g1  g3  g5  g7 */
-            p[4] * g[idx][2] - p[5] * g[idx][6] - p[6] * g[idx][0] - p[7] * g[idx][4], /*  0  0  0  0  g3 -g7 -g1 -g5 */
-            p[4] * g[idx][4] - p[5] * g[idx][0] + p[6] * g[idx][6] + p[7] * g[idx][2], /*  0  0  0  0  g5 -g1  g7  g3 */
-            p[4] * g[idx][6] - p[5] * g[idx][4] + p[6] * g[idx][2] - p[7] * g[idx][0], /*  0  0  0  0  g7 -g5  g3 -g1 */
-        ];
-        /* A */
-        _f[0][i]  = m[0] + m[4];  /*  1  0  0  0  1  0  0  0 */
-        _f[1][i]  = m[1] + m[5];  /*  0  1  0  0  0  1  0  0 */
-        _f[2][i]  = m[2] + m[6];  /*  0  0  1  0  0  0  1  0 */
-        _f[3][i]  = m[3] + m[7];  /*  0  0  0  1  0  0  0  1 */
-        _f[4][i]  = m[3] - m[7];  /*  0  0  0  1  0  0  0 -1 */
-        _f[5][i]  = m[2] - m[6];  /*  0  0  1  0  0  0 -1  0 */
-        _f[6][i]  = m[1] - m[5];  /*  0  1  0  0  0 -1  0  0 */
-        _f[7][i]  = m[0] - m[4];  /*  1  0  0  0 -1  0  0  0 */
-      }
+        let g0 = f[0*8 + i] as f32 * s0;
+        let g1 = f[4*8 + i] as f32 * s4;
+        let g2 = f[2*8 + i] as f32 * s2;
+        let g3 = f[6*8 + i] as f32 * s6;
+        let g4 = f[5*8 + i] as f32 * s5;
+        let g5 = f[1*8 + i] as f32 * s1;
+        let g6 = f[7*8 + i] as f32 * s7;
+        let g7 = f[3*8 + i] as f32 * s3;
     
-      // column
-      // add 8*26 = 208
-      // mul 8*8  = 64
-      // C = A F E B D P
-      for i in 0..8 {
-        /* P */
-        let p = [
-            _f[i][0],  /* 1 0 0 0 0 0 0 0 */
-            _f[i][2],  /* 0 0 1 0 0 0 0 0 */
-            _f[i][4],  /* 0 0 0 0 1 0 0 0 */
-            _f[i][6],  /* 0 0 0 0 0 0 1 0 */
-            _f[i][1],  /* 0 1 0 0 0 0 0 0 */
-            _f[i][3],  /* 0 0 0 1 0 0 0 0 */
-            _f[i][5],  /* 0 0 0 0 0 1 0 0 */
-            _f[i][7],  /* 0 0 0 0 0 0 0 1 */
-        ];
-        /* D */
-        /* g4  0  0  0  0  0  0  0 */
-        /*  0  0 g4  0  0  0  0  0 */
-        /*  0 g2  0  0  0  0  0  0 */
-        /*  0  0  0 g2  0  0  0  0 */
-        /*  0  0  0  0 g1  0  0  0 */
-        /*  0  0  0  0  0  0  0 g1 */
-        /*  0  0  0  0  0 g3  0  0 */
-        /*  0  0  0  0  0  0 g3  0 */
-        let d = [p[0],p[2],p[1],p[3], p[4],p[7],p[5],p[6]];
+        let f0 = g0;
+        let f1 = g1;
+        let f2 = g2;
+        let f3 = g3;
+        let f4 = g4 - g7;
+        let f5 = g5 + g6;
+        let f6 = g5 - g6;
+        let f7 = g4 + g7;
     
-        /* B t1=g6/g2, t2=g7/g1, t3=g5/g3 */
-        /*  1  1  0  0  0  0  0  0 */
-        /*  1 -1  0  0  0  0  0  0 */
-        /*  0  0  1 t1  0  0  0  0 */
-        /*  0  0 t1 -1  0  0  0  0 */
-        /*  0  0  0  0  1 t2  0  0 */
-        /*  0  0  0  0 t2 -1  0  0 */
-        /*  0  0  0  0  0  0  1 t3 */
-        /*  0  0  0  0  0  0 t3 -1 */
-        let b = [
-                      d[0] +        d[1],
-                      d[0] -        d[1],
-                      d[2] + t[0] * d[3],
-               t[0] * d[2] -        d[3],
-                      d[4] + t[1] * d[5],
-               t[1] * d[4] -        d[5],
-                      d[6] + t[2] * d[7],
-               t[2] * d[6] -        d[7],
-        ];
+        let e0 = f0;
+        let e1 = f1;
+        let e2 = f2 - f3;
+        let e3 = f2 + f3;
+        let e4 = f4;
+        let e5 = f5 - f7;
+        let e6 = f6;
+        let e7 = f5 + f7;
+        let e8 = f4 + f6;
     
-        /* E */
-        let e = [
-            b[0] + b[2], /* 1  0  1  0  0  0  0  0 */
-            b[1] + b[3], /* 0  1  0  1  0  0  0  0 */
-            b[1] - b[3], /* 0  1  0 -1  0  0  0  0 */
-            b[0] - b[2], /* 1  0 -1  0  0  0  0  0 */
-            b[4] + b[6], /* 0  0  0  0  1  0  1  0 */
-            b[4] - b[6], /* 0  0  0  0  1  0 -1  0 */
-            b[5] + b[7], /* 0  0  0  0  0  1  0  1 */
-            b[5] - b[7], /* 0  0  0  0  0  1  0 -1 */
-        ];
-        /* F g=g4*/
-        let _f = [
-            e[0],               /* 1  0  0  0  0  0  0  0 */
-            e[1],               /* 0  1  0  0  0  0  0  0 */
-            e[2],               /* 0  0  1  0  0  0  0  0 */
-            e[3],               /* 0  0  0  1  0  0  0  0 */
-            e[4],               /* 0  0  0  0  1  0  0  0 */
-            g4 * (e[5] + e[6]), /* 0  0  0  0  0  g  g  0 */
-            g4 * (e[5] - e[6]), /* 0  0  0  0  0  g -g  0 */
-            e[7],               /* 0  0  0  0  0  0  0  1 */
-        ];
-        /* A */
-        let v = (_f[0] + _f[4]).round()  as isize + 128;
-        vals[i*8+0]  = v.clamp(0,255) as u8;    /* 1  0  0  0  1  0  0  0 */
-        let v = (_f[1] + _f[5]).round()  as isize + 128;
-        vals[i*8+1]  = v.clamp(0,255) as u8;    /* 0  1  0  0  0  1  0  0 */
-        let v = (_f[2] + _f[6]).round()  as isize + 128;
-        vals[i*8+2]  = v.clamp(0,255) as u8;    /* 0  0  1  0  0  0  1  0 */
-        let v = (_f[3] + _f[7]).round()  as isize + 128;
-        vals[i*8+3]  = v.clamp(0,255) as u8;    /* 0  0  0  1  0  0  0  1 */
-        let v = (_f[3] - _f[7]).round()  as isize + 128;
-        vals[i*8+4]  = v.clamp(0,255) as u8;    /* 0  0  0  1  0  0  0 -1 */
-        let v = (_f[2] - _f[6]).round()  as isize + 128;
-        vals[i*8+5]  = v.clamp(0,255) as u8;    /* 0  0  1  0  0  0 -1  0 */
-        let v = (_f[1] - _f[5]).round()  as isize + 128;
-        vals[i*8+6]  = v.clamp(0,255) as u8;    /* 0  1  0  0  0 -1  0  0 */
-        let v = (_f[0] - _f[4]).round()  as isize + 128;
-        vals[i*8+7]  = v.clamp(0,255) as u8;    /* 1  0  0  0 -1  0  0  0 */
+        let d0 = e0;
+        let d1 = e1;
+        let d2 = e2 * m1;
+        let d3 = e3;
+        let d4 = e4 * m2;
+        let d5 = e5 * m3;
+        let d6 = e6 * m4;
+        let d7 = e7;
+        let d8 = e8 * m5;
+    
+        let c0 = d0 + d1;
+        let c1 = d0 - d1;
+        let c2 = d2 - d3;
+        let c3 = d3;
+        let c4 = d4 + d8;
+        let c5 = d5 + d7;
+        let c6 = d6 - d8;
+        let c7 = d7;
+        let c8 = c5 - c6;
+    
+        let b0 = c0 + c3;
+        let b1 = c1 + c2;
+        let b2 = c1 - c2;
+        let b3 = c0 - c3;
+        let b4 = c4 - c8;
+        let b5 = c8;
+        let b6 = c6 - c7;
+        let b7 = c7;
+        
+        _f[0 * 8 + i] = b0 + b7;
+        _f[1 * 8 + i] = b1 + b6;
+        _f[2 * 8 + i] = b2 + b5;
+        _f[3 * 8 + i] = b3 + b4;
+        _f[4 * 8 + i] = b3 - b4;
+        _f[5 * 8 + i] = b2 - b5;
+        _f[6 * 8 + i] = b1 - b6;
+        _f[7 * 8 + i] = b0 - b7; 
     }
-
-    vals
+    
+    for i in 0..8 {
+            let g0 = _f[i*8 + 0] as f32 * s0;
+            let g1 = _f[i*8 + 4] as f32 * s4;
+            let g2 = _f[i*8 + 2] as f32 * s2;
+            let g3 = _f[i*8 + 6] as f32 * s6;
+            let g4 = _f[i*8 + 5] as f32 * s5;
+            let g5 = _f[i*8 + 1] as f32 * s1;
+            let g6 = _f[i*8 + 7] as f32 * s7;
+            let g7 = _f[i*8 + 3] as f32 * s3;
+        
+            let f0 = g0;
+            let f1 = g1;
+            let f2 = g2;
+            let f3 = g3;
+            let f4 = g4 - g7;
+            let f5 = g5 + g6;
+            let f6 = g5 - g6;
+            let f7 = g4 + g7;
+        
+            let e0 = f0;
+            let e1 = f1;
+            let e2 = f2 - f3;
+            let e3 = f2 + f3;
+            let e4 = f4;
+            let e5 = f5 - f7;
+            let e6 = f6;
+            let e7 = f5 + f7;
+            let e8 = f4 + f6;
+        
+            let d0 = e0;
+            let d1 = e1;
+            let d2 = e2 * m1;
+            let d3 = e3;
+            let d4 = e4 * m2;
+            let d5 = e5 * m3;
+            let d6 = e6 * m4;
+            let d7 = e7;
+            let d8 = e8 * m5;
+        
+            let c0 = d0 + d1;
+            let c1 = d0 - d1;
+            let c2 = d2 - d3;
+            let c3 = d3;
+            let c4 = d4 + d8;
+            let c5 = d5 + d7;
+            let c6 = d6 - d8;
+            let c7 = d7;
+            let c8 = c5 - c6;
+        
+            let b0 = c0 + c3;
+            let b1 = c1 + c2;
+            let b2 = c1 - c2;
+            let b3 = c0 - c3;
+            let b4 = c4 - c8;
+            let b5 = c8;
+            let b6 = c6 - c7;
+            let b7 = c7;
+        
+        vals[i * 8 + 0] = ((b0 + b7) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 1] = ((b1 + b6) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 2] = ((b2 + b5) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 3] = ((b3 + b4) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 4] = ((b3 - b4) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 5] = ((b2 - b5) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 6] = ((b1 - b6) as i32 + 128).clamp(0,255) as u8;
+        vals[i * 8 + 7] = ((b0 - b7) as i32 + 128).clamp(0,255) as u8;
+    }
+    vals.to_vec()
 }
+
 // Glayscale
 fn y_to_rgb  (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
     let mut buffer:Vec<u8> = (0 .. hv_maps[0].h * hv_maps[0].v * 64 * 4).map(|_| 0).collect();
@@ -573,28 +538,28 @@ fn y_to_rgb  (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
     buffer
 }
 
-fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
-    let mut buffer:Vec<u8> = (0..hv_maps[0].h * hv_maps[0].v * 64 * 4).map(|_| 0).collect();
+fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,usize)) -> Vec<u8> {
+    let mut buffer:Vec<u8> = (0..h_max * v_max * 64 * 4).map(|_| 0).collect();
     let y_map = 0;
     let u_map = y_map + hv_maps[0].h * hv_maps[0].v;
     let v_map = u_map + hv_maps[1].h * hv_maps[1].v;
 
-    let uy = hv_maps[0].v / hv_maps[1].v as usize;
-    let vy = hv_maps[0].v / hv_maps[2].v as usize;
-    let ux = hv_maps[0].h / hv_maps[1].h as usize;
-    let vx = hv_maps[0].h / hv_maps[2].h as usize;
+    let uy = v_max / hv_maps[1].v as usize;
+    let vy = v_max / hv_maps[2].v as usize;
+    let ux = h_max / hv_maps[1].h as usize;
+    let vx = h_max / hv_maps[2].h as usize;
 
-    for v in 0..hv_maps[0].v {
-        let mut u_map_cur = u_map + v / hv_maps[0].h;
-        let mut v_map_cur = v_map + v / hv_maps[0].h;
+    for v in 0..v_max {
+        let mut u_map_cur = u_map + v / v_max;
+        let mut v_map_cur = v_map + v / v_max;
 
-        for h in 0..hv_maps[0].h {
-            let gray = &yuv[v*hv_maps[0].h + h];
-            u_map_cur = u_map_cur + h / hv_maps[0].h;
-            v_map_cur = v_map_cur + h / hv_maps[0].h;
+        for h in 0..h_max {
+            let gray = &yuv[v*h_max + h];
+            u_map_cur = u_map_cur + h / h_max;
+            v_map_cur = v_map_cur + h / h_max;
 
             for y in 0..8 {
-                let offset = ((y + v * 8) * (8 * hv_maps[0].h)) * 4;
+                let offset = ((y + v * 8) * (8 * h_max)) * 4;
                 for x in 0..8 {
                     let xx = (x + h * 8) * 4;
                     let shift = 4090;
@@ -612,14 +577,152 @@ fn yuv_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>) -> Vec<u8> {
                     let green= cy + (cbg * (cb - 128) + crg * (cr - 128))/shift;
                     let blue = cy + (cbb * (cb - 128))/shift;
 
-                    let red = if red > 255 {255} else if red < 0 {0} else {red as u8};
-                    let green = if green > 255 {255} else if green < 0 {0} else {green as u8};
-                    let blue = if blue > 255 {255} else if blue < 0 {0} else {blue as u8};
+                    let red = red.clamp(0,255) as u8;
+                    let green = green.clamp(0,255) as u8;
+                    let blue = blue.clamp(0,255) as u8;
 
                     buffer[xx + offset    ] = red; //R
                     buffer[xx + offset + 1] = green; //G
                     buffer[xx + offset + 2] = blue; //B
                     buffer[xx + offset + 3] = 0xff; //A
+                }
+            }
+        }
+    }
+
+    buffer
+}
+
+/* spec known */
+fn ycck_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,usize)) -> Vec<u8> {
+    let mut buffer:Vec<u8> = (0..h_max * v_max * 64 * 4).map(|_| 0).collect();
+    let y_map = 0;
+    let c1_map = y_map + hv_maps[0].h * hv_maps[0].v;
+    let c2_map = c1_map + hv_maps[1].h * hv_maps[1].v;
+    let k_map = c2_map + hv_maps[2].h * hv_maps[2].v;
+
+    let yy = v_max / hv_maps[0].v as usize;
+    let c1y = v_max / hv_maps[1].v as usize;
+    let c2y = v_max / hv_maps[2].v as usize;
+    let ky =  v_max / hv_maps[3].v as usize;
+
+    let yx = h_max / hv_maps[0].h as usize;
+    let c1x = h_max / hv_maps[1].h as usize;
+    let c2x = h_max / hv_maps[2].h as usize;
+    let kx = h_max / hv_maps[3].h as usize;
+
+    for v in 0..v_max {
+        let mut y_map_cur = y_map + v / v_max;
+        let mut c1_map_cur = c1_map + v / v_max;
+        let mut c2_map_cur = c2_map + v / v_max;
+        let mut k_map_cur = k_map + v / v_max;
+
+        for h in 0..h_max {
+            y_map_cur = y_map_cur + h / h_max;
+            c1_map_cur = c1_map_cur + h / h_max;
+            c1_map_cur = c2_map_cur + h / h_max;
+            k_map_cur = k_map_cur + h / h_max;
+
+            for y in 0..8 {
+                let offset = ((y + v * 8) * (8 * h_max)) * 4;
+                for x in 0..8 {
+                    let xx = (x + h * 8) * 4;
+                    let yin = yuv[y_map_cur][(((y + v * 8)  % 8) * 8)  + ((x + h * 8)) % 8] as i32;
+                    let c1  = yuv[c1_map_cur][(((y + v * 8) / c1y % 8) * 8)  + ((x + h * 8) / c1x) % 8] as i32;
+                    let c2  = yuv[c2_map_cur][(((y + v * 8) / c2y % 8) * 8)  + ((x + h * 8) / c2x) % 8] as i32;
+                    let key = yuv[k_map_cur][(((y + v * 8) % 8) * 8)  + (x + h * 8) % 8] as i32;
+
+                    let cy = yin;
+                    let cb = 255 - c1;
+                    let cr = 255 - c2;
+
+                    let shift = 4096;
+
+                    let crr = (1.402 * shift as f32) as i32;
+                    let cbg = (- 0.34414 * shift as f32) as i32;
+                    let crg = (- 0.71414 * shift as f32) as i32;
+                    let cbb = (1.772 * shift as f32) as i32;
+
+
+                    let red  = cy + (crr * (cr - 128))/shift;
+                    let green= cy + (cbg * (cb - 128) + crg * (cr - 128))/shift;
+                    let blue = cy + (cbb * (cb - 128))/shift;
+
+                    let red = red.clamp(0,255) as u8;
+                    let green = green.clamp(0,255) as u8;
+                    let blue = blue.clamp(0,255) as u8;
+
+                    buffer[xx + offset    ] = red; //R
+                    buffer[xx + offset + 1] = green; //G
+                    buffer[xx + offset + 2] = blue; //B
+                    buffer[xx + offset + 3] = 0xff; //A
+
+                    buffer[xx + offset    ] = red; //R
+                    buffer[xx + offset + 1] = green; //G
+                    buffer[xx + offset + 2] = blue; //B
+                    buffer[xx + offset + 3] = 0xff; //A
+                }
+            }
+        }
+    }
+
+    buffer
+}
+
+/* spec known */
+fn cmyk_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,usize)) -> Vec<u8> {
+    let mut buffer:Vec<u8> = (0..hv_maps[3].h * hv_maps[3].v * 64 * 4).map(|_| 0).collect();
+    let k_map = 0;
+    let c_map = k_map + hv_maps[0].h * hv_maps[0].v;
+    let m_map = c_map + hv_maps[1].h * hv_maps[1].v;
+    let y_map = m_map + hv_maps[2].h * hv_maps[2].v;
+
+    let cy = hv_maps[0].v / hv_maps[0].v as usize;
+    let my = hv_maps[0].v / hv_maps[1].v as usize;
+    let yy = hv_maps[0].v / hv_maps[2].v as usize;
+//    let ky = hv_maps[0].v / hv_maps[3].v as usize;
+
+    let cx = h_max / hv_maps[0].h as usize;
+    let mx = h_max / hv_maps[1].h as usize;
+    let yx = h_max / hv_maps[2].h as usize;
+//    let kx = hv_maps[0].h / hv_maps[3].h as usize;
+
+    for v in 0..v_max {
+        let mut c_map_cur = c_map + v / v_max;
+        let mut m_map_cur = m_map + v / v_max;
+        let mut y_map_cur = y_map + v / v_max;
+        let mut k_map_cur = k_map + v / v_max;
+
+        for h in 0..h_max {
+            c_map_cur = c_map_cur + h / h_max;
+            m_map_cur = m_map_cur + h / h_max;
+            y_map_cur = y_map_cur + h / h_max;
+            k_map_cur = k_map_cur + h / h_max;
+
+            for y in 0..8 {
+                let offset = ((y + v * 8) * (8 * h_max)) * 4;
+                for x in 0..8 {
+                    let xx = (x + h * 8) * 4;
+                    let cc = yuv[c_map_cur][(((y + v * 8) / cy % 8) * 8)  + ((x + h * 8) / cx) % 8] as i32;
+                    let cm = yuv[m_map_cur][(((y + v * 8) / my % 8) * 8)  + ((x + h * 8) / mx) % 8] as i32;
+                    let cy = yuv[y_map_cur][(((y + v * 8) / yy % 8) * 8)  + ((x + h * 8) / yx) % 8] as i32;
+                    let ck = yuv[k_map_cur][(((y + v * 8) % 8) * 8)  + (x + h * 8) % 8] as i32;
+                    let rvk = 256 - ck as i32;
+
+                    // △ cm cc cy ck
+                    // x ck cc cy cm
+                    // x cm ck cy cc
+                    // cn cc ck cy
+
+                    let red   = (rvk*(255 - cm) / 256).clamp(0,255) as u8;
+                    let green = (rvk*(255 - cc) / 256).clamp(0,255) as u8;
+                    let blue  = (rvk*(255 - cy) / 256).clamp(0,255) as u8;
+
+                    buffer[xx + offset    ] = red; //R
+                    buffer[xx + offset + 1] = green; //G
+                    buffer[xx + offset + 2] = blue; //B
+                    buffer[xx + offset + 3] = 0xff; //A
+
                 }
             }
         }
@@ -720,6 +823,9 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
     let width = fh.width;
     let height = fh.height;
     let plane = fh.plane;
+    if plane == 0 || plane > 4 {
+        return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not support planes".to_string()));
+    }
     match fh.component {
         None => {
             return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Frame Header Component".to_string()));
@@ -730,6 +836,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
     }
 
     let component = fh.component.as_ref().unwrap();
+
     match header.quantization_tables {
         None => {
             return Err(SimpleAddMessage(ErrorKind::DecodeError,"Not undefined Quantization Tables".to_string()));
@@ -751,6 +858,10 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
         return Err(SimpleAddMessage(ErrorKind::DecodeError,"This Decoder not support differential".to_string()));
     }
 
+    if plane == 4 {
+        worning = Some(JPEGWorning::SimpleAddMessage(WorningKind::UnknowFormat,"Plane 4 color translation rule is known".to_string()));
+    }
+
     // decode
     (option.callback.init)(option.drawer,width,height)?;
     // take buffer for progressive 
@@ -770,6 +881,8 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
     let slice = &buffer[header.imageoffset..];
     let bitread :&mut BitReader = &mut BitReader::new(&slice);
+    let mut h_max = 1;
+    let mut v_max = 1;
     let mut dy = 8;
     let mut dx = 8;
     let mut scan : Vec<(usize,usize,usize,usize)> = Vec::new();
@@ -785,20 +898,23 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
             }
             dx = usize::max(component[i].h * 8 ,dx);
             dy = usize::max(component[i].v * 8 ,dy);
+            h_max = usize::max(component[i].h ,h_max);
+            v_max = usize::max(component[i].v ,v_max);
         }
         size
     };
 
+
     let mut preds: Vec::<i32> = (0..component.len()).map(|_| 0).collect();
 
-    let mcu_y =(height+dy-1)/dy;
-    let mcu_x =(width+dx-1)/dx;
+    let mcu_y_max =(height+dy-1)/dy;
+    let mcu_x_max =(width+dx-1)/dx;
 
     let mut mcu_interval = if header.interval > 0 { header.interval as isize} else {-1};
 
 
-    for y in 0..mcu_y {
-        for x in 0..mcu_x {
+    for mcu_y in 0..mcu_y_max {
+        for mcu_x in 0..mcu_x_max {
             let mut yuv :Vec<Vec<u8>> = Vec::new();
             for scannumber in 0..mcu_size {
                 let (dc_current,ac_current,i,tq) = scan[scannumber];
@@ -819,17 +935,20 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                 preds[i] = pred;
 
                 let sq = &super::util::ZIG_ZAG_SEQUENCE;
-                let zz :Vec<i32> = (0..64).map(|i| 
-                    zz[i] * quantization_tables[tq].q[i] as i32).collect();
-                let zz :Vec<i32> = (0..64).map(|i| zz[sq[i]]).collect();
-//                let ff = idct(&zz);
+                let zz :Vec<i32> = (0..64).map(|i| zz[sq[i]] * quantization_tables[tq].q[sq[i]] as i32).collect();
                 let ff = fast_idct(&zz);
                 yuv.push(ff);
             }
 
-            let data = if plane == 3 {yuv_to_rgb(&yuv,&component)} else {y_to_rgb(&yuv,&component)};
+            let data = if plane == 3 {yuv_to_rgb(&yuv,&component,(h_max,v_max))}  // rgb
+                         else if plane == 4 { // hasBug
+                            if header.adobe_color_transform == 2 {ycck_to_rgb(&yuv,&component,(h_max,v_max))} 
+                            else if header.adobe_color_transform == 1 {yuv_to_rgb(&yuv,&component,(h_max,v_max))}
+                            else {cmyk_to_rgb(&yuv,&component,(h_max,v_max))}
+                         }
+                         else {y_to_rgb(&yuv,&component)}; // g / ga
 
-            (option.callback.draw)(option.drawer,x*dx,y*dy,dx,dy,&data)?;
+            (option.callback.draw)(option.drawer,mcu_x*dx,mcu_y*dy,dx,dy,&data)?;
 
             if header.interval > 0 {
                 mcu_interval = mcu_interval - 1;

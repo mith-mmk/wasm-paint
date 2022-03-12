@@ -26,6 +26,7 @@ pub enum WorningKind {
       DataCorruption,
       BufferOverrun,
       UnexpectMaker,
+      UnknowFormat,
   }
 
 #[allow(unused)]
@@ -38,6 +39,7 @@ impl WorningKind {
             DataCorruption => {"Data Corruption"},
             BufferOverrun => {"Buffer Overrun"},
             UnexpectMaker => {"Unexpect Maker"},
+            UnknowFormat => {"Unexpect Maker"},
         }
     }
 }

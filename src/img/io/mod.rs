@@ -61,6 +61,14 @@ pub fn read_u64be (buf: &[u8],ptr: usize) -> u64 {
     (buf[ptr+6] as u64) << 8  | (buf[ptr+7] as u64)  
 }
 
+#[inline]
+pub fn read_u128be (buf: &[u8],ptr: usize) -> u128 {
+    let b0 = read_u64be(buf,ptr);
+    let b1 = read_u64be(buf,ptr);
+    ((b0 as u128) << 64) | b1 as u128
+}
+
+
 #[allow(unused)]
 #[inline]
 pub fn read_i64be (buf: &[u8],ptr: usize ) -> i64 {
