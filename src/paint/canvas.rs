@@ -1,6 +1,20 @@
 use super::pen::Pen;
 use super::clear::fillrect;
 
+pub trait Screen {
+    fn width(&self) -> u32;
+    fn height(&self) -> u32;
+    
+    // for WebAssembly
+    fn canvas(&self) -> *const u8;
+    fn set_buckground_color(&mut self,color: u32);
+    fn background_color(&self) -> u32;
+    fn color(&self) -> u32;
+    fn set_color(&mut self,color: u32);
+    fn clear(&mut self);
+    fn clear_with_color(&mut self,color: u32);
+}
+
 pub struct Canvas {
     pub buffer: Vec<u8>,
     width: u32,
@@ -41,14 +55,6 @@ impl Canvas {
         }
     }
 
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
     pub fn set_pen(&mut self,pen :Pen) {
         self.pen = pen;
     }
@@ -57,34 +63,44 @@ impl Canvas {
         &self.pen
     }
 
+}
+
+impl Screen for Canvas {
+    fn width(&self) -> u32 {
+        self.width
+    }
+
+    fn height(&self) -> u32 {
+        self.height
+    }
+
     // for WebAssembly
-    pub fn canvas(&self) -> *const u8 {
+    fn canvas(&self) -> *const u8 {
         self.buffer.as_ptr()
     }
 
-    pub fn set_buckground_color(&mut self,color: u32) {
+    fn set_buckground_color(&mut self,color: u32) {
         self.background_color = color;
     }
 
-    pub fn background_color(&self) -> u32 {
+    fn background_color(&self) -> u32 {
         self.background_color
     }
 
-    pub fn color(&self) -> u32 {
+    fn color(&self) -> u32 {
         self.color
     }
 
-    pub fn set_color(&mut self,color: u32) {
+    fn set_color(&mut self,color: u32) {
         self.color = color;
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.clear_with_color(self.background_color);
     }
 
-    pub fn clear_with_color(&mut self,color: u32) {
+    fn clear_with_color(&mut self,color: u32) {
         fillrect(self,color);  
     }
-
 }
 

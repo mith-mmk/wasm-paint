@@ -4,6 +4,7 @@
  *  Update 2022/02/27
  */
 
+use crate::paint::canvas::Screen;
 use super::utils::color_taple;
 use super::canvas::Canvas;
 

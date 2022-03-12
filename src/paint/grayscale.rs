@@ -1,3 +1,4 @@
+use crate::paint::canvas::Screen;
 use super::canvas::Canvas;
 
 pub enum Weights {

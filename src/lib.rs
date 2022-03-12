@@ -1,6 +1,7 @@
 mod utils;
 pub mod paint;
 pub mod img;
+use crate::paint::canvas::Screen;
 use crate::paint::image::draw_image;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;

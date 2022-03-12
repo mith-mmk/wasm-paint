@@ -1,3 +1,4 @@
+use crate::paint::canvas::Screen;
 use wasm_bindgen::JsCast;
 use crate::img::jpeg::worning::JPEGWorning;
 use crate::Canvas;

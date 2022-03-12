@@ -1,3 +1,4 @@
+use crate::paint::canvas::Screen;
 use super::canvas::Canvas;
 use core::cmp::max;
 use core::cmp::min;

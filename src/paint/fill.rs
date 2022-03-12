@@ -1,3 +1,4 @@
+use crate::paint::canvas::Screen;
 use super::utils::*;
 use super::line::*;
 use super::canvas::Canvas;

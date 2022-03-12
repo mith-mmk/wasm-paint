@@ -4,6 +4,7 @@
  */
 
 
+use crate::paint::canvas::Screen;
 use super::canvas::Canvas;
 use super::utils::*;
 
