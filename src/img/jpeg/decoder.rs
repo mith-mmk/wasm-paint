@@ -197,12 +197,12 @@ pub struct HuffmanDecodeTable {
 fn dc_read(bitread: &mut BitReader,dc_decode:&HuffmanDecodeTable,pred:i32) -> Result<i32,ImgError> {
     let ssss = huffman_read(bitread,&dc_decode)?;
     let v = bitread.get_bits(ssss as usize)?;
-    let diff = extend(v,ssss as i32);
+    let diff = extend(v,ssss as usize);
     let dc = diff + pred;
     Ok(dc)
 }
 
-#[inline]
+#[inline] // for base line huffman
 fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<i32>,ImgError> {
     let mut zigzag : usize= 1;
     let mut zz  = [0_i32;64];
@@ -223,7 +223,7 @@ fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<
         } else {
             zigzag = zigzag + rrrr as usize;
             let v = bitread.get_bits(ssss as usize)?;
-            zz[zigzag] = extend(v,ssss as i32);
+            zz[zigzag] = extend(v,ssss as usize);
         }
         if zigzag >= 63 {
             return Ok(zz.to_vec())
@@ -242,7 +242,7 @@ fn baseline_read(bitread: &mut BitReader,dc_decode:&HuffmanDecodeTable,ac_decode
 
 
 #[inline]
-fn extend(mut v:i32,t: i32) -> i32 {
+fn extend(mut v:i32,t: usize) -> i32 {
     if t == 0 {
         return v;
     }
@@ -255,7 +255,7 @@ fn extend(mut v:i32,t: i32) -> i32 {
     v
 }
 
-/* fast idct is pre-calculate cos from fn idct
+/* fast idct is change fast alogrythm from orthodox idct
 fn idct(f :&[i32]) -> Vec<u8> {
     let vals :Vec<u8> = (0..64).map(|i| {
         let (x,y) = ((i%8) as f32,(i/8) as f32);
@@ -631,6 +631,11 @@ fn cmyk_to_rgb (yuv: &Vec<Vec<u8>>,hv_maps:&Vec<Component>,(h_max,v_max):(usize,
                     let cm = yuv[m_map_cur][(((y + v * 8) / my % 8) * 8)  + ((x + h * 8) / mx) % 8] as i32;
                     let cy = yuv[y_map_cur][(((y + v * 8) / yy % 8) * 8)  + ((x + h * 8) / yx) % 8] as i32;
                     let ck = yuv[k_map_cur][(((y + v * 8) / ky % 8) * 8)  + ((x + h * 8) / kx) % 8] as i32;
+
+                    // from Japn Color 2011 Coated
+                    // R  69 K  + (255 - 69) Y +        0 C  
+                    // G          (255 -204) Y + (255-160)C
+                    // B  92 K            32 Y +            + 131M
 
                     let red   = (cy as i32).clamp(0,255) as u8;
                     let green = (cm as i32).clamp(0,255) as u8;
