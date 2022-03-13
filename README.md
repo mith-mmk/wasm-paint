@@ -18,6 +18,8 @@ Color model ABGR uint32LE
 
 2022/03/12 0.0.8 callback systemの変更、jpegの高速化(AANアルゴリズム)
 
+2022/03/13 0.0.9 アフィン変換
+
 Todo 
 - border
 - polyline

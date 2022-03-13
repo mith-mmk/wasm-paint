@@ -1,17 +1,17 @@
 /*
  * affine.rs  Mith@mmk (C) 2022
- * update 2022/03/13
+ * create 2022/03/13
  */
 
 use core::f32::consts::PI;
 use super::canvas::*;
 
-pub struct Affin {
+pub struct Affine {
     affin: [[f32;3];3],    // 3*3
 }
 
-impl Affin {
-    fn new() -> Self {
+impl Affine {
+    pub fn new() -> Self {
         let affin = [
             [1.0,0.0,0.0],
             [0.0,1.0,0.0],
@@ -24,9 +24,9 @@ impl Affin {
     fn matrix(self:&mut Self,f: &[[f32;3];3]) {
         let affin = self.affin;
         let mut result:[[f32;3];3] = [[0.0,0.0,0.0],[0.0,0.0,0.0],[0.0,0.0,0.0]];
-        for i in 1..3 {
-            for j in 1..3 {
-                result[i][j] = affin[i][0] * f[0][j] 
+        for i in 0..3 {
+            for j in 0..3 {
+                result[i][j] = affin[i][0] * f[0][j]
                              + affin[i][1] * f[1][j]
                              + affin[i][2] * f[2][j];
             }
@@ -40,18 +40,22 @@ impl Affin {
                       [0.0 ,0.0 ,1.0]]);
     }
 
-    pub fn invert_x(self:&mut Self,width:u32) {
-        let w = width as f32;
-        self.matrix(&[[-1.0 ,0.0 , w  ],
-                      [ 0.0 ,1.0 , 0.0],
-                      [ 0.0 ,0.0 , 1.0]]);
+    pub fn invert_x(self:&mut Self) {
+        self.matrix(&[[-1.0 , 0.0 , 0.0],
+                      [ 0.0 , 1.0 , 0.0],
+                      [ 0.0 , 0.0 , 1.0]]);
     }
 
-    pub fn invert_y(self:&mut Self,height:u32) {
-        let h = height as f32;
-        self.matrix(&[[-1.0 ,0.0 , 0.0],
-                      [ 0.0 ,1.0 ,   h],
-                      [ 0.0 ,0.0 , 1.0]]);
+    pub fn invert_y(self:&mut Self) {
+        self.matrix(&[[ 1.0 ,  0.0 , 0.0],
+                      [ 0.0 , -1.0 , 0.0],
+                      [ 0.0 ,  0.0 , 1.0]]);
+    }
+
+    pub fn invert_xy(self:&mut Self) {
+        self.matrix(&[[-1.0 , 0.0 , 0.0],
+                      [ 0.0 ,-1.0 , 0.0],
+                      [ 0.0 , 0.0 , 1.0]]);
     }
 
     pub fn scale(self:&mut Self,x:f32,y:f32) {
@@ -86,6 +90,9 @@ impl Affin {
         let min_y = 0;
         let max_y = output_canvas.height() as i32;
 
+        let ox = max_x / 2;
+        let oy = max_y / 2;
+
         // |X|   |a00 a01 a02||x|         X = a00 * x + a01 * y + a02
         // |Y| = |a10 a11 a12||y|         Y = a10 * x + a11 * y + a12
         // |Z|   |a20 a21 a22||1|         _  do not use
@@ -97,18 +104,28 @@ impl Affin {
         let y1 = self.affin[1][1];
         let y2 = self.affin[1][2];
 
+
         for y in 0..input_canvas.height() as usize {
             let input_base_line = input_canvas.width() as usize * 4 * y;
             for x in 0..input_canvas.width() as usize {
                 let offset = input_base_line + x * 4;
-                let xx = (x as f32 * x0 + y as f32 * x1 + x2).round() as i32;
+                let x_ = x as i32 - ox;
+                let y_ = y as i32 - oy;
+
+                let xx_ = x_ as f32 * x0 + y_ as f32 * x1 + x2;
+                let xx = (xx_ + ox as f32).round() as i32;
                 if xx < min_x || xx >= max_x {continue} // Out of bound
-                let yy = (x as f32 * y0 + y as f32 * y1 + y2).round() as i32;
+
+                let yy_ = x_ as f32 * y0 + y_ as f32 * y1 + y2;
+                let yy = (yy_ + oy as f32).round() as i32;
+
                 if yy < min_y || yy >= max_y {continue} // Out of bound
+        
+
                 let output_offset = ((yy * max_x + xx) *4) as usize;
-                output_canvas.buffer[output_offset    ] = input_canvas.buffer[offset    ]; 
-                output_canvas.buffer[output_offset + 1] = input_canvas.buffer[offset + 1]; 
-                output_canvas.buffer[output_offset + 2] = input_canvas.buffer[offset + 2]; 
+                output_canvas.buffer[output_offset    ] = input_canvas.buffer[offset    ];
+                output_canvas.buffer[output_offset + 1] = input_canvas.buffer[offset + 1];
+                output_canvas.buffer[output_offset + 2] = input_canvas.buffer[offset + 2];
                 output_canvas.buffer[output_offset + 3] = input_canvas.buffer[offset + 3]; 
             }
         }

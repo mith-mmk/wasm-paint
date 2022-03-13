@@ -1,12 +1,10 @@
 mod utils;
 pub mod paint;
 pub mod img;
-use std::sync::Mutex;
-use std::sync::Arc;
+use std::borrow::BorrowMut;
+use std::sync::{Arc,RwLock};
+use crate::paint::affine::Affine;
 use crate::img::DecodeOptions;
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
-use web_sys::ImageData;
 use crate::img::error::ImgError;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
@@ -17,6 +15,8 @@ use crate::paint::point::point_antialias;
 use crate::paint::canvas::{Canvas,Screen};
 
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
 
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -69,9 +69,6 @@ fn _rand_u32(range: u32) -> u32 {
     ( random() * (range as f64)) as u32
 }
 
-
-
-
 fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
     if web_sys::window().is_some() {
         let window = web_sys::window().unwrap();
@@ -95,6 +92,7 @@ fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
 pub struct Universe {
     canvas:  Canvas,
     input_buffer: Vec<u8>,
+    append_canvas: Vec<Arc<RwLock<Canvas>>>,
 }
 
 #[wasm_bindgen]
@@ -104,29 +102,14 @@ impl Universe {
         Universe {
             canvas,
             input_buffer: Vec::new(),
+            append_canvas: Vec::new(),
         }
     }
 
-    pub fn new_with_imagebuffer(width: u32,height: u32) -> Universe {
-        let r = ImageData::new_with_sw(width, height);
-        match r {
-            Ok(imagedata) => {
-                let data = imagedata.data();
-                let width = imagedata.width();
-                let height = imagedata.height();
-
-                let canvas = Canvas::new_in(data.to_vec(),width, height);
-
-                Universe {
-                    canvas,
-                    input_buffer: Vec::new(),
-                }        
-            },
-            Err(_) => {
-                return Universe::new(width, height)
-            }
-        }
-
+    pub fn append_canvas(&mut self, width: u32, height: u32) -> usize {
+        let canvas = Canvas::new(width, height);
+        self.append_canvas.push(Arc::new(RwLock::new(canvas)));
+        self.append_canvas.len()
     }
 
     pub fn input_buffer(&mut self) -> *const u8 {
@@ -145,6 +128,20 @@ impl Universe {
     pub fn clear(&mut self,color :u32) {
         self.canvas.set_buckground_color(color);
         self.canvas.clear();
+    }
+
+    pub fn clear_with_number(&mut self,number :i32) {
+        if number > self.append_canvas.len() as i32 {
+            return
+        }
+        if number == 0 {
+            self.clear(0xcccccc);
+        }
+        log(&format!("{}",number));
+        let number = (number as i32 - 1_i32) as u32;
+        log(&format!("{}",number));
+        self.append_canvas[number as usize].as_ref().write().unwrap().set_buckground_color(0);
+        self.append_canvas[number as usize].as_ref().write().unwrap().clear();
     }
 
     pub fn point_antialias(&mut self, x: f32, y: f32, color: u32,s: f32) {
@@ -171,6 +168,12 @@ impl Universe {
         self.canvas.canvas()
     }
 
+    pub fn buffer_with_number(&mut self,number:usize) -> *const u8 {
+        if number == 0 {return self.canvas.canvas()};
+        let canvas = &*self.append_canvas[number - 1].write().unwrap();
+        canvas.canvas()
+    }
+
     pub fn width(&self) -> u32 {
         self.canvas.width()
     }
@@ -191,25 +194,77 @@ impl Universe {
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 
-    pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
-        self.canvas.set_verbose(write_log);
-        let mut option = DecodeOptions{
-            debug_flag: verbose,
-            drawer: &mut self.canvas,
-        };
-        
-        let r = crate::img::jpeg::decoder::decode(buffer, &mut option);
+    pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
+        let mut affine = Affine::new();
+        affine.invert_xy();
+        affine.rotate_by_dgree(45.0);
+        affine.scale(1.0,0.8);
 
-        match r {
-            Err(error) => {
-                alert(&error.fmt());
-            },
-            Ok(s) => {
-                match s {
-                    Some(worning) => {
-                        log(&worning.fmt());
-                    },
-                    _ =>{},
+        if canvas_in == 0 {
+            log("Input Canvas is current");
+            log(&format!("Output Canvas = {}",canvas_out));
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            affine.conversion(&self.canvas,output_canvas);
+        } else if canvas_out == 0 {
+            log(&format!("Input Canvas = {}",canvas_in));
+            log(&format!("Output Canvas is current"));
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            affine.conversion(input_canvas,&mut self.canvas);
+        } else {
+            log(&format!("Input Canvas = {}",canvas_in));
+            log(&format!("Output Canvas = {}",canvas_out));
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            affine.conversion(input_canvas, output_canvas);
+        }
+    }
+
+    pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
+        self.jpeg_decoder_select_canvas(buffer,verbose,0);
+    }
+
+    pub fn jpeg_decoder_select_canvas(&mut self,buffer: &[u8],verbose:usize,number:usize) {
+        if number > self.append_canvas.len() { return }
+
+        if number != 0 {
+            let mut option = DecodeOptions{
+                debug_flag: 0,
+                drawer: &mut *self.append_canvas[number - 1].write().unwrap(),
+            };
+            let r = crate::img::jpeg::decoder::decode(buffer, &mut option);
+            match r {
+                Err(error) => {
+                    alert(&error.fmt());
+                },
+                Ok(s) => {
+                    match s {
+                        Some(worning) => {
+                            log(&worning.fmt());
+                        },
+                        _ =>{},
+                    }
+                }
+            }
+        } else {
+            let canvas =&mut self.canvas;
+            canvas.set_verbose(write_log);
+            let mut option = DecodeOptions{
+                debug_flag: verbose,
+                drawer: canvas,
+            };
+        
+            let r = crate::img::jpeg::decoder::decode(buffer, &mut option);
+            match r {
+                Err(error) => {
+                    alert(&error.fmt());
+                },
+                Ok(s) => {
+                    match s {
+                        Some(worning) => {
+                            log(&worning.fmt());
+                        },
+                        _ =>{},
+                    }
                 }
             }
         }
