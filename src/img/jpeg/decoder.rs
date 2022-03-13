@@ -16,51 +16,6 @@ use crate::img::error::ImgError::{Simple};
 use crate::img::DecodeOptions;
 
 
-#[allow(unused)]
-#[cfg(not(debug_assertions))]
-macro_rules! huff_print {
-    ($l:expr,$code:expr,$number:expr,$pos:expr) => {
-    };
-}
-
-#[allow(unused)]
-#[cfg(debug_assertions)]
-macro_rules! huff_print {
-    ($l:expr,$code:expr,$number:expr,$pos:expr) => {
-        
-        match $l {
-            2 => {
-                debug_println!("number {:02x}  code {:>02b} pos{}",$number,$code,$pos);
-            },
-            3 => {
-                debug_println!("number {:02x}  code {:>03b} pos{}",$number,$code,$pos);
-            },
-            4 => {
-                debug_println!("number {:02x}  code {:>04b} pos{}",$number,$code,$pos);
-            },
-            5 => {
-                debug_println!("number {:02x}  code {:>05b} pos{}",$number,$code,$pos);
-            },
-            6 => {
-                debug_println!("number {:02x}  code {:>06b} pos{}",$number,$code,$pos);
-            },
-            7 => {
-                debug_println!("number {:02x}  code {:>07b} pos{}",$number,$code,$pos);
-            },
-            8 => {
-                debug_println!("number {:02x}  code {:>08b} pos{}",$number,$code,$pos);
-            },
-            9 => {
-                debug_println!("number {:02x}  code {:>09b} pos{}",$number,$code,$pos);
-            },
-            _ => {
-                debug_println!("number {:02x}  code {:>b} pos{}",$number,$code,$pos);
-            },
-        }
-    };
-}
-
-
 struct BitReader {
     buffer: Vec<u8>,
     ptr : usize,
@@ -127,37 +82,66 @@ impl BitReader {
         }
     }
 
+    #[inline]
+    fn next_byte(self: &mut Self) -> Result<u8,ImgError> {
+        if self.get_byte()? == 0xff {
+            match self.get_byte()? {
+                0x00 => {
+                    self.b = 0xff;
+                },
+                0xd0..=0xd7 =>  {    // RST    
+                    let rst_no = (self.b & 0x7) as usize;
+                    if rst_no != (self.prev_rst + 1) % 8 {
+                        return Err(SimpleAddMessage(ErrorKind::DecodeError,format!("No Interval RST {} -> {}",self.prev_rst,rst_no)))
+                    }
+
+                    self.prev_rst = rst_no;
+                    self.rst = true;
+                    self.rst_ptr = self.ptr;
+                },
+                0xd9=> { // EOI
+                    self.b = 0xff;
+                },
+                _ =>{
+                    self.b = 0xff;
+                    return Err(SimpleAddMessage(ErrorKind::DecodeError,"FF after  00 or RST".to_string()))
+                },                    
+            }
+        }
+        Ok(self.b)
+    }
+
     pub fn get_bit(self: &mut Self) -> Result<usize,ImgError> {
         if self.bptr == 0 {
             self.bptr = 8;
-            if self.get_byte()? == 0xff {
-                match self.get_byte()? {
-                    0x00 => {
-                        self.b = 0xff;
-                    },
-                    0xd0..=0xd7 =>  {    // RST    
-                        let rst_no = (self.b & 0x7) as usize;
-                        if rst_no != (self.prev_rst + 1) % 8 {
-                            return Err(SimpleAddMessage(ErrorKind::DecodeError,format!("No Interval RST {} -> {}",self.prev_rst,rst_no)))
-                        }
-
-                        self.prev_rst = rst_no;
-                        self.rst = true;
-                        self.rst_ptr = self.ptr;
-                    },
-                    0xd9=> { // EOI
-                        self.b = 0xff;
-                    },
-                    _ =>{
-                        self.b = 0xff;
-                        return Err(SimpleAddMessage(ErrorKind::DecodeError,"FF after  00 or RST".to_string()))
-                    },                    
-                }
-            }
+            self.next_byte()?;
         }
         self.bptr -= 1;
         let r = (self.b  >> self.bptr) as usize & 0x1;
         Ok(r)
+    }
+
+    #[inline]
+    pub fn get_bits(self: &mut Self,mut bits:usize) -> Result<i32,ImgError> {
+        if self.bptr == 0 {
+            self.next_byte()?;
+            self.bptr = 8;
+        }
+        let mut v = 0_i32;
+
+        loop {
+            if bits > self.bptr {
+                v = (v << self.bptr) | (self.b as i32 & ((1 << self.bptr) -1));
+                bits -= self.bptr;
+                self.next_byte();
+                self.bptr = 8;
+            } else {
+                self.bptr -= bits;
+                v = (v << bits) | (self.b as i32 >> self.bptr) & ((1 << bits) -1);
+                break;
+            }
+        }
+        Ok(v)
     }
 
     pub fn eof(self: &mut Self) -> bool {
@@ -187,16 +171,15 @@ impl BitReader {
 
 }
 
+#[inline]
 fn huffman_read (bit_reader:&mut BitReader,table: &HuffmanDecodeTable)  -> Result<u32,ImgError>{
     let mut d = 0;
-    let mut ll = 1;
     for l in 0..16 {
         d = (d << 1) | bit_reader.get_bit()?;
         if table.max[l] >= d as i32 {
             let p = d  - table.min[l] as usize + table.pos[l];
             return Ok(table.val[p] as u32)                      
         }
-        ll = ll + 1;
     }
     Err(SimpleAddMessage(ErrorKind::OutboundIndex,"Huffman read Overflow".to_string()))  
 }
@@ -213,7 +196,7 @@ pub struct HuffmanDecodeTable {
 #[inline]
 fn dc_read(bitread: &mut BitReader,dc_decode:&HuffmanDecodeTable,pred:i32) -> Result<i32,ImgError> {
     let ssss = huffman_read(bitread,&dc_decode)?;
-    let v =  receive(bitread,ssss as i32)?;
+    let v = bitread.get_bits(ssss as usize)?;
     let diff = extend(v,ssss as i32);
     let dc = diff + pred;
     Ok(dc)
@@ -239,7 +222,7 @@ fn ac_read(bitread: &mut BitReader,ac_decode:&HuffmanDecodeTable) -> Result<Vec<
             return Ok(zz.to_vec())   // N/A
         } else {
             zigzag = zigzag + rrrr as usize;
-            let v =  receive(bitread,ssss as i32)?;
+            let v = bitread.get_bits(ssss as usize)?;
             zz[zigzag] = extend(v,ssss as i32);
         }
         if zigzag >= 63 {
@@ -257,15 +240,6 @@ fn baseline_read(bitread: &mut BitReader,dc_decode:&HuffmanDecodeTable,ac_decode
     Ok((zz,dc))
 }
 
-#[inline]
-fn receive(bitread: &mut BitReader, ssss :i32) -> Result<i32,ImgError>{
-  let mut v = 0;
-
-  for _ in 0..ssss {
-    v = (v << 1) + bitread.get_bit()?;
-  }
-  Ok(v as i32)
-}
 
 #[inline]
 fn extend(mut v:i32,t: i32) -> i32 {
@@ -738,7 +712,6 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
     if option.debug_flag > 0 {
         let boxstr = print_header(&header,option.debug_flag);
         option.drawer.verbose(&boxstr)?;
-//        (option.callback.verbose)(option.drawer,&boxstr)?;
     }
     
     if header.is_hierachical {
@@ -849,7 +822,6 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
         size
     };
 
-
     let mut preds: Vec::<i32> = (0..component.len()).map(|_| 0).collect();
 
     let mcu_y_max =(height+dy-1)/dy;
@@ -860,7 +832,7 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
 
     for mcu_y in 0..mcu_y_max {
         for mcu_x in 0..mcu_x_max {
-            let mut yuv :Vec<Vec<u8>> = Vec::new();
+            let mut mcu_units :Vec<Vec<u8>> = Vec::new();
             for scannumber in 0..mcu_size {
                 let (dc_current,ac_current,i,tq) = scan[scannumber];
                 let ret = baseline_read(bitread
@@ -882,16 +854,18 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                 let sq = &super::util::ZIG_ZAG_SEQUENCE;
                 let zz :Vec<i32> = (0..64).map(|i| zz[sq[i]] * quantization_tables[tq].q[sq[i]] as i32).collect();
                 let ff = fast_idct(&zz);
-                yuv.push(ff);
+                mcu_units.push(ff);
             }
 
-            let data = if plane == 3 {yuv_to_rgb(&yuv,&component,(h_max,v_max))}  // rgb
+            // Only implement RGB
+
+            let data = if plane == 3 {yuv_to_rgb(&mcu_units,&component,(h_max,v_max))}  // RGB
                          else if plane == 4 { // hasBug
-                            if header.adobe_color_transform == 2 {ycck_to_rgb(&yuv,&component,(h_max,v_max))} 
-                            else if header.adobe_color_transform == 1 {yuv_to_rgb(&yuv,&component,(h_max,v_max))}
-                            else {cmyk_to_rgb(&yuv,&component,(h_max,v_max))}
+                            if header.adobe_color_transform == 2 {ycck_to_rgb(&mcu_units,&component,(h_max,v_max))}  // YCcK Spec Unknown
+                            else if header.adobe_color_transform == 1 {yuv_to_rgb(&mcu_units,&component,(h_max,v_max))} // RGBA
+                            else {cmyk_to_rgb(&mcu_units,&component,(h_max,v_max))} // CMYK Spec Unknown
                          }
-                         else {y_to_rgb(&yuv,&component)}; // g / ga
+                         else {y_to_rgb(&mcu_units,&component)}; // g / ga
 
             option.drawer.draw(mcu_x*dx,mcu_y*dy,dx,dy,&data)?;
 
@@ -925,9 +899,11 @@ pub fn decode<'decode>(buffer: &[u8],option:&mut DecodeOptions)
                 0xd9 => {   // EOI
                 },
                 0xdd => {
+                    option.drawer.terminate()?;
                     return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"DNL,No Support Multi scan/frame".to_string())))
                 },
                _ => {
+                    option.drawer.terminate()?;
                     return Ok(Some(WorningAddMessage(WorningKind::UnexpectMaker,"No Support Multi scan/frame".to_string())))
                 // offset = bitread.offset() -2
                 // new_jpeg_header = read_makers(buffer[offset:],opt,false,true);

@@ -8,6 +8,7 @@ let img;
 let memory;
 let width = 1024;
 let height =1024;
+let drawed = true;
 canvas.width = width;
 canvas.height = height;
 const reader = new FileReader();
@@ -17,10 +18,13 @@ reader.onloadend = (event) => {
   let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
   ibuf.set(buffer);
   universe.clear(0x000000);
+
   console.time("decode");
+  start_draw();
   universe.jpeg_decoder(buffer,0xf9); 
   console.timeEnd("decode");
-  img = new ImageData(buf, universe.width(), universe.height());
+  drawed = true;
+//  img = new ImageData(buf, universe.width(), universe.height());
   ctx.putImageData(img, 0, 0);
 };
 // Drag and Drop
@@ -61,10 +65,20 @@ init().then((wasm) => {
         let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
         ibuf.set(buffer);    
         universe.jpeg_decoder(buffer,0xf9); 
-        img = new ImageData(buf, width, height);
+//        img = new ImageData(buf, width, height);
         ctx.putImageData(img, 0, 0);
       });
 
 });
+function start_draw() {
+  setTimeout(function(){draw();},1000 / 120);
+  drawed = false;  
+}
 
 
+
+  function draw() {
+    setTimeout(function(){draw();},1000 / 120);
+    if(img == null || drawed) return;
+    ctx.putImageData(img, 0, 0);
+  }

@@ -36,7 +36,7 @@ pub struct ImageBuffer {
     fnverbose: fn(&str) -> Result<Option<isize>,ImgError>,
 }
 
-fn default_verbose(str :&str) -> Result<Option<isize>, ImgError>{
+fn default_verbose(_ :&str) -> Result<Option<isize>, ImgError>{
     Ok(None)
 }
 

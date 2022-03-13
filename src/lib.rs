@@ -1,7 +1,13 @@
 mod utils;
 pub mod paint;
 pub mod img;
-use crate::paint::image::draw_image;
+use std::sync::Mutex;
+use std::sync::Arc;
+use crate::img::DecodeOptions;
+use wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
+use web_sys::ImageData;
+use crate::img::error::ImgError;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
 use crate::paint::polygram::*;
@@ -63,21 +69,67 @@ fn _rand_u32(range: u32) -> u32 {
     ( random() * (range as f64)) as u32
 }
 
+
+
+
+fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
+    if web_sys::window().is_some() {
+        let window = web_sys::window().unwrap();
+        if window.document().is_some() {
+            let document = window.document().unwrap();
+            if document.get_element_by_id("wasm_verbose").is_some() {
+                let elmid = document.get_element_by_id("wasm_verbose").unwrap();
+                if elmid.dyn_ref::<HtmlElement>().is_some() {
+                    let elm = elmid.dyn_ref::<HtmlElement>().unwrap();
+                    elm.set_inner_text(str);
+                    return Ok(None)
+                }
+            }
+        }
+    }
+    log(str);
+    Ok(None)
+}
+
 #[wasm_bindgen]
 pub struct Universe {
     canvas:  Canvas,
     input_buffer: Vec<u8>,
+    imagedata: Option<ImageData>,
 }
 
 #[wasm_bindgen]
 impl Universe {
-
     pub fn new (width: u32, height: u32) -> Universe {
         let canvas = Canvas::new(width, height);
         Universe {
             canvas,
             input_buffer: Vec::new(),
+            imagedata: None,
         }
+    }
+
+    pub fn new_with_imagebuffer(width: u32,height: u32) -> Universe {
+        let r = ImageData::new_with_sw(width, height);
+        match r {
+            Ok(imagedata) => {
+                let data = imagedata.data();
+                let width = imagedata.width();
+                let height = imagedata.height();
+
+                let canvas = Canvas::new_in(data.to_vec(),width, height);
+
+                Universe {
+                    canvas,
+                    input_buffer: Vec::new(),
+                    imagedata: Some(imagedata),
+                }        
+            },
+            Err(_) => {
+                return Universe::new(width, height)
+            }
+        }
+
     }
 
     pub fn input_buffer(&mut self) -> *const u8 {
@@ -143,7 +195,14 @@ impl Universe {
     }
 
     pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
-        let r = draw_image(&mut self.canvas,buffer,verbose);
+        self.canvas.set_verbose(write_log);
+        let mut option = DecodeOptions{
+            debug_flag: verbose,
+            drawer: &mut self.canvas,
+        };
+        
+        let r = crate::img::jpeg::decoder::decode(buffer, &mut option);
+
         match r {
             Err(error) => {
                 alert(&error.fmt());

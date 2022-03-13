@@ -38,6 +38,7 @@ features = [
   'Element',
   'HtmlElement',
   'Window',
+  'ImageData',
 ]
 
 [dev-dependencies]
