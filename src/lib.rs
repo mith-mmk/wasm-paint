@@ -95,7 +95,6 @@ fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
 pub struct Universe {
     canvas:  Canvas,
     input_buffer: Vec<u8>,
-    imagedata: Option<ImageData>,
 }
 
 #[wasm_bindgen]
@@ -105,7 +104,6 @@ impl Universe {
         Universe {
             canvas,
             input_buffer: Vec::new(),
-            imagedata: None,
         }
     }
 
@@ -122,7 +120,6 @@ impl Universe {
                 Universe {
                     canvas,
                     input_buffer: Vec::new(),
-                    imagedata: Some(imagedata),
                 }        
             },
             Err(_) => {

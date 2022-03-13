@@ -19,4 +19,4 @@ pub mod fill;
 pub mod circle;
 pub mod image;
 //pub mod draw;
-//pub mod affin;
+pub mod affin;
