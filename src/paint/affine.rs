@@ -248,25 +248,29 @@ impl Affine {
             if sy < out_start_y { sy = out_start_y;}
             if ey > out_end_y {ey = out_end_y;}
 
-            let d0 = (xy0.0 as f32 - xy1.0 as f32) / (xy0.1  as f32 - xy1.1 as f32);
-            let d1 = (xy2.0 as f32 - xy3.0 as f32) / (xy2.1  as f32 - xy3.1 as f32);
+            let d0 = if xy0.1 != xy1.1 {(xy0.0 as f32 - xy1.0 as f32) / (xy0.1  as f32 - xy1.1 as f32)} else {0.0};
+            let d1 = if xy2.1 != xy3.1 {(xy2.0 as f32 - xy3.0 as f32) / (xy2.1  as f32 - xy3.1 as f32)} else {0.0};
 
             for y in sy..ey {
                 // (x0,y0) - (x1,y1) &  (x2,y2) - (x3,y3)
                 let (mut sx,mut ex) = if xy0.1 == xy1.1 {
-                        (min(xy0.0 ,xy1.0),max(xy0.0,xy1.0)+1)
+                    (min(xy0.0 ,xy1.0),max(xy0.0,xy1.0)+1)
                 } else {
+                    if xy2.1 == xy3.1 {
+                        (min(xy2.0 ,xy3.0),max(xy2.0,xy3.0)+1)
+                    } else {
                         let x0 = (d0 * (y  - xy0.1) as f32) as i32 + xy0.0 as i32;
                         let x1 = (d1 * (y  - xy2.1) as f32) as i32 + xy2.0 as i32;
                         (min(x0,x1),max(x0,x1)+1)
+                    }
                 };
                 let output_base_line = output_canvas.width() as usize * 4 * y as usize;
                 if sx < out_start_x { sx = out_start_x;}
                 if ex > out_end_x {ex = out_end_x;}
                 for x in sx..ex {
                     // 逆アフィン変換
-                    let xx = (  y0 * (x as f32 - ox - x2) - y1 * ( y as f32 - oy -y2)) / t + ox;
-                    let yy = (- x0 * (x as f32 - ox - x2) + x1 * ( y as f32 - oy -y2)) / t + oy;
+                    let xx = (  y1 * (x as f32 - ox - x2) - y0 * ( y as f32 - oy -y2)) / t + ox;
+                    let yy = (- x1 * (x as f32 - ox - x2) + x0 * ( y as f32 - oy -y2)) / t + oy;
                     // ニアレストネイバー法
                     let xx = xx.round() as i32;
                     let yy = yy.round() as i32;
@@ -278,8 +282,6 @@ impl Affine {
                     output_canvas.buffer[output_offset + 1] = input_canvas.buffer[input_offset + 1];
                     output_canvas.buffer[output_offset + 2] = input_canvas.buffer[input_offset + 2];
                     output_canvas.buffer[output_offset + 3] = input_canvas.buffer[input_offset + 3];
-
-
                 }    
             }
         }

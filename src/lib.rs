@@ -228,8 +228,8 @@ impl Universe {
     pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
         let mut affine = Affine::new();
         affine.invert_xy();
-        affine.rotate_by_dgree(14.0);
-        affine.scale(1.2,0.8);
+//        affine.rotate_by_dgree(14.0);
+//        affine.scale(1.0,1.0);
 
         if canvas_in == 0 {
             log("Input Canvas is current");
