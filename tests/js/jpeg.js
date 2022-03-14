@@ -12,12 +12,15 @@ let drawed = true;
 canvas.width = width;
 canvas.height = height;
 const reader = new FileReader();
-reader.onloadend = (event) => {
+reader.onload = (event) => {
+  console.timeEnd("reader");
+  console.time("buffer");
   let buffer = new Uint8Array(reader.result);
   universe.input_buffer_set_length(buffer.length);
   let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
   ibuf.set(buffer);
   universe.clear(0x000000);
+  console.timeEnd("buffer");
 
   console.time("decode");
   start_draw();
@@ -46,6 +49,7 @@ canvas.addEventListener('drop', (ev) => {
     if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
 
     console.log("load start");
+    console.time("reader");
     reader.readAsArrayBuffer(files[0]);
   }, false);
 

@@ -1,7 +1,6 @@
 mod utils;
 pub mod paint;
 pub mod img;
-use std::borrow::BorrowMut;
 use std::sync::{Arc,RwLock};
 use crate::paint::affine::Affine;
 use crate::img::DecodeOptions;
@@ -87,6 +86,38 @@ fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
     log(str);
     Ok(None)
 }
+
+/*
+ * If you use Struct in Vec,you happen bollow error for function call multiple same Sturct.
+ * 
+ * It is specification of Rust,
+ * 
+ * ex1) let result = foo(s[0] ,s[0] ); -> borrow error
+ * ex2) let result = foo(s[i] ,s[j] ); -> borrow error
+ * 
+ * Workaround:
+ * 
+ * Wrap Arc(Rc) + Mutex or RWLock
+ * 
+ * 解説：
+ * StructをVecに保存した場合、複数の同じ構造体をわたす、関数を呼び出すときにborrowエラーが発生する。
+ * Rustの仕様である。Rustは同時参照を認めていないので、特定出来ない場合コンパイラがエラーを出す。
+ * 
+ * 例1）let result = foo(s[0] ,s[0] ); はborrowエラーになる
+ * 例2）let result = foo(s[i] ,s[j] ); はborrowエラーになる i==jになる可能性があるかららしい。
+ * 
+ * 回避するにはArcでラップする。書き換える場合(mut)は、その前にMutexやRWLockでラップする。
+ * なお、このアプリケーションはマルチスレッドではないのでLock Errorが出る可能性が低いので特にチェックしていない。
+ * （先に弾いている）
+ * そもそもwasm_bindgen 0.3はマルチスレッドに対応していない。
+ * 
+ * borrow エラー対策はいくつかあり
+ * 　- 参照するだけなら、構造体を丸ごとコピーしてしまえば良い。コストが低い場合はこれで処理している（Arcでラップする方が重い）
+ * 　- 処理順を入れかえるだけでも回避出来る場合がある
+ * 
+ * ちなみにArcから構造体を取り出す方法が面倒すぎる。Rustのサンプル読んでも解りにくい。
+ * 
+ */
 
 #[wasm_bindgen]
 pub struct Universe {
@@ -197,8 +228,8 @@ impl Universe {
     pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
         let mut affine = Affine::new();
         affine.invert_xy();
-        affine.rotate_by_dgree(45.0);
-        affine.scale(1.0,0.8);
+        affine.rotate_by_dgree(14.0);
+        affine.scale(1.2,0.8);
 
         if canvas_in == 0 {
             log("Input Canvas is current");
