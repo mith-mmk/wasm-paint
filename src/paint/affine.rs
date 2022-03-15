@@ -9,6 +9,13 @@ use std::cmp::Ordering;
 use core::f32::consts::PI;
 use super::canvas::*;
 
+pub enum InterpolationAlgorithm {
+    NearestNeighber,
+    Bilinear,
+    Bicubic(Option<f32>),
+    Lanzcos3,
+}
+
 pub struct Affine {
     affine: [[f32;3];3],    // 3*3
 }
@@ -84,7 +91,7 @@ impl Affine {
         self.matrix(&[[ 1.0 ,  y , 0.0],
                       [   x ,1.0 , 0.0],
                       [ 0.0 ,0.0 , 1.0]]);    
-}
+    }
 
     /* not implement Scaling Routine */
     pub fn _conversion(self:&mut Self,input_canvas: &Canvas,output_canvas:&mut Canvas) {
@@ -135,23 +142,43 @@ impl Affine {
         }
     }
 
-    pub fn conversion(self:&mut Self,input_canvas: &Canvas,output_canvas:&mut Canvas) {
-        // 関数の拡張を考えたインプリメント
+    pub fn conversion(self:&mut Self,input_canvas: &Canvas,output_canvas:&mut Canvas,algorithm:InterpolationAlgorithm) {
 
         let start_x = 0 as f32;
         let start_y = 0 as f32;
-        let end_x = input_canvas.width() as f32 - start_x - 1.0;
-        let end_y = input_canvas.height() as f32 - start_y - 1.0;
 
         let out_start_x = 0;
         let out_start_y = 0;
         let out_width = output_canvas.width() as i32;
         let out_height = output_canvas.height() as i32;
+
+        self.conversion_with_area(input_canvas,output_canvas,
+                start_x as f32,start_y,input_canvas.width() as f32,input_canvas.height() as f32,
+                out_start_x,out_start_y,out_width as i32,out_height as i32,
+                algorithm);
+    }
+
+    pub fn conversion_with_area(self:&mut Self,input_canvas: &Canvas,output_canvas:&mut Canvas,
+                start_x :f32,start_y:f32 ,width: f32,height: f32,
+                out_start_x :i32,out_start_y:i32 ,out_width: i32,out_height: i32,
+                algorithm:InterpolationAlgorithm) {
+        let end_x = width - start_x - 1.0;
+        let end_y = height - start_y - 1.0;
         let out_end_x = out_width - out_start_x - 1;
-        let out_end_y = out_height - out_start_x - 1;
+        let out_end_y = out_height - out_start_y - 1;
 
         let ox = (out_width / 2) as f32;
         let oy = (out_height / 2) as f32;
+
+        let mut alpha = -0.5;   // -0.5 - -1.0
+        match algorithm {
+            InterpolationAlgorithm::Bicubic(a) =>{
+                if a.is_some() {
+                    alpha = a.unwrap()
+                }
+            },
+            _ => {}
+        }
 
         /*
          * |X|   |a00 a01 a02||x|         X = a00 * x + a01 * y + a02
@@ -165,6 +192,8 @@ impl Affine {
         let y0 = self.affine[1][0];
         let y1 = self.affine[1][1];
         let y2 = self.affine[1][2];
+
+        // calc rectangle
 
         let mut xy = [(0_i32,0_i32);4];
         let x = start_x - ox;
@@ -180,7 +209,6 @@ impl Affine {
         let y = end_y - oy;
         xy[3] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 +oy) as i32);
 
-        // 順番に並び替える 
         xy.sort_by(|a, b| 
             if a.1 == b.1 {
                 if a.0 < b.0 {
@@ -196,13 +224,21 @@ impl Affine {
                 Ordering::Greater
             });
 
+        // pre-calc inverse affine transformation
+        // x =  y1 * X - x0 * Y  + x1 * y2 - x2 * y1
+        // y = -y0 * X + x1 * X  + x2 * y0 - x0 * x2
+
+        let t = x0 * y1 - x1 * y0;
+        let ix0 =  y1;
+        let ix1 = -x1;
+        let ix2 =  x1 * y2 - x2 * y1; 
+        let iy0 = -y0;
+        let iy1 =  x0;
+        let iy2 =  x2 * y0 - x0 * x2;
 
         // stage 0 y0..y1 (x0,y0) - (x1,y1) &  (x0,y0) - (x2,y2)
         // stage 1 y1..y2 (x0,y0) - (x2,x2) &  (x1,y1) - (x3,y3) 
         // stage 2 y2..y3 (x1,y1) - (x3,y3) &  (x2,y2) - (x3,y3)
-
-        let t = x0 * y1 - x1 * y0;
-
         for stage in 0..3 {
             let mut sy;
             let mut ey;
@@ -267,98 +303,131 @@ impl Affine {
                 let output_base_line = output_canvas.width() as usize * 4 * y as usize;
                 if sx < out_start_x { sx = out_start_x;}
                 if ex > out_end_x {ex = out_end_x;}
+
                 for x in sx..ex {
-                    // 逆アフィン変換
-                    let xx = (  y1 * (x as f32 - ox - x2) - y0 * ( y as f32 - oy -y2)) / t + ox;
-                    let yy = (- x1 * (x as f32 - ox - x2) + x0 * ( y as f32 - oy -y2)) / t + oy;
-                    // ニアレストネイバー法
-                    let xx = xx.round() as i32;
-                    let yy = yy.round() as i32;
-                    if xx < start_x as i32 || xx >= end_x as i32 || yy < start_y as i32 || yy >= end_x as i32 {continue;}
+                    // inverse affine transformation from output image integer position
+                    let xx = (ix0 * (x as f32 - ox) + ix1 * ( y as f32 - oy) + ix2 ) / t + ox;
+                    let yy = (iy0 * (x as f32 - ox) + iy1 * ( y as f32 - oy) + iy2 ) / t + oy;
+                    if xx < start_x || xx >= end_x || yy < start_y || yy >= end_x {continue;}
                     let output_offset = output_base_line + x as usize * 4;
                     let input_offset = (yy as usize * input_canvas.width() as usize + xx as usize) * 4;
+                    match algorithm {
+                        InterpolationAlgorithm::NearestNeighber => {
+                            output_canvas.buffer[output_offset    ] = input_canvas.buffer[input_offset    ];
+                            output_canvas.buffer[output_offset + 1] = input_canvas.buffer[input_offset + 1];
+                            output_canvas.buffer[output_offset + 2] = input_canvas.buffer[input_offset + 2];
+                            output_canvas.buffer[output_offset + 3] = input_canvas.buffer[input_offset + 3];
+                        },
+                        InterpolationAlgorithm::Bilinear => {
+                            let dx = xx - xx.floor();
+                            let dy = yy - yy.floor();
+                            let xx = xx.floor() as i32;
+                            let yy = yy.floor() as i32;
 
-                    output_canvas.buffer[output_offset    ] = input_canvas.buffer[input_offset    ];
-                    output_canvas.buffer[output_offset + 1] = input_canvas.buffer[input_offset + 1];
-                    output_canvas.buffer[output_offset + 2] = input_canvas.buffer[input_offset + 2];
-                    output_canvas.buffer[output_offset + 3] = input_canvas.buffer[input_offset + 3];
+                            let nx = if xx + 1 > end_x as i32 {0} else {4};
+                            let ny = if yy + 1 > end_y as i32 {0} else {input_canvas.width() as usize * 4};
+
+                            let r   =(input_canvas.buffer[input_offset         ] as f32 * (1.0-dx) * (1.0-dy)
+                                    + input_canvas.buffer[input_offset     + nx] as f32 * dx * (1.0-dy)
+                                    + input_canvas.buffer[input_offset     + ny] as f32 * (1.0-dx) * dy
+                                    + input_canvas.buffer[input_offset     + nx + ny] as f32 * dx * dy) as i32;
+                            let g   =(input_canvas.buffer[input_offset + 1     ] as f32 * (1.0-dx) * (1.0-dy)
+                                    + input_canvas.buffer[input_offset + 1 + nx] as f32 * dx * (1.0-dy)
+                                    + input_canvas.buffer[input_offset + 1 + ny] as f32 * (1.0-dx) * dy
+                                    + input_canvas.buffer[input_offset + 1 + nx + ny] as f32 * dx * dy) as i32;
+                            let b   =(input_canvas.buffer[input_offset + 2     ] as f32 * (1.0-dx) * (1.0-dy)
+                                    + input_canvas.buffer[input_offset + 2 + nx] as f32 * dx * (1.0-dy)
+                                    + input_canvas.buffer[input_offset + 2 + ny] as f32 * (1.0-dx) * dy
+                                    + input_canvas.buffer[input_offset + 2 + nx + ny] as f32 * dx * dy) as i32; 
+                            let a   =(input_canvas.buffer[input_offset + 3     ] as f32 * (1.0-dx) * (1.0-dy)
+                                    + input_canvas.buffer[input_offset + 3 + nx] as f32 * dx * (1.0-dy)
+                                    + input_canvas.buffer[input_offset + 3 + ny] as f32 * (1.0-dx) * dy
+                                    + input_canvas.buffer[input_offset + 3 + nx + ny] as f32 * dx * dy) as i32;
+                                                       
+                            output_canvas.buffer[output_offset    ] = r.clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 1] = g.clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 2] = b.clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 3] = a.clamp(0,255) as u8;
+                        },
+                        InterpolationAlgorithm::Bicubic(_) => {
+                            let dx = xx - xx.floor();
+                            let dy = yy - yy.floor();
+                            let xx = xx.floor() as i32;
+                            let yy = yy.floor() as i32;
+
+                            let mut nx = [0_isize;4];
+                            let mut ny = [0_isize;4]; 
+
+                            nx[0] = if xx - 1 <= start_x as i32 {0} else {-4};
+                            nx[1] = 0;
+                            if xx + 1 > end_x as i32 {
+                                nx[2] = 0;
+                                nx[3] = 0;
+                            } else {
+                                if xx + 2 > end_x as i32 {
+                                    nx[3] = 4;
+                                } else {
+                                    nx[3] = 8;
+                                }
+
+                            }
+
+                            ny[0] = if yy - 1 <= start_y as i32 {0} else {input_canvas.width() as isize * -4};
+                            ny[1] = 0;
+                            if yy + 1 > end_y as i32 {
+                                ny[2] = 0;
+                                ny[3] = 0;
+                            } else {
+                                ny[2] = input_canvas.width() as isize * 4;
+                                if yy + 2 > end_y as i32 {
+                                    ny[3] = input_canvas.width() as isize * 4;
+                                } else {
+                                    ny[3] = input_canvas.width() as isize * 4 * 2;
+                                }
+                            } 
+
+                            let mut color = [0.0;4];
+
+                            for _y in 0..4 {
+                                let dy = _y as f32 - dy - 1.0 ;
+                                let dy = dy.abs();
+                                let wy = if dy <= 1.0 {
+                                    (alpha + 2.0) * dy.powi(3) - (alpha + 3.0) * dy.powi(2) + 1.0
+                                } else if dy < 2.0 {
+                                    alpha * dy.powi(3) - 5.0 * alpha * dy.powi(2) + 8.0 * alpha * dy - 4.0 * alpha
+                                } else {0.0};
+                                for _x in 0..4 {
+                                    let dx = _x as f32 - dx - 1.0;
+                                    let dx = dx.abs();
+                                    let offset = input_offset as isize + nx[_x] + ny[_y];
+                                    let wx = if dx <= 1.0 {
+                                        (alpha + 2.0) * dx.powi(3) - (alpha + 3.0) * dx.powi(2) + 1.0
+                                    } else if dx < 2.0 {
+                                        alpha * dx.powi(3) - 5.0 * alpha * dx.powi(2) + 8.0 * alpha * dx - 4.0 * alpha
+                                    } else {0.0};
+
+                                    let w = wx * wy;
+                                    if xx == 100 { crate::log(&format!("{} {} {} {} {}" ,dx,wx,dy,wy,w));}
+                                    for i in 0..3 {
+                                        color[i] += w * input_canvas.buffer[offset as usize + i] as f32;
+                                        output_canvas.buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
+                                    }
+                                }
+                            }
+                            
+                            output_canvas.buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 1] = (color[1] as i32).clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 3] = 0xff;
+                        },
+                        _ => {} // todo
+                    }
                 }    
             }
         }
+
+
     }
 
-        
-    /*
-     * 画像補完
-     * 
-     * 1. 回転時の座標ずれの補正
-     *
-     * 座標系を中央(ox,oy)に移動させ、最後に戻す
-     *　|1　0 -ox||a00 a01 a02||x||1  0  ox|   |a00x+a01y+a02-ox|1 0 ox|  |a00*(x-ox) + a01(y-oy) + a02 + ox|
-     *　|0  1 -oy||a10 a11 a12||y||0  1  oy| = |a10x+a11y+a12-oy|0 1 oy|= |a10*(x-ox) + a11(y-oy) + a12 + oy|
-     *　|0　0   1||  0  0    1||1||0　0   1|   |     1          |0 0  1|  |               1                 |
-     *
-     * 2.色補間簡略化の戦略
-     * 
-     * 2.1 計算法
-     * 
-     * 最初に頂点のみを計算し、直線を計算し、その中にある点をアフィン逆変換し補完する。最初に四点求めることで計算量を減らす
-     * 矩形かつ変形で捻れないのが前提。
-     * 
-     *  (x,y) = A-1 (X,Y)
-     *  |x - ox|           1         | a11   -a01|| X - ox - a02|
-     *  |y - oy| = ----------------  |-a10    a00|| Y - oy - a12|
-     *              a00a11 - a01a10 = t
-     *
-     *  x = 1/t *[  a11 * (X - ox - a02) - a01 * ( Y - oy -a12)] + ox
-     *  y = 1/t *[- a01 * (X - ox - a02) + a00 * ( Y - oy -a12)] + oy 　/
-     * 
-     * 2.2 探索法
-     * 
-     * L1 (X0,Y0) - (X1,X1) L2 (X1,Y1) - (X2,X2)
-     * L3 (X2,Y2) - (X3,X3) L4 (X3,X3) - (X0,X0) に囲まれた空間内の点か判定するため、
-     * 
-     * min(Y) - max(Y) の点Y' のときの X0' - X1' を計算する
-     * 
-     * まずY0≦Y1≦Y2≦Y3にソートする。
-     * 
-     * s1  (X0 - X1)/(Y0 - Y1) Y  (X0 - X2)/(Y0 - Y2) Y 　Xを計算  Y0 ≦ y < Y1 を評価
-     * s2. (X3 - X1)/(Y3 - Y1) Y  (X0 - X2)/(Y0 - Y2) Y   Xを計算  Y1 ≦ y ≦ Y2 を評価
-     * s3. (X3 - X1)/(Y3 - Y1) Y  (X3 - X2)/(Y3 - Y2) Y   Xを計算  Y2 < y ≦ Y3 を評価
-     * 
-     * 正確には　[(X0 - X1)/(Y0 - Y1)] * (Y - Y0) + X0  dy = 0 の場合は x0 .. x1 を一回だけ回す
-     *
-     * 2.3 拡大・縮小アルゴリズムの選定
-     * 拡大か縮小かは　以下で計算　mx √(a00^2 + a01^2) my √a(10^2 + a11^2)  >1なら拡大　< 1なら縮小
-     * 0.5までは縮小アルゴリズムは想定しなくて良い
-     * 
-     * ニアレストネイバー法　最短の座標から色を取得　縮小も同じ
-     * 
-     * バイリニア法　(x,y)(x+1,y)(x,y+1)(x+1,y+1)の　4ドットの加重平均
-     * 　<0.5 の時の縮小アルゴリズムは 1/mx x 1/my ドットの平均
-     * 　両方が混じる場合は、ミックス
-     * 
-     * バイキュービック法 16ドットにフィルタ　縮小もバイキュービック
-     *  x' - x = dとしたとき (xは整数) つまり計算に用いるのは(x - 1, x, x+1, x+2)(y-1,..,y+2) の16ドット
-     *  (α + 2)*d^3  - (α + 3)*d^2 + α                 d ≦ 1.0 
-     *  α*d^3 - 5α*d^2 - 8α*d - 4α              1.0 <  d  < 2.0 
-     *  0                                              d ≧ 2.0
-     * 
-     * 　α = -0.5～-0.75, -1 
-     * 
-     * Lanzcos法 縮小もLanzcos　中身はフーリエ変換
-     * 　sincと言う関数が出てくる 中身はsin　sinc(x) = sin(πx)/πx 
-     *  
-     * 計算式 α = 3の場合、16ドットで計算(Lanzcos3) 
-     * 1                                d = 0
-     * α*sin(dπ)sin(dπ/α)/π^2*x^2       0 < |d| < α
-     * 0                                d > α
-     * 
-     * 高速化戦略： sinの計算量をいかに減らすか
-     * 
-     * 
-     * 2.4アルゴリズム使用時の注意
-     * 　端のドットの扱い。 0とするか、(0,0)を補完するかで結果が変わる。
-     *
-     */
+
 }

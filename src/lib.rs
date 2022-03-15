@@ -2,7 +2,7 @@ mod utils;
 pub mod paint;
 pub mod img;
 use std::sync::{Arc,RwLock};
-use crate::paint::affine::Affine;
+use crate::paint::affine::{Affine,InterpolationAlgorithm};
 use crate::img::DecodeOptions;
 use crate::img::error::ImgError;
 use crate::paint::circle::*;
@@ -228,25 +228,20 @@ impl Universe {
     pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
         let mut affine = Affine::new();
         affine.invert_xy();
-//        affine.rotate_by_dgree(14.0);
-//        affine.scale(1.0,1.0);
+        affine.scale(1.4,1.4);
+        affine.rotate_by_dgree(12.0);
 
         if canvas_in == 0 {
-            log("Input Canvas is current");
-            log(&format!("Output Canvas = {}",canvas_out));
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            affine.conversion(&self.canvas,output_canvas);
+            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
+//            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         } else if canvas_out == 0 {
-            log(&format!("Input Canvas = {}",canvas_in));
-            log(&format!("Output Canvas is current"));
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
-            affine.conversion(input_canvas,&mut self.canvas);
+            affine.conversion(input_canvas,&mut self.canvas,InterpolationAlgorithm::Bilinear);
         } else {
-            log(&format!("Input Canvas = {}",canvas_in));
-            log(&format!("Output Canvas = {}",canvas_out));
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            affine.conversion(input_canvas, output_canvas);
+            affine.conversion(input_canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         }
     }
 
