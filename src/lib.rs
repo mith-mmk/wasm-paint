@@ -228,13 +228,14 @@ impl Universe {
     pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
         let mut affine = Affine::new();
         affine.invert_xy();
-        affine.scale(1.4,1.4);
+        affine.scale(5.3,5.3);
         affine.rotate_by_dgree(12.0);
 
         if canvas_in == 0 {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
+            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Lanzcos(Some(3)));
 //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
+//            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
         } else if canvas_out == 0 {
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
             affine.conversion(input_canvas,&mut self.canvas,InterpolationAlgorithm::Bilinear);

@@ -12,8 +12,10 @@ use super::canvas::*;
 pub enum InterpolationAlgorithm {
     NearestNeighber,
     Bilinear,
-    Bicubic(Option<f32>),
+    Bicubic,
+    BicubicAlpha(Option<f32>),
     Lanzcos3,
+    Lanzcos(Option<usize>),
 }
 
 pub struct Affine {
@@ -91,6 +93,11 @@ impl Affine {
         self.matrix(&[[ 1.0 ,  y , 0.0],
                       [   x ,1.0 , 0.0],
                       [ 0.0 ,0.0 , 1.0]]);    
+    }
+
+    #[inline]
+    fn sinc (x:f32) -> f32 {
+        (x * PI).sin() / (x * PI)
     }
 
     /* not implement Scaling Routine */
@@ -171,12 +178,19 @@ impl Affine {
         let oy = (out_height / 2) as f32;
 
         let mut alpha = -0.5;   // -0.5 - -1.0
+        let mut lanzcos_n = 3;
         match algorithm {
-            InterpolationAlgorithm::Bicubic(a) =>{
+            InterpolationAlgorithm::BicubicAlpha(a) =>{
                 if a.is_some() {
                     alpha = a.unwrap()
                 }
             },
+            InterpolationAlgorithm::Lanzcos(n) => {
+                if n.is_some() {
+                    lanzcos_n = n.unwrap();
+                }
+            }
+
             _ => {}
         }
 
@@ -193,7 +207,7 @@ impl Affine {
         let y1 = self.affine[1][1];
         let y2 = self.affine[1][2];
 
-        // calc rectangle
+        // calc rectangle 4x affine trans
 
         let mut xy = [(0_i32,0_i32);4];
         let x = start_x - ox;
@@ -349,42 +363,11 @@ impl Affine {
                             output_canvas.buffer[output_offset + 2] = b.clamp(0,255) as u8;
                             output_canvas.buffer[output_offset + 3] = a.clamp(0,255) as u8;
                         },
-                        InterpolationAlgorithm::Bicubic(_) => {
+                        InterpolationAlgorithm::Bicubic | InterpolationAlgorithm::BicubicAlpha(_)  => {
                             let dx = xx - xx.floor();
                             let dy = yy - yy.floor();
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
-
-                            let mut nx = [0_isize;4];
-                            let mut ny = [0_isize;4]; 
-
-                            nx[0] = if xx - 1 <= start_x as i32 {0} else {-4};
-                            nx[1] = 0;
-                            if xx + 1 > end_x as i32 {
-                                nx[2] = 0;
-                                nx[3] = 0;
-                            } else {
-                                if xx + 2 > end_x as i32 {
-                                    nx[3] = 4;
-                                } else {
-                                    nx[3] = 8;
-                                }
-
-                            }
-
-                            ny[0] = if yy - 1 <= start_y as i32 {0} else {input_canvas.width() as isize * -4};
-                            ny[1] = 0;
-                            if yy + 1 > end_y as i32 {
-                                ny[2] = 0;
-                                ny[3] = 0;
-                            } else {
-                                ny[2] = input_canvas.width() as isize * 4;
-                                if yy + 2 > end_y as i32 {
-                                    ny[3] = input_canvas.width() as isize * 4;
-                                } else {
-                                    ny[3] = input_canvas.width() as isize * 4 * 2;
-                                }
-                            } 
 
                             let mut color = [0.0;4];
 
@@ -396,10 +379,20 @@ impl Affine {
                                 } else if dy < 2.0 {
                                     alpha * dy.powi(3) - 5.0 * alpha * dy.powi(2) + 8.0 * alpha * dy - 4.0 * alpha
                                 } else {0.0};
+
+                                let jy = _y - 1;  
+                                let baseoffset = if yy + jy < start_y as i32
+                                     {start_y as isize * input_canvas.width() as isize * 4 }
+                                else if yy + jy >= end_y as i32 { end_y as isize * input_canvas.width() as isize * 4}
+                                else { ((yy + jy) as isize * input_canvas.width() as isize) * 4 };
+
                                 for _x in 0..4 {
                                     let dx = _x as f32 - dx - 1.0;
                                     let dx = dx.abs();
-                                    let offset = input_offset as isize + nx[_x] + ny[_y];
+                                    let jx = _x - 1;
+                                    let offset = if xx + jx <= start_x as i32 { baseoffset + start_x as isize * 4 }
+                                        else if xx + jx >= end_x as i32 { baseoffset + end_x as isize * 4}
+                                        else { baseoffset + (xx + jx) as isize * 4 };
                                     let wx = if dx <= 1.0 {
                                         (alpha + 2.0) * dx.powi(3) - (alpha + 3.0) * dx.powi(2) + 1.0
                                     } else if dx < 2.0 {
@@ -407,10 +400,9 @@ impl Affine {
                                     } else {0.0};
 
                                     let w = wx * wy;
-                                    if xx == 100 { crate::log(&format!("{} {} {} {} {}" ,dx,wx,dy,wy,w));}
+
                                     for i in 0..3 {
                                         color[i] += w * input_canvas.buffer[offset as usize + i] as f32;
-                                        output_canvas.buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
                                     }
                                 }
                             }
@@ -420,7 +412,49 @@ impl Affine {
                             output_canvas.buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
                             output_canvas.buffer[output_offset + 3] = 0xff;
                         },
-                        _ => {} // todo
+                        InterpolationAlgorithm::Lanzcos3 | InterpolationAlgorithm::Lanzcos(_) => {
+                            let dx = xx - xx.floor();
+                            let dy = yy - yy.floor();
+                            let xx = xx.floor() as i32;
+                            let yy = yy.floor() as i32;
+                            let n = lanzcos_n as i32;
+
+                            let mut color = [0.0;4];
+
+
+                            for _y in 0..2 * n {
+                                let jy = _y - n + 1;  
+                                let dy = (jy as f32 - dy).abs();
+                                let wy = if dy == 0.0 { 1.0 }
+                                         else if dy < n as f32 { Self::sinc(dy) * Self::sinc(dy / n as f32) }
+                                         else { 0.0 };
+                                let baseoffset = if yy + jy < start_y as i32
+                                     {start_y as isize * input_canvas.width() as isize * 4 }
+                                else if yy + jy > end_y as i32 { end_y  as isize * input_canvas.width() as isize * 4}
+                                else { ((yy + jy) as isize * input_canvas.width() as isize) * 4 };
+
+                                for _x in 0..2 * n {
+                                    let jx = _x - n + 1;  
+                                    let dx = (jx as f32 - dx).abs();
+                                    let wx = if dx == 0.0 { 1.0 }
+                                             else if dx < n as f32 { Self::sinc(dx) * Self::sinc(dx / n as f32) }
+                                             else {0.0};
+                                    let offset = if xx + jx <= start_x as i32 { baseoffset + start_x as isize * 4 }
+                                        else if xx + jx >= end_x as i32 { baseoffset + end_x as isize * 4}
+                                        else { baseoffset + (xx + jx) as isize * 4 };
+
+                                    let w = wx * wy;
+                                    for i in 0..3 {
+                                        color[i] += w * input_canvas.buffer[offset as usize + i] as f32;
+                                    }
+                                }
+                            }
+                            
+                            output_canvas.buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 1] = (color[1] as i32).clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
+                            output_canvas.buffer[output_offset + 3] = 0xff;
+                        },
                     }
                 }    
             }
