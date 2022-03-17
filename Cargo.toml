@@ -1,6 +1,6 @@
 [package]
 name = "paint"
-version = "0.0.10"
+version = "0.0.11"
 authors = ["mith-mmk <47620686+mith-mmk@users.noreply.github.com>"]
 edition = "2018"
 license = "MIT"
@@ -40,6 +40,10 @@ features = [
   'Window',
   'ImageData',
 ]
+
+[dependencies.wml2]
+path = "../wml2"
+
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"

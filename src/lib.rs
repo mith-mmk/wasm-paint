@@ -1,10 +1,11 @@
+extern crate wml2;
 mod utils;
 pub mod paint;
-pub mod img;
+use wml2::DecodeOptions;
+use wml2::error::ImgError;
+use wml2::jpeg::decoder::decode as jpeg_decoder;
 use std::sync::{Arc,RwLock};
 use crate::paint::affine::{Affine,InterpolationAlgorithm};
-use crate::img::DecodeOptions;
-use crate::img::error::ImgError;
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
 use crate::paint::polygram::*;
@@ -122,16 +123,31 @@ fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
 #[wasm_bindgen]
 pub struct Universe {
     canvas:  Canvas,
+    on_worker: bool,
     input_buffer: Vec<u8>,
     append_canvas: Vec<Arc<RwLock<Canvas>>>,
 }
 
 #[wasm_bindgen]
 impl Universe {
+
+    #[wasm_bindgen(js_name = new)]
     pub fn new (width: u32, height: u32) -> Universe {
         let canvas = Canvas::new(width, height);
         Universe {
             canvas,
+            on_worker: false,
+            input_buffer: Vec::new(),
+            append_canvas: Vec::new(),
+        }
+    }
+
+    #[wasm_bindgen(js_name = newOnWorker)]
+    pub fn new_on_worker (width: u32, height: u32) -> Universe {
+        let canvas = Canvas::new(width, height);
+        Universe {
+            canvas,
+            on_worker: true,
             input_buffer: Vec::new(),
             append_canvas: Vec::new(),
         }
@@ -258,39 +274,39 @@ impl Universe {
                 debug_flag: 0,
                 drawer: &mut *self.append_canvas[number - 1].write().unwrap(),
             };
-            let r = crate::img::jpeg::decoder::decode(buffer, &mut option);
+            let r = jpeg_decoder(buffer, &mut option);
             match r {
                 Err(error) => {
-                    alert(&error.fmt());
+                    log(&error.fmt());
                 },
                 Ok(s) => {
-                    match s {
-                        Some(worning) => {
-                            log(&worning.fmt());
-                        },
-                        _ =>{},
+                    if let Some(worning) = s {                        
+                        log(&worning.fmt());
                     }
                 }
             }
         } else {
             let canvas =&mut self.canvas;
-            canvas.set_verbose(write_log);
+            if !self.on_worker {
+                canvas.set_verbose(write_log);
+            }
             let mut option = DecodeOptions{
                 debug_flag: verbose,
                 drawer: canvas,
             };
         
-            let r = crate::img::jpeg::decoder::decode(buffer, &mut option);
+            let r = jpeg_decoder(buffer, &mut option);
             match r {
                 Err(error) => {
-                    alert(&error.fmt());
+                    if self.on_worker {
+                        log(&error.fmt());
+                    } else {
+                        alert(&error.fmt());
+                    }
                 },
                 Ok(s) => {
-                    match s {
-                        Some(worning) => {
-                            log(&worning.fmt());
-                        },
-                        _ =>{},
+                    if let Some(worning) = s {                        
+                        log(&worning.fmt());
                     }
                 }
             }

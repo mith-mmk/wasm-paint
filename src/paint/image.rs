@@ -2,11 +2,12 @@
  * (C)2022 Mith@mmk 
  */
 
-use crate::img::jpeg::worning::JPEGWorning;
-use super::canvas::*;
-use crate::img::error::ImgError;
-use crate::img::*;
 
+use wml2::error::ImgError;
+use wml2::DecodeOptions;
+use wml2::jpeg::worning::JPEGWorning;
+use wml2::jpeg::decoder::decode as jpeg_decoder;
+use super::canvas::*;
 
 pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<JPEGWorning>,ImgError> {
 
@@ -17,7 +18,7 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Optio
     drawer: canvas,
   };
 
-  let r = crate::img::jpeg::decoder::decode(data, &mut option);
+  let r = jpeg_decoder(data, &mut option);
   match r {
     Err(error) => {
       return Err(error)

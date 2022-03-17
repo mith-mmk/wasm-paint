@@ -22,6 +22,8 @@ Color model ABGR uint32LE
 
 2022/03/13 0.0.10 アフィン変換 + 補完アルゴリズム（ニアレストネイバー、バイリニア、バイキュービック、Lanczos
 
+2022/03/17 0.0.11 Graphic Loaderを分離(WML2)
+
 Todo 
 - border
 - polyline

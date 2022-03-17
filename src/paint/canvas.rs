@@ -2,11 +2,11 @@
  * canvas.rs  Mith@mmk (C) 2022
  * update 2022/03/13
  */
-
-use crate::img::error::ImgError::SimpleAddMessage;
-use crate::img::error::ImgError;
-use crate::img::error::*;
-use crate::img::DrawCallback;
+extern crate wml2;
+use wml2::error::ImgError::SimpleAddMessage;
+use wml2::DrawCallback;
+use wml2::error::ImgError;
+use wml2::error::ErrorKind;
 use super::pen::Pen;
 use super::clear::fillrect;
 
@@ -30,6 +30,8 @@ pub struct Canvas {
     height: u32,
     color: u32,
     background_color: u32,
+    use_canvas_alpha: bool,
+    canvas_alpha: u8,
     pen: Pen,
     fnverbose: fn(&str) -> Result<Option<isize>,ImgError>,
     draw_width: u32,
@@ -49,6 +51,8 @@ impl Canvas {
                 height: 0,
                 color: 0x00ffffff,
                 background_color: 0,
+                use_canvas_alpha: false,
+                canvas_alpha: 0xff,
                 pen: Pen::new(1, 1, vec![255]),
                 fnverbose: default_verbose,
                 draw_width: 0,
@@ -70,6 +74,8 @@ impl Canvas {
             height,
             color,
             background_color,
+            use_canvas_alpha: false,
+            canvas_alpha: 0xff,
             pen,
             fnverbose,
             draw_width: 0,
@@ -85,6 +91,8 @@ impl Canvas {
                 height: 0,
                 color: 0x00ffffff,
                 background_color: 0,
+                use_canvas_alpha: false,
+                canvas_alpha: 0xff,
                 pen: Pen::new(1, 1, vec![255]),
                 fnverbose: default_verbose,
                 draw_width: 0,
@@ -102,6 +110,8 @@ impl Canvas {
             height,
             color,
             background_color,
+            use_canvas_alpha: false,
+            canvas_alpha: 0xff,
             pen,
             fnverbose,
             draw_width: 0,
@@ -119,6 +129,20 @@ impl Canvas {
     pub fn set_verbose(&mut self,verbose:fn(&str) -> Result<Option<isize>,ImgError>) {
         self.fnverbose = verbose;
     }
+
+    pub fn alpha(&self) -> Option<u8> {
+        if self.use_canvas_alpha {
+            Some(self.canvas_alpha)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_alpha(&mut self,alpha: u8) {
+        self.canvas_alpha = alpha;
+        self.use_canvas_alpha = true;
+    }
+
 }
 
 impl Screen for Canvas {
