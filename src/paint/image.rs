@@ -3,13 +3,13 @@
  */
 
 
+use wml2::image_decoder;
 use wml2::error::ImgError;
+use wml2::warning::ImgWarning;
 use wml2::DecodeOptions;
-use wml2::jpeg::worning::JPEGWorning;
-use wml2::jpeg::decoder::decode as jpeg_decoder;
 use super::canvas::*;
 
-pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<JPEGWorning>,ImgError> {
+pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<ImgWarning>,ImgError> {
 
 //  canvas.set_verbose(write_log);
 
@@ -18,12 +18,13 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Optio
     drawer: canvas,
   };
 
-  let r = jpeg_decoder(data, &mut option);
+  let r = image_decoder(data, &mut option);
   match r {
     Err(error) => {
       return Err(error)
     },
-    _ => {},
+    Ok(..) => {
+    },
   }
 
   r

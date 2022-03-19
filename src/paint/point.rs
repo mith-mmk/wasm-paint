@@ -53,7 +53,6 @@ pub fn point_with_weight_from_alpha ( canvas: &mut Canvas, x: i32, y: i32, color
     _point(canvas, x as i32, y as i32, red, green, blue, 0xff, alpha as f32 / 255.0);
 }
 
-
 pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
     if s <= 0.0 {return};
     let (red, green, blue, _) = color_taple(color);

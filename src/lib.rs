@@ -261,6 +261,15 @@ impl Universe {
             affine.conversion(input_canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         }
     }
+    pub fn image_decoder(&mut self,buffer: &[u8],verbose:usize) {
+        let r = crate::paint::image::draw_image(&mut self.canvas,buffer,verbose);
+        match r {
+            Err(error) => {
+                log(&format!("{:?}",error));
+            }
+            _ => {},
+        }
+    }
 
     pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
         self.jpeg_decoder_select_canvas(buffer,verbose,0);
@@ -277,11 +286,11 @@ impl Universe {
             let r = jpeg_decoder(buffer, &mut option);
             match r {
                 Err(error) => {
-                    log(&error.fmt());
+                    log(&format!("{:?}",error));
                 },
                 Ok(s) => {
-                    if let Some(worning) = s {                        
-                        log(&worning.fmt());
+                    if let Some(warning) = s {                        
+                        log(&format!("{:?}",warning));
                     }
                 }
             }
@@ -299,14 +308,14 @@ impl Universe {
             match r {
                 Err(error) => {
                     if self.on_worker {
-                        log(&error.fmt());
+                        log(&format!("{:?}",error));
                     } else {
-                        alert(&error.fmt());
+                        alert(&format!("{:?}",error));
                     }
                 },
                 Ok(s) => {
-                    if let Some(worning) = s {                        
-                        log(&worning.fmt());
+                    if let Some(warning) = s {                        
+                        log(&format!("{:?}",warning));
                     }
                 }
             }

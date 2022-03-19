@@ -3,10 +3,9 @@
  * update 2022/03/13
  */
 extern crate wml2;
-use wml2::error::ImgError::SimpleAddMessage;
 use wml2::DrawCallback;
 use wml2::error::ImgError;
-use wml2::error::ErrorKind;
+use wml2::error::ImgErrorKind;
 use super::pen::Pen;
 use super::clear::fillrect;
 
@@ -187,6 +186,13 @@ impl Screen for Canvas {
 
 impl DrawCallback for Canvas {
     fn init(&mut self, width: usize, height: usize) -> Result<Option<isize>, ImgError> {
+        if width <= 0 || height <= 0 {
+            return Err(ImgError::new_const(ImgErrorKind::SizeZero,&"image size zero or minus"))
+        }
+        if self.width == 0 || self.height == 0 {
+            let buffersize = width as usize * height as usize * 4;
+            self.buffer = (0..buffersize).map(|_| 0).collect();
+        }
         self.draw_width = width as u32;
         self.draw_height = height as u32;
         Ok(None)
@@ -208,7 +214,7 @@ impl DrawCallback for Canvas {
                 let offset_src = scanline_src + x * 4;
                 let offset_dest = scanline_dest + (x + start_x) * 4;
                 if offset_src + 3 >= data.len() {
-                    return Err(SimpleAddMessage(ErrorKind::OutboundIndex,format!("decoder buffer in draw {}",data.len())))
+                    return Err(ImgError::new_const(ImgErrorKind::OutboundIndex,&"decoder buffer in draw"))
                 }
                 buffer[offset_dest    ] = data[offset_src];
                 buffer[offset_dest + 1] = data[offset_src + 1];
