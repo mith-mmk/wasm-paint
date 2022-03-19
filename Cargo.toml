@@ -42,13 +42,15 @@ features = [
 ]
 
 [dependencies.wml2]
-#git = "https://github.com/mith-mmk/wml2-on-rust"
-path = "../wml2"
-
+git = "https://github.com/mith-mmk/wml2-on-rust"
+version = "0.0.2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
 js-sys = "0.3"
+
+[dev-dependencies.wml2]
+path = "../wml2"
 
 [profile.release]
 # Tell `rustc` to optimize for small code size.
