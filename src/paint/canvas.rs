@@ -3,7 +3,7 @@
  * update 2022/03/13
  */
 extern crate wml2;
-use wml2::DrawCallback;
+use wml2::draw::*;
 use wml2::error::ImgError;
 use wml2::error::ImgErrorKind;
 use super::pen::Pen;
@@ -32,12 +32,12 @@ pub struct Canvas {
     use_canvas_alpha: bool,
     canvas_alpha: u8,
     pen: Pen,
-    fnverbose: fn(&str) -> Result<Option<isize>,ImgError>,
+    fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,ImgError>,
     draw_width: u32,
     draw_height: u32,
 }
 
-fn default_verbose(_ :&str) -> Result<Option<isize>, ImgError>{
+fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, ImgError>{
     Ok(None)
 }
 
@@ -125,7 +125,7 @@ impl Canvas {
         &self.pen
     }
 
-    pub fn set_verbose(&mut self,verbose:fn(&str) -> Result<Option<isize>,ImgError>) {
+    pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,ImgError>) {
         self.fnverbose = verbose;
     }
 
@@ -185,7 +185,7 @@ impl Screen for Canvas {
 
 
 impl DrawCallback for Canvas {
-    fn init(&mut self, width: usize, height: usize) -> Result<Option<isize>, ImgError> {
+    fn init(&mut self, width: usize, height: usize,_: Option<InitOptions>) -> Result<Option<CallbackResponse>, ImgError> {
         if width <= 0 || height <= 0 {
             return Err(ImgError::new_const(ImgErrorKind::SizeZero,&"image size zero or minus"))
         }
@@ -198,8 +198,8 @@ impl DrawCallback for Canvas {
         Ok(None)
     }
 
-    fn draw(&mut self, start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8])
-                -> Result<Option<isize>,ImgError>  {
+    fn draw(&mut self, start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8],_: Option<DrawOptions>)
+                -> Result<Option<CallbackResponse>,ImgError>  {
         let self_width = self.width as usize;
         let self_height = self.height as usize;
 
@@ -225,15 +225,15 @@ impl DrawCallback for Canvas {
         Ok(None)
     }
 
-    fn terminate(&mut self) -> Result<Option<isize>, ImgError> {
+    fn terminate(&mut self,_: Option<TerminateOptions>) -> Result<Option<CallbackResponse>, wml2::error::ImgError> {
         Ok(None)
     }
 
-    fn next(&mut self, _: std::vec::Vec<u8>) -> Result<Option<isize>, ImgError> {
+    fn next(&mut self, _: Option<NextOptions>) -> Result<Option<CallbackResponse>, ImgError> {
         Ok(None)
     }
 
-    fn verbose(&mut self, str: &str) -> Result<Option<isize>, ImgError> { 
-        return (self.fnverbose)(str);
+    fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, ImgError> { 
+        return (self.fnverbose)(str,None);
     }
 }

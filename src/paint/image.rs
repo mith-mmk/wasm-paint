@@ -2,11 +2,9 @@
  * (C)2022 Mith@mmk 
  */
 
-
-use wml2::image_decoder;
 use wml2::error::ImgError;
 use wml2::warning::ImgWarning;
-use wml2::DecodeOptions;
+use wml2::draw::*;
 use super::canvas::*;
 
 pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<ImgWarning>,ImgError> {

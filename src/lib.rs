@@ -1,7 +1,7 @@
 extern crate wml2;
 mod utils;
 pub mod paint;
-use wml2::DecodeOptions;
+use wml2::draw::*;
 use wml2::error::ImgError;
 use wml2::jpeg::decoder::decode as jpeg_decoder;
 use std::sync::{Arc,RwLock};
@@ -69,7 +69,7 @@ fn _rand_u32(range: u32) -> u32 {
     ( random() * (range as f64)) as u32
 }
 
-fn write_log(str: &str) -> Result<Option<isize>,ImgError> {
+fn write_log(str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>,ImgError> {
     if web_sys::window().is_some() {
         let window = web_sys::window().unwrap();
         if window.document().is_some() {
