@@ -230,7 +230,7 @@ impl DrawCallback for Canvas {
     }
 
     fn next(&mut self, _: Option<NextOptions>) -> Result<Option<CallbackResponse>, ImgError> {
-        Ok(None)
+        Ok(Some(CallbackResponse::abort()))
     }
 
     fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, ImgError> { 

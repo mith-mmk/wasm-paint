@@ -1,4 +1,3 @@
-extern crate wml2;
 mod utils;
 pub mod paint;
 use wml2::draw::*;
