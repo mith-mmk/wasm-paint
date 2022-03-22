@@ -240,6 +240,73 @@ impl Universe {
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 
+    pub fn affine_test2(&mut self,canvas_in:usize,canvas_out:usize,no: usize,interpolation:usize) {
+        let mut affine = Affine::new();
+
+        match no {
+            0 => {
+                affine.invert_xy();
+            },
+            1 => {
+                affine.rotate_by_dgree(30.0);
+            },
+            2 => {
+                affine.scale(1.0/3.0,1.0/3.0);
+            },
+            3 => {
+                affine.scale(4.5,4.5);
+            },
+            4 => {
+                affine.translation(20.0,20.0)
+            },
+            5 => {
+                affine.invert_xy();
+                affine.rotate_by_dgree(30.0);
+                affine.scale(1.0/3.0,1.0/3.0);
+                affine.scale(4.5,4.5);
+                affine.translation(20.0,20.0)
+            }
+            _ => {
+                
+            }
+
+        }
+
+        let algorithom = match interpolation {
+            0 => {
+                InterpolationAlgorithm::NearestNeighber
+            },
+            1 => {
+                InterpolationAlgorithm::Bilinear
+            },
+            2 => {
+                InterpolationAlgorithm::Bicubic
+            },
+            3 => {
+                InterpolationAlgorithm::Lanzcos3
+            }
+
+            _ => {
+                InterpolationAlgorithm::BicubicAlpha(Some(-1.0))
+            }
+
+        };
+
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            affine.conversion(&self.canvas,output_canvas,algorithom);
+//            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
+//            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
+        } else if canvas_out == 0 {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            affine.conversion(input_canvas,&mut self.canvas,algorithom);
+        } else {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            affine.conversion(input_canvas,output_canvas,algorithom);
+        }
+
+    }
     pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
         let mut affine = Affine::new();
         affine.invert_xy();

@@ -42,9 +42,9 @@ features = [
 ]
 
 [dependencies.wml2]
-git = "https://github.com/mith-mmk/wml2-on-rust"
-version = "0.0.4"
-#path = "../wml2"
+#git = "https://github.com/mith-mmk/wml2-on-rust"
+#version = "0.0.4"
+path = "../wml2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
