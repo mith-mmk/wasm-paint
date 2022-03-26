@@ -1,17 +1,18 @@
 
+use crate::Screen;
 use crate::line;
 use crate::paint::point::point;
 use crate::Canvas;
 
-pub fn quadratic_curve(canvas:&mut Canvas,p:Vec<(f32,f32)>,a:f32,color: u32) {
+pub fn quadratic_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32) {
     if p.len() == 0 {
         return
     }
     if p.len() == 1 {
-        return point(canvas,p[0].0 as i32,p[0].1 as i32,color)
+        return point(screen,p[0].0 as i32,p[0].1 as i32,color)
     }
     if p.len() == 2 {
-        return line(canvas,p[0].0 as i32,p[0].1 as i32,p[1].0 as i32,p[1].1 as i32,color)
+        return line(screen,p[0].0 as i32,p[0].1 as i32,p[1].0 as i32,p[1].1 as i32,color)
     }
 
     for i in 0..p.len() -2 {
@@ -32,7 +33,7 @@ pub fn quadratic_curve(canvas:&mut Canvas,p:Vec<(f32,f32)>,a:f32,color: u32) {
                 pp = (x,y);
                 continue;
             }
-            line(canvas,pp.0 as i32,pp.1 as i32, x as i32, y as  i32, color);
+            line(screen,pp.0 as i32,pp.1 as i32, x as i32, y as  i32, color);
             pp = (x,y);
         }
     }
@@ -46,7 +47,7 @@ fn pascal_triangle(n:usize) -> Vec::<i32>{
     for i in 1..n+1 {
         let mut row : Vec<i32> = Vec::new();
         row.push(0);
-         for j in 0..i+1 { // 0 1 2
+         for j in 0..i+1 {
             row.push(p[i-1][j] + p[i-1][i-j]);
         }
         row.push(0);
@@ -56,7 +57,7 @@ fn pascal_triangle(n:usize) -> Vec::<i32>{
     ret[1..ret.len()-1].to_vec()
 }
 
-pub fn bezier_curve(canvas:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
+pub fn bezier_curve(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
     let n = p.len() - 1;
     if n == 1 {
         return
@@ -86,7 +87,7 @@ pub fn bezier_curve(canvas:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
             pp = (bx,by);
             continue;
         }
-        line(canvas,pp.0 as i32,pp.1 as i32, bx as i32, by as  i32, color);
+        line(screen,pp.0 as i32,pp.1 as i32, bx as i32, by as  i32, color);
         pp = (bx,by);
     }
 }

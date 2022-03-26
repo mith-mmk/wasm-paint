@@ -3,16 +3,16 @@
  *  update 2022/02/28  internal point method change
  */
 
-use super::canvas::*;
-use super::utils::*;
+use super::canvas::Screen;
+use super::utils::color_taple;
 
-fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8, weight :f32) {
-    if x < 0 || y < 0 || x >= canvas.width() as i32 || y >= canvas.height() as i32 || weight == 0.0 {
+fn _point (screen: &mut dyn Screen, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8, weight :f32) {
+    if x < 0 || y < 0 || x >= screen.width() as i32 || y >= screen.height() as i32 || weight == 0.0 {
         return;
     }
     let a = weight;
-    let width = canvas.width();
-    let buf = &mut canvas.buffer;
+    let width = screen.width();
+    let buf = &mut screen.buffer_as_mut();
     let pos :usize= (y as u32 * width * 4 + (x as u32 * 4)) as usize;
 
     if a == 1.0 {
@@ -33,27 +33,27 @@ fn _point (canvas: &mut Canvas, x: i32, y: i32, red :u8, green :u8, blue :u8, al
     buf[pos + 3] = alpha;
 }
 
-pub fn point ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
+pub fn point ( screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
     let (red, green, blue, _) = color_taple(color);
-    _point(canvas, x as i32, y as i32, red, green, blue, 0xff, 1.0);
+    _point(screen, x as i32, y as i32, red, green, blue, 0xff, 1.0);
 }
 
-pub fn point_with_alpha ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
+pub fn point_with_alpha ( screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
     let (red, green, blue, alpha) = color_taple(color);
-    _point(canvas, x as i32, y as i32, red, green, blue, alpha, 1.0);
+    _point(screen, x as i32, y as i32, red, green, blue, alpha, 1.0);
 }
 
-pub fn point_with_weight ( canvas: &mut Canvas, x: i32, y: i32, color: u32, weight: f32) {
+pub fn point_with_weight ( screen: &mut dyn Screen, x: i32, y: i32, color: u32, weight: f32) {
     let (red, green, blue, _) = color_taple(color);
-    _point(canvas, x as i32, y as i32, red, green, blue, 0xff, weight);
+    _point(screen, x as i32, y as i32, red, green, blue, 0xff, weight);
 }
 
-pub fn point_with_weight_from_alpha ( canvas: &mut Canvas, x: i32, y: i32, color: u32) {
+pub fn point_with_weight_from_alpha ( screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
     let (red, green, blue, alpha) = color_taple(color);
-    _point(canvas, x as i32, y as i32, red, green, blue, 0xff, alpha as f32 / 255.0);
+    _point(screen, x as i32, y as i32, red, green, blue, 0xff, alpha as f32 / 255.0);
 }
 
-pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
+pub fn point_antialias(screen: &mut dyn Screen, x: f32, y: f32, color: u32,s: f32) {
     if s <= 0.0 {return};
     let (red, green, blue, _) = color_taple(color);
     let alpha = 1.0_f32;
@@ -96,30 +96,30 @@ pub fn point_antialias(canvas: &mut Canvas, x: f32, y: f32, color: u32,s: f32) {
     log (&format!("{} {} {}\n{} {} {}\n {} {} {}\n",
         weight00,weight0y,weight01,weightx0,255,weightx1,weight10,weight1y,weight11));
 */
-    _point(canvas, px, py, red, green, blue, 0xff, weight00);
-    _point(canvas, rx, py, red, green, blue, 0xff, weight10);
-    _point(canvas, px, ry, red, green, blue, 0xff, weight01);
-    _point(canvas, rx ,ry, red, green, blue, 0xff, weight11);
+    _point(screen, px, py, red, green, blue, 0xff, weight00);
+    _point(screen, rx, py, red, green, blue, 0xff, weight10);
+    _point(screen, px, ry, red, green, blue, 0xff, weight01);
+    _point(screen, rx ,ry, red, green, blue, 0xff, weight11);
 
     if py + 1 < ry {
         for qy in py + 1 .. ry {
-            _point(canvas, px, qy, red, green, blue, 0xff, weightx0);
+            _point(screen, px, qy, red, green, blue, 0xff, weightx0);
         }
         for qy in py + 1 .. ry {
-            _point(canvas, rx, qy, red, green, blue, 0xff, weightx1);
+            _point(screen, rx, qy, red, green, blue, 0xff, weightx1);
         }
     }
 
 
     if px + 1 < rx {
         for qx in px + 1 .. rx {
-            _point(canvas, qx, py, red, green, blue, 0xff, weight0y);
+            _point(screen, qx, py, red, green, blue, 0xff, weight0y);
             if py + 1 < ry {
                 for qy in py + 1 .. ry {
-                    _point(canvas, qx, qy, red, green, blue, 0xff, 1.0);
+                    _point(screen, qx, qy, red, green, blue, 0xff, 1.0);
                 }
             }
-            _point(canvas, qx, ry, red, green, blue, 0xff, weight1y);
+            _point(screen, qx, ry, red, green, blue, 0xff, weight1y);
         }
     }
 }

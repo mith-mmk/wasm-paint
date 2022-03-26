@@ -1,5 +1,5 @@
-use crate::paint::point::point_with_weight;
-use crate::Canvas;
+use super::point::point_with_weight;
+use super::canvas::{Screen,Canvas};
 
 pub struct Pen {
     buffer: Vec<u8>,
@@ -57,8 +57,24 @@ impl Pen {
     }
 }
 
+pub fn point_with_pen(screen:&mut dyn Screen,x :i32,y :i32,color :u32,pen :&Pen) {
+    let width = pen.width();
+    let height = pen.height();
+
+    let mut py = - (height  as i32) / 2;
+
+    for _y in 0..height {
+        let mut px = - (width as i32) / 2;
+        for _x in 0..width {
+            let weight = 255.0 / pen.buffer[(_y * width + _x) as usize] as f32;
+            point_with_weight(screen,x + px ,y + py,color,weight);
+            px += 1;
+        }
+        py += 1;
+    }
+}
+
 pub fn point_pen(canvas:&mut Canvas,x :i32,y :i32,color :u32) {
-    
     let width = canvas.pen().width();
     let height = canvas.pen().height();
 
@@ -72,5 +88,5 @@ pub fn point_pen(canvas:&mut Canvas,x :i32,y :i32,color :u32) {
             px += 1;
         }
         py += 1;
-    }
+    } 
 }

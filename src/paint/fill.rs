@@ -3,7 +3,7 @@
  * 
  */
 
- use super::utils::*;
+use super::utils::*;
 use super::line::*;
 use super::canvas::*;
 
@@ -21,18 +21,18 @@ impl ScanStack {
     }
 }
 
-fn scan_line(canvas: &mut Canvas,lx:u32, rx: u32,y :u32,stacks :&mut Vec<ScanStack>,base_color: u32) {
+fn scan_line(screan: &mut dyn Screen,lx:u32, rx: u32,y :u32,stacks :&mut Vec<ScanStack>,base_color: u32) {
     let mut x = lx;
     while x <= rx {
-        while x <= rx && pick(canvas, x, y) != base_color {
+        while x <= rx && pick(screan, x, y) != base_color {
             x = x + 1;
         }
 
-        if pick(canvas, x, y) != base_color {
+        if pick(screan, x, y) != base_color {
             return;
         }
 
-        while x <= rx && pick(canvas, x, y) == base_color {
+        while x <= rx && pick(screan, x, y) == base_color {
             x = x + 1;
         }
 
@@ -40,16 +40,16 @@ fn scan_line(canvas: &mut Canvas,lx:u32, rx: u32,y :u32,stacks :&mut Vec<ScanSta
     }
 }
 
-pub fn fill ( canvas: &mut Canvas, sx: i32, sy: i32, paint_color: u32) {
-    if sx < 0 || sx >= canvas.width() as i32 || sy < 0 || sy >= canvas.height() as i32 {return}
+pub fn fill ( screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u32) {
+    if sx < 0 || sx >= screan.width() as i32 || sy < 0 || sy >= screan.height() as i32 {return}
     let mut stacks :Vec<ScanStack> = Vec::new();
     stacks.push(ScanStack::new(sx as u32, sy as u32));
-    let base_color = pick(canvas, sx as  u32, sy as u32);
+    let base_color = pick(screan, sx as  u32, sy as u32);
     if base_color == paint_color & 0xffffff {return}
  
     while let Some(stack) = stacks.pop() {
         let (sx,sy) = (stack.sx,stack.sy);
-        let current_color = pick(canvas,sx,sy);
+        let current_color = pick(screan,sx,sy);
         // current point
         if current_color != base_color {
             continue;
@@ -61,7 +61,7 @@ pub fn fill ( canvas: &mut Canvas, sx: i32, sy: i32, paint_color: u32) {
         // left scan
         loop {
             if lx == 0 {break};
-            if pick(canvas,lx - 1,ly) != base_color {
+            if pick(screan,lx - 1,ly) != base_color {
                 break;
             }
             lx = lx - 1;
@@ -69,24 +69,24 @@ pub fn fill ( canvas: &mut Canvas, sx: i32, sy: i32, paint_color: u32) {
 
         // right scan
         loop {
-            if rx + 1 >= canvas.width() {
+            if rx + 1 >= screan.width() {
                 break;
             }
-            if pick(canvas,rx + 1,ly) != base_color {
+            if pick(screan,rx + 1,ly) != base_color {
                 break;
             }
             rx = rx + 1;
         }
 
         // draw line
-        line(canvas,lx as i32 ,ly as i32,rx as i32 ,ly as i32, paint_color & 0xffffff);
+        line(screan,lx as i32 ,ly as i32,rx as i32 ,ly as i32, paint_color & 0xffffff);
 
-        if ly + 1 < canvas.height() {
-            scan_line(canvas, lx, rx, ly + 1, &mut stacks, base_color);
+        if ly + 1 < screan.height() {
+            scan_line(screan, lx, rx, ly + 1, &mut stacks, base_color);
         }
 
         if ly >= 1 {
-            scan_line(canvas, lx, rx, ly - 1, &mut stacks, base_color);
+            scan_line(screan, lx, rx, ly - 1, &mut stacks, base_color);
         }
     }
 }

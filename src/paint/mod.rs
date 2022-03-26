@@ -18,6 +18,6 @@ pub mod polygram;
 pub mod fill;
 pub mod circle;
 pub mod image;
-//pub mod draw;
 pub mod affine;
 pub mod spline;
+//pub mod draw;

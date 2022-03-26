@@ -6,7 +6,7 @@
 //use crate::log;
 use super::line::line;
 use super::point::*;
-use super::canvas::Canvas;
+use super::canvas::Screen;
 
 use core::f32::consts::PI;
 
@@ -51,7 +51,7 @@ use core::f32::consts::PI;
   *   |t0 - t1| >= 2π の場合、楕円を描き、さらにrx=ryの時、円を描く
   */
 
-pub fn arc (canvas: &mut Canvas,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 ,color: u32) {
+pub fn arc (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 ,color: u32) {
     if rx <= 0 || ry <= 0 {return;}
 
     /* arc */
@@ -125,7 +125,7 @@ pub fn arc (canvas: &mut Canvas,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 
 /* arc_tilde
  * 　傾く楕円を描く、傾きの計算にアフィン変換を利用し、隙間はlineで補完する（手抜き）
  */
-pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32  ,color: u32) {
+pub fn arc_tilde (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32  ,color: u32) {
     if rx <= 0.0 || ry <= 0.0 {return;}
 
     /* arc */
@@ -318,11 +318,11 @@ pub fn arc_tilde (canvas: &mut Canvas,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1
     }
 }
 
-pub fn circle (canvas :&mut Canvas,ox: i32,oy: i32,r: i32 ,color: u32) {
+pub fn circle (canvas :&mut dyn Screen,ox: i32,oy: i32,r: i32 ,color: u32) {
     arc (canvas, ox, oy, r ,r ,0.0 ,2.0 * PI, color)
 }
 
-pub fn ellipse (canvas :&mut Canvas,ox: i32,oy: i32,rx : i32,ry : i32,tilde: f32,color: u32) {
+pub fn ellipse (canvas :&mut dyn Screen,ox: i32,oy: i32,rx : i32,ry : i32,tilde: f32,color: u32) {
     if tilde == 0.0 {
         arc(canvas, ox, oy, rx ,ry , 0.0, 2.0 * PI, color);
     } else {

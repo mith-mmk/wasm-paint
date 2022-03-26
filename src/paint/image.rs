@@ -4,10 +4,9 @@
 type Error = Box<dyn std::error::Error>;
 
 use wml2::warning::ImgWarnings;
-use wml2::draw::*;
-use super::canvas::*;
+use wml2::draw::{image_loader, DecodeOptions, DrawCallback};
 
-pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<ImgWarnings>,Error> {
+pub fn draw_image (canvas:&mut dyn DrawCallback,data: &[u8],verbose:usize) -> Result<Option<ImgWarnings>,Error> {
 
 //  canvas.set_verbose(write_log);
 

@@ -13,15 +13,15 @@ use super::clear::fillrect;
 pub trait Screen {
     fn width(&self) -> u32;
     fn height(&self) -> u32;
-    
-    // for WebAssembly
-    fn canvas(&self) -> *const u8;
-    fn set_buckground_color(&mut self,color: u32);
-    fn background_color(&self) -> u32;
-    fn color(&self) -> u32;
-    fn set_color(&mut self,color: u32);
+
+    fn buffer(&self) -> &[u8];
+    fn buffer_as_mut(&mut self) -> &mut [u8];
     fn clear(&mut self);
     fn clear_with_color(&mut self,color: u32);
+
+    fn alpha(&self) -> Option<u8>;
+    fn set_alpha(&mut self,alpha:u8);
+
 }
 
 pub struct Canvas {
@@ -43,7 +43,7 @@ fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackR
 }
 
 impl Canvas {
-    pub fn new (width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
             return Self {
                 buffer: Vec::new(),
@@ -83,21 +83,25 @@ impl Canvas {
         }
     }
 
-    pub fn new_in (buffer: Vec<u8>,width: u32, height: u32) -> Self {
+    fn empty() -> Self {
+        Self {
+            buffer: Vec::new(),
+            width: 0,
+            height: 0,
+            color: 0x00ffffff,
+            background_color: 0,
+            use_canvas_alpha: false,
+            canvas_alpha: 0xff,
+            pen: Pen::new(1, 1, vec![255]),
+            fnverbose: default_verbose,
+            draw_width: 0,
+            draw_height: 0,
+        }
+    }
+
+    pub fn new_in(buffer: Vec<u8>,width: u32, height: u32) -> Self {
         if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
-            return Self {
-                buffer: Vec::new(),
-                width: 0,
-                height: 0,
-                color: 0x00ffffff,
-                background_color: 0,
-                use_canvas_alpha: false,
-                canvas_alpha: 0xff,
-                pen: Pen::new(1, 1, vec![255]),
-                fnverbose: default_verbose,
-                draw_width: 0,
-                draw_height: 0,
-            }
+            return Self::empty()
         }
         let pen = Pen::new(1, 1, vec![255]);
         let color = 0xfffff;
@@ -118,6 +122,34 @@ impl Canvas {
             draw_height: 0,
         }
     }
+
+    /// for WebAssembly
+    pub fn canvas(&self) -> *const u8 {
+        self.buffer.as_ptr()
+    }
+
+    /// for Wml2
+    pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>) {
+        self.fnverbose = verbose;
+    }
+
+    
+    pub fn set_buckground_color(&mut self,color: u32) {
+        self.background_color = color;
+    }
+
+    pub fn background_color(&self) -> u32 {
+        self.background_color
+    }
+
+    pub fn color(&self) -> u32 {
+        self.color
+    }
+
+    pub fn set_color(&mut self,color: u32) {
+        self.color = color;
+    }
+
     pub fn set_pen(&mut self,pen :Pen) {
         self.pen = pen;
     }
@@ -125,27 +157,10 @@ impl Canvas {
     pub fn pen(&self) -> &Pen{
         &self.pen
     }
-
-    pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>) {
-        self.fnverbose = verbose;
-    }
-
-    pub fn alpha(&self) -> Option<u8> {
-        if self.use_canvas_alpha {
-            Some(self.canvas_alpha)
-        } else {
-            None
-        }
-    }
-
-    pub fn set_alpha(&mut self,alpha: u8) {
-        self.canvas_alpha = alpha;
-        self.use_canvas_alpha = true;
-    }
-
 }
 
 impl Screen for Canvas {
+
     fn width(&self) -> u32 {
         self.width
     }
@@ -154,25 +169,13 @@ impl Screen for Canvas {
         self.height
     }
 
-    // for WebAssembly
-    fn canvas(&self) -> *const u8 {
-        self.buffer.as_ptr()
+
+    fn buffer(&self) -> &[u8] {
+        &self.buffer
     }
 
-    fn set_buckground_color(&mut self,color: u32) {
-        self.background_color = color;
-    }
-
-    fn background_color(&self) -> u32 {
-        self.background_color
-    }
-
-    fn color(&self) -> u32 {
-        self.color
-    }
-
-    fn set_color(&mut self,color: u32) {
-        self.color = color;
+    fn buffer_as_mut(&mut self) -> &mut [u8] {
+        &mut self.buffer
     }
 
     fn clear(&mut self) {
@@ -182,8 +185,21 @@ impl Screen for Canvas {
     fn clear_with_color(&mut self,color: u32) {
         fillrect(self,color);  
     }
-}
 
+    fn alpha(&self) -> Option<u8> {
+        if self.use_canvas_alpha {
+            Some(self.canvas_alpha)
+        } else {
+            None
+        }
+    }
+
+    fn set_alpha(&mut self,alpha: u8) {
+        self.canvas_alpha = alpha;
+        self.use_canvas_alpha = true;
+    }
+
+}
 
 impl DrawCallback for Canvas {
     fn init(&mut self, width: usize, height: usize,_: Option<InitOptions>) -> Result<Option<CallbackResponse>, Error> {

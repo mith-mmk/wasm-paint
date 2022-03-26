@@ -5,15 +5,23 @@
 
 use super::canvas::*;
 
-// add 2022/02/22
-pub fn clear(canvas: &mut Canvas) {
-    fillrect(canvas, canvas.background_color());
+pub fn clear_canvas(canvas: &mut Canvas) {
+    let background_color = canvas.background_color();
+    fillrect(canvas, background_color);
 }
 
-pub fn fillrect(canvas: &mut Canvas, color: u32){
-    let width = canvas.width();
-    let height = canvas.height();
-    let buf = &mut canvas.buffer;
+pub fn clear(screen: &mut dyn Screen) {
+    let mut background_color = 0xff000000_u32;
+    if let Some(alpha) = screen.alpha() {
+        background_color &= (alpha as u32) << 24;
+    }
+    fillrect(screen, background_color);
+}
+
+pub fn fillrect(screen: &mut  dyn Screen, color: u32){
+    let width = screen.width();
+    let height = screen.height();
+    let buf = &mut screen.buffer_as_mut();
     // Color model u32 LE (ARGB)  -> u8 BGRA
     let red: u8 = ((color  >> 16) & 0xff)  as u8; 
     let green: u8  = ((color >> 8) & 0xff) as u8; 

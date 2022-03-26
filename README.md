@@ -27,18 +27,13 @@ Color model ABGR uint32LE
 Todo 
 - border
 - polyline
-- Bézier Curve
 - layer(Multi canvas)
   - add/remove
   - copy
   - z-index
 - timer interrupt 1/30s 1/60s 1/120s
-- afin translate
-  - rotate
-  - resize
-  - transform
 - triming
-- image loader/saver
+- image saver
 - alpha blending
 - inclued Trait on Canvas
 - line width

@@ -3,15 +3,15 @@
  * 
  */
 
- use super::canvas::*;
+use super::canvas::*;
 use super::utils::calc_alphablend;
 
-pub fn canvas_to_canvas(src:&Canvas,dest:&mut Canvas, dest_x: u32, dest_y: u32) {
+pub fn canvas_to_canvas(src:&dyn Screen,dest:&mut dyn Screen, dest_x: u32, dest_y: u32) {
     let width = if dest_x + src.width() < dest.width() { src.width() } else { dest.width() };
     let height = if dest_y + src.height() < dest.height() { src.height() } else { dest.height() };
     let dest_width = dest.width();
-    let srcbuf = &src.buffer;
-    let destbuf = &mut dest.buffer; // move ownership dest -> destbuf because use mut
+    let srcbuf = &src.buffer();
+    let destbuf = &mut dest.buffer_as_mut(); // move ownership dest -> destbuf because use mut
 
     for y in 0..height {
         let src_offset = y * src.width() * 4;
@@ -29,13 +29,13 @@ pub fn canvas_to_canvas(src:&Canvas,dest:&mut Canvas, dest_x: u32, dest_y: u32) 
 }
 
 
-pub fn canvas_to_canvas_with_alpha(src:&Canvas,dest:&mut Canvas, dest_x: u32, dest_y: u32) {
+pub fn canvas_to_canvas_with_alpha(src:&dyn Screen,dest:&mut dyn Screen, dest_x: u32, dest_y: u32) {
     let width = if dest_x + src.width() < dest.width() { src.width() } else { dest.width() };
     let height = if dest_y + src.height() < dest.height() { src.height() } else { dest.height() };
     let dest_width = dest.width();
 
-    let srcbuf = &src.buffer;
-    let destbuf = &mut dest.buffer; // move ownership dest -> destbuf because use mut
+    let srcbuf = &src.buffer();
+    let destbuf = &mut dest.buffer_as_mut(); // move ownership dest -> destbuf because use mut
 
     for y in 0..height {
         let src_offset = y * src.width() * 4;

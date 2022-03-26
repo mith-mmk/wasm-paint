@@ -2,12 +2,12 @@ use super::utils::*;
 use super::canvas::*;
 
 
-pub fn rect(canvas: &mut Canvas,x0: i32,y0: i32,x1: i32,y1: i32, color: u32){ 
-    let (sx,sy,ex,ey) = normalization_points(&canvas,x0,y0,x1,y1);
+pub fn rect(screen: &mut dyn Screen,x0: i32,y0: i32,x1: i32,y1: i32, color: u32){ 
+    let (sx,sy,ex,ey) = normalization_points(screen,x0,y0,x1,y1);
 
-    let width = canvas.width();
+    let width = screen.width();
 
-    let buf = &mut canvas.buffer;
+    let buf = &mut screen.buffer_as_mut();
     // Color model u32 LE (ARGB)  -> u8 BGRA
     let (red,green,blue,_) = color_taple(color);
 

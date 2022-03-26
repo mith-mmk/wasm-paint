@@ -1,6 +1,6 @@
 mod utils;
 pub mod paint;
-use crate::paint::line::line_with_pen;
+use crate::paint::line::line_pen;
 use wml2::draw::*;
 type Error = Box<dyn std::error::Error>;
 use std::sync::{Arc,RwLock};
@@ -214,7 +214,7 @@ impl Universe {
     }
 
     pub fn line_with_pen(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
-        line_with_pen(&mut self.canvas,sx,sy,ex,ey,color);
+        line_pen(&mut self.canvas,sx,sy,ex,ey,color);
     }
 
     pub fn rect(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {

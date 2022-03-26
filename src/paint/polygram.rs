@@ -5,27 +5,27 @@
 
 use core::f32::consts::PI;
 use super::line::*;
-use super::canvas::Canvas;
+use super::canvas::Screen;
 
 
 // pentagram (五芒星)
-pub fn pentagram(canvas: &mut Canvas,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
-    polygram(canvas,5,2,ox,oy,r,tilde,color);
+pub fn pentagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
+    polygram(screen,5,2,ox,oy,r,tilde,color);
 }
 
 // hexagram (六芒星)
-pub fn hexagram(canvas: &mut Canvas,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
-    polygram(canvas,6,2,ox,oy,r,tilde,color);
+pub fn hexagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
+    polygram(screen,6,2,ox,oy,r,tilde,color);
 }
 
 // Reglar Pollygon (正多角形)
-pub fn reglar_polygon(canvas: &mut Canvas,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32) {
-    polygram(canvas,p,1,ox,oy,r,tilde,color);
+pub fn reglar_polygon(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32) {
+    polygram(screen,p,1,ox,oy,r,tilde,color);
 }
 
 // 中点(ox,oy) 半径r の円に内接する、Schläfli symbol {p/q}角形を傾き(tilde)で指定したcolorで描画する。
 
-pub fn polygram(canvas: &mut Canvas,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
+pub fn polygram(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
     if r < 0.0 || p <= 2 {return};
  
     let angle = 2.0 * PI  / p as f32; // = 72.0 dgree
@@ -43,7 +43,7 @@ pub fn polygram(canvas: &mut Canvas,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde 
     for i in 0..p as usize {
         let s = i as usize;
         let e = (i + q as usize) % p as usize;
-        line(canvas,x[s],y[s],x[e],y[e],color);
+        line(screen,x[s],y[s],x[e],y[e],color);
     }
 }
 
@@ -72,7 +72,7 @@ pub fn polygram(canvas: &mut Canvas,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde 
   tilde = arccos ((x1 - x0)/(x1' - x0))  (y1' > y1) 
 */
 
-pub fn _reglar_polygon2(canvas: &mut Canvas,p: u32,x0: i32,y0: i32,x1: i32,y1: i32, color: u32) {
+pub fn _reglar_polygon2(screen: &mut dyn Screen,p: u32,x0: i32,y0: i32,x1: i32,y1: i32, color: u32) {
     let a = (((x0 - x1).pow(2) + (y0 - y1).pow(2)) as f32).sqrt();
     let r = a / 2.0 * (PI/p as f32).sin();
     let ox = x0;
@@ -80,5 +80,5 @@ pub fn _reglar_polygon2(canvas: &mut Canvas,p: u32,x0: i32,y0: i32,x1: i32,y1: i
     let dx = a * (PI/p as f32).cos();
     let dy = (y0 - y1) as f32 + (a * (PI/p as f32).sin());
     let tilde = if dy <= 0.0 { ((x1 - x0) as f32 / dx).asin() } else { - ((x1 - x0) as f32/ dx).asin() };
-    polygram(canvas,p,1,ox,oy,r,tilde,color);
+    polygram(screen,p,1,ox,oy,r,tilde,color);
 }
