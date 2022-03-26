@@ -24,6 +24,10 @@ Color model ABGR uint32LE
 
 2022/03/17 0.0.11 Graphic Loaderを分離(WML2)
 
+2022/03/26 0.0.12 ベジェ曲線を実装
+
+2022/03/26 0.0.13 Screen Traitを実装
+
 Todo 
 - border
 - polyline
