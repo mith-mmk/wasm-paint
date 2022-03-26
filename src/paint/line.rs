@@ -27,6 +27,7 @@ fn _point (canvas: &mut Canvas, x: i32, y: i32, r :u8, g :u8, b :u8, a :u8) {
 
 // line no antialias (Bresenham's line algorithm)
 pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
+    let (red, green, blue, _) = color_taple(color);
     let dx = (x0 - x1).abs();
     let dy = (y0 - y1).abs();
 
@@ -39,8 +40,7 @@ pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u
     let mut y = y0;
 
     loop {
-        point_pen(canvas, x as i32, y as i32,color);
-
+        _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
         if x == x1 && y == y1 {
             break;
         }
@@ -61,7 +61,7 @@ pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u
 }
 
 pub fn line_with_pen ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
-    let (red, green, blue, _) = color_taple(color);
+
 
     let dx = (x0 - x1).abs();
     let dy = (y0 - y1).abs();
@@ -75,7 +75,7 @@ pub fn line_with_pen ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 ,
     let mut y = y0;
 
     loop {
-        _point(canvas, x as i32, y as i32, red, green, blue, 0xff);
+        point_pen(canvas, x as i32, y as i32,color);
 
         if x == x1 && y == y1 {
             break;

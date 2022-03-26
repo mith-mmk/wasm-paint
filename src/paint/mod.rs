@@ -20,3 +20,4 @@ pub mod circle;
 pub mod image;
 //pub mod draw;
 pub mod affine;
+pub mod spline;

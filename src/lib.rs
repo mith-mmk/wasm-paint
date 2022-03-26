@@ -13,7 +13,7 @@ use crate::paint::line::line;
 use crate::paint::point::point_antialias;
 use crate::paint::canvas::{Canvas,Screen};
 use crate::paint::pen::*;
-
+use crate::paint::spline::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
@@ -208,8 +208,9 @@ impl Universe {
         point_pen(&mut self.canvas,x as i32,y as i32,color);
     }
 
-    pub fn line(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
+    pub fn line(&mut self,sx :i32, sy :i32, ex: i32, ey: i32,color: u32) {
         line(&mut self.canvas,sx,sy,ex,ey,color);
+
     }
 
     pub fn line_with_pen(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
@@ -256,6 +257,21 @@ impl Universe {
 
     pub fn ellipse(&mut self,ox :i32, oy: i32, rx: i32, ry: i32,tilde : f32,color:u32){
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
+    }
+
+    pub fn quadratic_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32, y3:f32,a:f32,color: u32) {
+        let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
+        quadratic_curve(&mut self.canvas,p.to_vec(), a, color);
+    }
+    
+    pub fn bezier_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,color: u32) {
+        let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
+        bezier_curve(&mut self.canvas,p.to_vec(), color);
+    }
+
+    pub fn bezier_curve3(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,x4:f32,y4:f32,color: u32) {
+        let p :[(f32,f32);4]= [(x1,y1),(x2,y2),(x3,y3),(x4,y4)]; 
+        bezier_curve(&mut self.canvas,p.to_vec(), color);
     }
 
     pub fn affine_test2(&mut self,canvas_in:usize,canvas_out:usize,no: usize,interpolation:usize) {
