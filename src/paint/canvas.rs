@@ -3,6 +3,7 @@
  * update 2022/03/13
  */
 extern crate wml2;
+type Error = Box<dyn std::error::Error>;
 use wml2::draw::*;
 use wml2::error::ImgError;
 use wml2::error::ImgErrorKind;
@@ -32,12 +33,12 @@ pub struct Canvas {
     use_canvas_alpha: bool,
     canvas_alpha: u8,
     pen: Pen,
-    fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,ImgError>,
+    fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
     draw_width: u32,
     draw_height: u32,
 }
 
-fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, ImgError>{
+fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error>{
     Ok(None)
 }
 
@@ -125,7 +126,7 @@ impl Canvas {
         &self.pen
     }
 
-    pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,ImgError>) {
+    pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>) {
         self.fnverbose = verbose;
     }
 
@@ -185,9 +186,9 @@ impl Screen for Canvas {
 
 
 impl DrawCallback for Canvas {
-    fn init(&mut self, width: usize, height: usize,_: Option<InitOptions>) -> Result<Option<CallbackResponse>, ImgError> {
+    fn init(&mut self, width: usize, height: usize,_: Option<InitOptions>) -> Result<Option<CallbackResponse>, Error> {
         if width <= 0 || height <= 0 {
-            return Err(ImgError::new_const(ImgErrorKind::SizeZero,&"image size zero or minus"))
+            return Err(Box::new(ImgError::new_const(ImgErrorKind::SizeZero,"image size zero or minus".to_string())))
         }
         if self.width == 0 || self.height == 0 {
             let buffersize = width as usize * height as usize * 4;
@@ -199,7 +200,7 @@ impl DrawCallback for Canvas {
     }
 
     fn draw(&mut self, start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8],_: Option<DrawOptions>)
-                -> Result<Option<CallbackResponse>,ImgError>  {
+                -> Result<Option<CallbackResponse>,Error>  {
         let self_width = self.width as usize;
         let self_height = self.height as usize;
 
@@ -214,7 +215,7 @@ impl DrawCallback for Canvas {
                 let offset_src = scanline_src + x * 4;
                 let offset_dest = scanline_dest + (x + start_x) * 4;
                 if offset_src + 3 >= data.len() {
-                    return Err(ImgError::new_const(ImgErrorKind::OutboundIndex,&"decoder buffer in draw"))
+                    return Err(Box::new(ImgError::new_const(ImgErrorKind::OutboundIndex,"decoder buffer in draw".to_string())))
                 }
                 buffer[offset_dest    ] = data[offset_src];
                 buffer[offset_dest + 1] = data[offset_src + 1];
@@ -225,15 +226,15 @@ impl DrawCallback for Canvas {
         Ok(None)
     }
 
-    fn terminate(&mut self,_: Option<TerminateOptions>) -> Result<Option<CallbackResponse>, wml2::error::ImgError> {
+    fn terminate(&mut self,_: Option<TerminateOptions>) -> Result<Option<CallbackResponse>, Error> {
         Ok(None)
     }
 
-    fn next(&mut self, _: Option<NextOptions>) -> Result<Option<CallbackResponse>, ImgError> {
+    fn next(&mut self, _: Option<NextOptions>) -> Result<Option<CallbackResponse>, Error> {
         Ok(Some(CallbackResponse::abort()))
     }
 
-    fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, ImgError> { 
+    fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error> { 
         return (self.fnverbose)(str,None);
     }
 }

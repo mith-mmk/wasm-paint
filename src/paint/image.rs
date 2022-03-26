@@ -1,13 +1,13 @@
 /* image.rs
  * (C)2022 Mith@mmk 
  */
+type Error = Box<dyn std::error::Error>;
 
-use wml2::error::ImgError;
-use wml2::warning::ImgWarning;
+use wml2::warning::ImgWarnings;
 use wml2::draw::*;
 use super::canvas::*;
 
-pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<ImgWarning>,ImgError> {
+pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Option<ImgWarnings>,Error> {
 
 //  canvas.set_verbose(write_log);
 
@@ -16,15 +16,6 @@ pub fn draw_image (canvas:&mut Canvas,data: &[u8],verbose:usize) -> Result<Optio
     drawer: canvas,
   };
 
-  let r = image_decoder(data, &mut option);
-  match r {
-    Err(error) => {
-      return Err(error)
-    },
-    Ok(..) => {
-    },
-  }
-
-  r
+  image_loader(data, &mut option)
 }
 

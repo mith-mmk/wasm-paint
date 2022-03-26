@@ -1,8 +1,8 @@
 mod utils;
 pub mod paint;
+use crate::paint::line::line_with_pen;
 use wml2::draw::*;
-use wml2::error::ImgError;
-use wml2::jpeg::decoder::decode as jpeg_decoder;
+type Error = Box<dyn std::error::Error>;
 use std::sync::{Arc,RwLock};
 use crate::paint::affine::{Affine,InterpolationAlgorithm};
 use crate::paint::circle::*;
@@ -12,6 +12,7 @@ use crate::paint::rect::rect;
 use crate::paint::line::line;
 use crate::paint::point::point_antialias;
 use crate::paint::canvas::{Canvas,Screen};
+use crate::paint::pen::*;
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -68,7 +69,7 @@ fn _rand_u32(range: u32) -> u32 {
     ( random() * (range as f64)) as u32
 }
 
-fn write_log(str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>,ImgError> {
+fn write_log(str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error> {
     if web_sys::window().is_some() {
         let window = web_sys::window().unwrap();
         if window.document().is_some() {
@@ -132,7 +133,20 @@ impl Universe {
 
     #[wasm_bindgen(js_name = new)]
     pub fn new (width: u32, height: u32) -> Universe {
-        let canvas = Canvas::new(width, height);
+        let mut canvas = Canvas::new(width, height);
+        let pen = Pen::new(9, 9, vec![
+            0x00,0x00,0x00,0x3f,0x7f,0x3f,0x00,0x00,0x00,
+            0x00,0x00,0x00,0x7f,0xff,0x7f,0x00,0x00,0x00,
+            0x00,0x00,0x00,0x7f,0xff,0x7f,0x00,0x00,0x00,
+            0x3f,0x7f,0x7f,0x7f,0x7f,0xff,0x7f,0x7f,0x3f,
+            0x7f,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0x7f,
+            0x3f,0x7f,0x7f,0x7f,0x7f,0x7f,0x7f,0x7f,0x3f,
+            0x00,0x00,0x00,0x00,0x7f,0x7f,0x00,0x00,0x00,
+            0x00,0x00,0x00,0x00,0x7f,0x7f,0x00,0x00,0x00,
+            0x00,0x00,0x00,0x00,0x7f,0x3f,0x00,0x00,0x00
+        ]);
+
+        canvas.set_pen(pen);
         Universe {
             canvas,
             on_worker: false,
@@ -143,13 +157,9 @@ impl Universe {
 
     #[wasm_bindgen(js_name = newOnWorker)]
     pub fn new_on_worker (width: u32, height: u32) -> Universe {
-        let canvas = Canvas::new(width, height);
-        Universe {
-            canvas,
-            on_worker: true,
-            input_buffer: Vec::new(),
-            append_canvas: Vec::new(),
-        }
+        let mut universe = Self::new(width,height);
+        universe.on_worker = true;
+        universe
     }
 
     pub fn append_canvas(&mut self, width: u32, height: u32) -> usize {
@@ -194,8 +204,16 @@ impl Universe {
         point_antialias(&mut self.canvas,x,y,color,s);
     }
 
+    pub fn point_with_pen(&mut self, x: f32, y: f32, color: u32) {
+        point_pen(&mut self.canvas,x as i32,y as i32,color);
+    }
+
     pub fn line(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
         line(&mut self.canvas,sx,sy,ex,ey,color);
+    }
+
+    pub fn line_with_pen(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
+        line_with_pen(&mut self.canvas,sx,sy,ex,ey,color);
     }
 
     pub fn rect(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
@@ -349,7 +367,7 @@ impl Universe {
                 debug_flag: 0,
                 drawer: &mut *self.append_canvas[number - 1].write().unwrap(),
             };
-            let r = jpeg_decoder(buffer, &mut option);
+            let r = image_loader(buffer, &mut option);
             match r {
                 Err(error) => {
                     log(&format!("{:?}",error));
@@ -370,7 +388,7 @@ impl Universe {
                 drawer: canvas,
             };
         
-            let r = jpeg_decoder(buffer, &mut option);
+            let r = image_loader(buffer, &mut option);
             match r {
                 Err(error) => {
                     if self.on_worker {

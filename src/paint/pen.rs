@@ -62,10 +62,10 @@ pub fn point_pen(canvas:&mut Canvas,x :i32,y :i32,color :u32) {
     let width = canvas.pen().width();
     let height = canvas.pen().height();
 
-    let mut py = height  as i32 / 2;
+    let mut py = - (height  as i32) / 2;
 
     for _y in 0..height {
-        let mut px = width as i32 / 2;
+        let mut px = - (width as i32) / 2;
         for _x in 0..width {
             let weight = 255.0 / canvas.pen().buffer[(_y * width + _x) as usize] as f32;
             point_with_weight(canvas,x + px ,y + py,color,weight);

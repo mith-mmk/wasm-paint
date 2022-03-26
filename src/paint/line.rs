@@ -7,6 +7,7 @@
 
 use super::utils::color_taple;
 use super::canvas::*;
+use super::pen::point_pen;
 
 
 // use for line only _point function
@@ -26,6 +27,40 @@ fn _point (canvas: &mut Canvas, x: i32, y: i32, r :u8, g :u8, b :u8, a :u8) {
 
 // line no antialias (Bresenham's line algorithm)
 pub fn line ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
+    let dx = (x0 - x1).abs();
+    let dy = (y0 - y1).abs();
+
+    let step_x = if x0 < x1 { 1 } else { -1 };
+    let step_y = if y0 < y1 { 1 } else { -1 };
+
+    let mut err = dx - dy;
+
+    let mut x = x0;
+    let mut y = y0;
+
+    loop {
+        point_pen(canvas, x as i32, y as i32,color);
+
+        if x == x1 && y == y1 {
+            break;
+        }
+        
+        let err2 = err * 2;
+
+        if err2 > -dy  {
+            err = err - dy;
+            x = x + step_x;
+        }
+
+        if err2 < dx  {
+            err = err + dx;
+            y = y + step_y;
+        }
+
+    }
+}
+
+pub fn line_with_pen ( canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
     let (red, green, blue, _) = color_taple(color);
 
     let dx = (x0 - x1).abs();
