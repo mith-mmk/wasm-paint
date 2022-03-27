@@ -4,6 +4,7 @@
  *  Update 2022/02/27
  */
 //use crate::log;
+use crate::paint::line::line_with_alpha;
 use super::line::line;
 use super::point::*;
 use super::canvas::Screen;
@@ -51,7 +52,12 @@ use core::f32::consts::PI;
   *   |t0 - t1| >= 2π の場合、楕円を描き、さらにrx=ryの時、円を描く
   */
 
+
 pub fn arc (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 ,color: u32) {
+    arc_with_alpha(canvas, ox, oy, rx, ry, t0, t1, color, 0xff)
+}
+
+pub fn arc_with_alpha (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: f32 ,color: u32,alpha: u8) {
     if rx <= 0 || ry <= 0 {return;}
 
     /* arc */
@@ -91,21 +97,21 @@ pub fn arc (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: 
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            point(canvas, ox + x, oy + y, color);
+            point_with_alpha(canvas, ox + x, oy + y, color,alpha);
         }
     // PI <= θ < 3PI/2
         theta =  PI * 1.0 +  (x as f32 / rx as f32).asin();
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            point(canvas, ox - x, oy + y, color);
+            point_with_alpha(canvas, ox - x, oy + y, color,alpha);
         }
     // 3PI/2 <= θ < 2PI  この象限は2PI -> 3PI/2 で描画するので反転する
         theta =  PI * 2.0 -  (x as f32 / rx as f32).asin();
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            point(canvas, ox - x, oy - y, color);
+            point_with_alpha(canvas, ox - x, oy - y, color,alpha);
         }
     // next
         if err1 >= 0 {
@@ -125,7 +131,11 @@ pub fn arc (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :i32,ry: i32,t0: f32,t1: 
 /* arc_tilde
  * 　傾く楕円を描く、傾きの計算にアフィン変換を利用し、隙間はlineで補完する（手抜き）
  */
-pub fn arc_tilde (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32  ,color: u32) {
+pub fn arc_tilde(canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32  ,color: u32) {
+    arc_tilde_with_alpha(canvas ,ox ,oy ,rx ,ry ,t0 ,t1 ,tilde ,color ,0xff);
+}
+
+pub fn arc_tilde_with_alpha(canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32  ,color: u32,alpha:u8) {
     if rx <= 0.0 || ry <= 0.0 {return;}
 
     /* arc */
@@ -226,7 +236,7 @@ pub fn arc_tilde (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f3
                 by[i] = yy;
             }
 
-            line(canvas, ox + bx[i], oy + by[i],ox + xx,oy + yy, color);
+            line_with_alpha(canvas, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha);
             bx[i] = xx;
             by[i] = yy;
             i = i + 1;
@@ -318,15 +328,22 @@ pub fn arc_tilde (canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f3
     }
 }
 
-pub fn circle (canvas :&mut dyn Screen,ox: i32,oy: i32,r: i32 ,color: u32) {
+pub fn circle(canvas :&mut dyn Screen,ox: i32,oy: i32,r: i32 ,color: u32) {
     arc (canvas, ox, oy, r ,r ,0.0 ,2.0 * PI, color)
 }
 
-pub fn ellipse (canvas :&mut dyn Screen,ox: i32,oy: i32,rx : i32,ry : i32,tilde: f32,color: u32) {
-    if tilde == 0.0 {
-        arc(canvas, ox, oy, rx ,ry , 0.0, 2.0 * PI, color);
-    } else {
-        arc_tilde(canvas, ox, oy, rx as f32, ry as f32, 0.0 * PI, 2.0 * PI, tilde, color);
-    }
+pub fn circle_with_alpha(canvas :&mut dyn Screen,ox: i32,oy: i32,r: i32 ,color: u32,alpha: u8) {
+    arc_with_alpha(canvas, ox, oy, r ,r ,0.0 ,2.0 * PI, color,alpha)
+}
 
+pub fn ellipse (canvas :&mut dyn Screen,ox: i32,oy: i32,rx : i32,ry : i32,tilde: f32,color: u32) {
+    ellipse_with_alpha(canvas,ox,oy,rx,ry,tilde,color,0xff);
+
+}
+pub fn ellipse_with_alpha (canvas :&mut dyn Screen,ox: i32,oy: i32,rx : i32,ry : i32,tilde: f32,color: u32,alpha:u8) {
+    if tilde == 0.0 {
+        arc_with_alpha(canvas, ox, oy, rx ,ry , 0.0, 2.0 * PI, color,alpha);
+    } else {
+        arc_tilde_with_alpha(canvas, ox, oy, rx as f32, ry as f32, 0.0 * PI, 2.0 * PI, tilde, color,alpha);
+    }
 }

@@ -44,7 +44,7 @@ Todo
 - line dash
 - gradient paint
 - shadow effects
-- pen draw
+- pen draw with sroke
 - text draw
 - font support
 - image effects

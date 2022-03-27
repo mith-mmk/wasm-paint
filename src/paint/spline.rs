@@ -1,10 +1,15 @@
 
+use crate::paint::line::line_with_alpha;
 use crate::Screen;
 use crate::line;
 use crate::paint::point::point;
 use crate::Canvas;
 
 pub fn quadratic_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32) {
+    quadratic_curve_with_alpha(screen,p,a,color,0xff)
+}
+
+pub fn quadratic_curve_with_alpha(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32,alpha: u8) {
     if p.len() == 0 {
         return
     }
@@ -16,7 +21,7 @@ pub fn quadratic_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32)
     }
 
     for i in 0..p.len() -2 {
-
+        // also worst case 
         let dt = (p[i].0 - p[i+1].0).abs() + (p[i+1].0 - p[i+2].0).abs()
                + (p[i].1 - p[i+1].1).abs() + (p[i+1].1 - p[i+2].1).abs();
 
@@ -33,7 +38,7 @@ pub fn quadratic_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32)
                 pp = (x,y);
                 continue;
             }
-            line(screen,pp.0 as i32,pp.1 as i32, x as i32, y as  i32, color);
+            line_with_alpha(screen,pp.0 as i32,pp.1 as i32, x as i32, y as  i32, color, alpha);
             pp = (x,y);
         }
     }
@@ -58,8 +63,12 @@ fn pascal_triangle(n:usize) -> Vec::<i32>{
 }
 
 pub fn bezier_curve(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
+    bezier_curve_with_alpha(screen,p,color,0xff)
+}
+
+pub fn bezier_curve_with_alpha(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32,alpha: u8) {
     let n = p.len() - 1;
-    if n == 1 {
+    if p.len() < 1 {
         return
     }
 
@@ -87,7 +96,7 @@ pub fn bezier_curve(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
             pp = (bx,by);
             continue;
         }
-        line(screen,pp.0 as i32,pp.1 as i32, bx as i32, by as  i32, color);
+        line_with_alpha(screen,pp.0 as i32,pp.1 as i32, bx as i32, by as  i32, color,alpha);
         pp = (bx,by);
     }
 }

@@ -4,9 +4,12 @@
  */
 extern crate wml2;
 type Error = Box<dyn std::error::Error>;
+use std::collections::HashMap;
 use wml2::draw::*;
 use wml2::error::ImgError;
 use wml2::error::ImgErrorKind;
+use super::layer::Layer;
+use super::draw::draw_over_screen_with_alpha;
 use super::pen::Pen;
 use super::clear::fillrect;
 
@@ -25,17 +28,16 @@ pub trait Screen {
 }
 
 pub struct Canvas {
-    pub buffer: Vec<u8>,
-    width: u32,
-    height: u32,
+    canvas: Layer,
     color: u32,
     background_color: u32,
-    use_canvas_alpha: bool,
-    canvas_alpha: u8,
     pen: Pen,
+    layers: HashMap<String,Layer>,
     fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
     draw_width: u32,
     draw_height: u32,
+    use_canvas_alpha: bool,
+    canvas_alpha: u8,
 }
 
 fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error>{
@@ -45,38 +47,21 @@ fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackR
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
-            return Self {
-                buffer: Vec::new(),
-                width: 0,
-                height: 0,
-                color: 0x00ffffff,
-                background_color: 0,
-                use_canvas_alpha: false,
-                canvas_alpha: 0xff,
-                pen: Pen::new(1, 1, vec![255]),
-                fnverbose: default_verbose,
-                draw_width: 0,
-                draw_height: 0,
-            }
+            return Self::empty()
         }
-        let buffersize = width * height * 4;
-        let buffer = (0..buffersize)
-            .map(|_| {0})
-            .collect();
         let pen = Pen::new(1, 1, vec![255]);
         let color = 0xfffff;
         let background_color = 0;
         let fnverbose = default_verbose;
 
         Self {
-            buffer,
-            width,
-            height,
+            canvas:Layer::new("_".to_string(),width,height),
             color,
             background_color,
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
             pen,
+            layers: HashMap::new(),
             fnverbose,
             draw_width: 0,
             draw_height: 0,
@@ -85,14 +70,13 @@ impl Canvas {
 
     fn empty() -> Self {
         Self {
-            buffer: Vec::new(),
-            width: 0,
-            height: 0,
+            canvas:Layer::new("_".to_string(),0,0),
             color: 0x00ffffff,
             background_color: 0,
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
             pen: Pen::new(1, 1, vec![255]),
+            layers: HashMap::new(),
             fnverbose: default_verbose,
             draw_width: 0,
             draw_height: 0,
@@ -109,13 +93,12 @@ impl Canvas {
         let fnverbose = default_verbose;
 
         Self {
-            buffer,
-            width,
-            height,
+            canvas:Layer::new_in("_".to_string(),buffer,0,0),
             color,
             background_color,
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
+            layers: HashMap::new(),
             pen,
             fnverbose,
             draw_width: 0,
@@ -125,14 +108,13 @@ impl Canvas {
 
     /// for WebAssembly
     pub fn canvas(&self) -> *const u8 {
-        self.buffer.as_ptr()
+        self.canvas.buffer.as_ptr()
     }
 
     /// for Wml2
     pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>) {
         self.fnverbose = verbose;
     }
-
     
     pub fn set_buckground_color(&mut self,color: u32) {
         self.background_color = color;
@@ -157,25 +139,71 @@ impl Canvas {
     pub fn pen(&self) -> &Pen{
         &self.pen
     }
+
+    pub fn add_layer(&mut self,label:String,width:u32,height:u32) -> Result<(),Error> {
+        let mut layer = Layer::new(label.clone(),width,height);
+        layer.z_index = self.layers.len() as i32;
+        match self.layers.get(&label.clone()) {
+            Some(..) => {
+                return Err(Box::new(super::error::Error{message:"Exist Layer name".to_string()}))
+            },
+            _ => {},
+
+        };
+        self.layers.insert(label.clone(), layer);
+        Ok(())
+    }
+
+    pub fn set_layer_alpha(&mut self,label:String,alpha:u8) -> Result<(),Error> {
+        if let Some(layer) = self.layers.get_mut(&label) {
+            layer.set_alpha(alpha);
+        }  
+        Ok(())
+    }
+
+    pub fn layer_composition(&mut self) {
+        let background_color = &self.background_color();
+        let canvas = &mut self.canvas;
+        let mut sorted: Vec<_> = self.layers.iter().collect();
+        sorted.sort_by(|a,b| a.1.z_index.cmp(&b.1.z_index));
+        fillrect(canvas,*background_color);
+        for layer in sorted {
+            let src = &*layer.1.clone();
+            draw_over_screen_with_alpha(src,canvas,layer.1.x,layer.1.y);
+        }
+    }
+
+    pub fn delete_layer(&mut self,label:String){ 
+        if let Some(..) = self.layers.get_mut(&label) {
+           self.layers.remove(&label);
+        }
+    }
+
+    pub fn move_layer(&mut self,label:String,dx:i32,dy:i32) {
+        if let Some(layer) = self.layers.get_mut(&label) {
+                layer.move_layer(dx,dy);
+        }
+    }
+
 }
 
 impl Screen for Canvas {
 
     fn width(&self) -> u32 {
-        self.width
+        self.canvas.width
     }
 
     fn height(&self) -> u32 {
-        self.height
+        self.canvas.height
     }
 
 
     fn buffer(&self) -> &[u8] {
-        &self.buffer
+        &self.canvas.buffer
     }
 
     fn buffer_as_mut(&mut self) -> &mut [u8] {
-        &mut self.buffer
+        &mut self.canvas.buffer
     }
 
     fn clear(&mut self) {
@@ -206,9 +234,9 @@ impl DrawCallback for Canvas {
         if width <= 0 || height <= 0 {
             return Err(Box::new(ImgError::new_const(ImgErrorKind::SizeZero,"image size zero or minus".to_string())))
         }
-        if self.width == 0 || self.height == 0 {
+        if self.width() == 0 || self.height() == 0 {
             let buffersize = width as usize * height as usize * 4;
-            self.buffer = (0..buffersize).map(|_| 0).collect();
+            self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
         }
         self.draw_width = width as u32;
         self.draw_height = height as u32;
@@ -217,10 +245,10 @@ impl DrawCallback for Canvas {
 
     fn draw(&mut self, start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8],_: Option<DrawOptions>)
                 -> Result<Option<CallbackResponse>,Error>  {
-        let self_width = self.width as usize;
-        let self_height = self.height as usize;
+        let self_width = self.width() as usize;
+        let self_height = self.height() as usize;
 
-        let buffer =  &mut self.buffer;
+        let buffer =  &mut self.buffer_as_mut();
         if start_x >= self_width || start_y >= self_height {return Ok(None);}
         let w = if self_width < width + start_x {self_width - start_x} else { width };
         let h = if self_height < height + start_y {self_height - start_y} else { height };
@@ -254,3 +282,4 @@ impl DrawCallback for Canvas {
         return (self.fnverbose)(str,None);
     }
 }
+

@@ -108,7 +108,7 @@ impl Affine {
         let min_y = 0;
         let max_y = output_screen.height() as i32;
 
-        let input_buffer = input_screen.buffer();
+        let input_buffer =  input_screen.buffer();
         let output_buffer: &mut [u8] = output_screen.buffer_as_mut();
 
         let ox = max_x / 2;
@@ -169,7 +169,7 @@ impl Affine {
                 algorithm);
     }
 
-    pub fn conversion_with_area(self:&mut Self,input_screen: &Canvas,output_screen:&mut Canvas,
+    pub fn conversion_with_area(self:&mut Self,input_screen: &dyn Screen,output_screen:&mut dyn Screen,
                 start_x :f32,start_y:f32 ,width: f32,height: f32,
                 out_start_x :i32,out_start_y:i32 ,out_width: i32,out_height: i32,
                 algorithm:InterpolationAlgorithm) {
@@ -180,6 +180,10 @@ impl Affine {
 
         let ox = (out_width / 2) as f32;
         let oy = (out_height / 2) as f32;
+
+        let output_screen_width = &output_screen.width();
+        let output_buffer = output_screen.buffer_as_mut();
+        let input_buffer =  input_screen.buffer();
 
         let mut alpha = -0.5;   // -0.5 - -1.0
         let mut lanzcos_n = 3;
@@ -318,7 +322,7 @@ impl Affine {
                         (min(x0,x1),max(x0,x1)+1)
                     }
                 };
-                let output_base_line = output_screen.width() as usize * 4 * y as usize;
+                let output_base_line = *output_screen_width as usize * 4 * y as usize;
                 if sx < out_start_x { sx = out_start_x;}
                 if ex > out_end_x {ex = out_end_x;}
 
@@ -331,10 +335,10 @@ impl Affine {
                     let input_offset = (yy as usize * input_screen.width() as usize + xx as usize) * 4;
                     match algorithm {
                         InterpolationAlgorithm::NearestNeighber => {
-                            output_screen.buffer[output_offset    ] = input_screen.buffer[input_offset    ];
-                            output_screen.buffer[output_offset + 1] = input_screen.buffer[input_offset + 1];
-                            output_screen.buffer[output_offset + 2] = input_screen.buffer[input_offset + 2];
-                            output_screen.buffer[output_offset + 3] = input_screen.buffer[input_offset + 3];
+                            output_buffer[output_offset    ] =  input_buffer[input_offset    ];
+                            output_buffer[output_offset + 1] =  input_buffer[input_offset + 1];
+                            output_buffer[output_offset + 2] =  input_buffer[input_offset + 2];
+                            output_buffer[output_offset + 3] =  input_buffer[input_offset + 3];
                         },
                         InterpolationAlgorithm::Bilinear => {
                             let dx = xx - xx.floor();
@@ -345,27 +349,27 @@ impl Affine {
                             let nx = if xx + 1 > end_x as i32 {0} else {4};
                             let ny = if yy + 1 > end_y as i32 {0} else {input_screen.width() as usize * 4};
 
-                            let r   =(input_screen.buffer[input_offset         ] as f32 * (1.0-dx) * (1.0-dy)
-                                    + input_screen.buffer[input_offset     + nx] as f32 * dx * (1.0-dy)
-                                    + input_screen.buffer[input_offset     + ny] as f32 * (1.0-dx) * dy
-                                    + input_screen.buffer[input_offset     + nx + ny] as f32 * dx * dy) as i32;
-                            let g   =(input_screen.buffer[input_offset + 1     ] as f32 * (1.0-dx) * (1.0-dy)
-                                    + input_screen.buffer[input_offset + 1 + nx] as f32 * dx * (1.0-dy)
-                                    + input_screen.buffer[input_offset + 1 + ny] as f32 * (1.0-dx) * dy
-                                    + input_screen.buffer[input_offset + 1 + nx + ny] as f32 * dx * dy) as i32;
-                            let b   =(input_screen.buffer[input_offset + 2     ] as f32 * (1.0-dx) * (1.0-dy)
-                                    + input_screen.buffer[input_offset + 2 + nx] as f32 * dx * (1.0-dy)
-                                    + input_screen.buffer[input_offset + 2 + ny] as f32 * (1.0-dx) * dy
-                                    + input_screen.buffer[input_offset + 2 + nx + ny] as f32 * dx * dy) as i32; 
-                            let a   =(input_screen.buffer[input_offset + 3     ] as f32 * (1.0-dx) * (1.0-dy)
-                                    + input_screen.buffer[input_offset + 3 + nx] as f32 * dx * (1.0-dy)
-                                    + input_screen.buffer[input_offset + 3 + ny] as f32 * (1.0-dx) * dy
-                                    + input_screen.buffer[input_offset + 3 + nx + ny] as f32 * dx * dy) as i32;
+                            let r   =( input_buffer[input_offset         ] as f32 * (1.0-dx) * (1.0-dy)
+                                    +  input_buffer[input_offset     + nx] as f32 * dx * (1.0-dy)
+                                    +  input_buffer[input_offset     + ny] as f32 * (1.0-dx) * dy
+                                    +  input_buffer[input_offset     + nx + ny] as f32 * dx * dy) as i32;
+                            let g   =( input_buffer[input_offset + 1     ] as f32 * (1.0-dx) * (1.0-dy)
+                                    +  input_buffer[input_offset + 1 + nx] as f32 * dx * (1.0-dy)
+                                    +  input_buffer[input_offset + 1 + ny] as f32 * (1.0-dx) * dy
+                                    +  input_buffer[input_offset + 1 + nx + ny] as f32 * dx * dy) as i32;
+                            let b   =( input_buffer[input_offset + 2     ] as f32 * (1.0-dx) * (1.0-dy)
+                                    +  input_buffer[input_offset + 2 + nx] as f32 * dx * (1.0-dy)
+                                    +  input_buffer[input_offset + 2 + ny] as f32 * (1.0-dx) * dy
+                                    +  input_buffer[input_offset + 2 + nx + ny] as f32 * dx * dy) as i32; 
+                            let a   =( input_buffer[input_offset + 3     ] as f32 * (1.0-dx) * (1.0-dy)
+                                    +  input_buffer[input_offset + 3 + nx] as f32 * dx * (1.0-dy)
+                                    +  input_buffer[input_offset + 3 + ny] as f32 * (1.0-dx) * dy
+                                    +  input_buffer[input_offset + 3 + nx + ny] as f32 * dx * dy) as i32;
                                                        
-                            output_screen.buffer[output_offset    ] = r.clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 1] = g.clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 2] = b.clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 3] = a.clamp(0,255) as u8;
+                            output_buffer[output_offset    ] = r.clamp(0,255) as u8;
+                            output_buffer[output_offset + 1] = g.clamp(0,255) as u8;
+                            output_buffer[output_offset + 2] = b.clamp(0,255) as u8;
+                            output_buffer[output_offset + 3] = a.clamp(0,255) as u8;
                         },
                         InterpolationAlgorithm::Bicubic | InterpolationAlgorithm::BicubicAlpha(_)  => {
                             let dx = xx - xx.floor();
@@ -406,15 +410,15 @@ impl Affine {
                                     let w = wx * wy;
 
                                     for i in 0..3 {
-                                        color[i] += w * input_screen.buffer[offset as usize + i] as f32;
+                                        color[i] += w *  input_buffer[offset as usize + i] as f32;
                                     }
                                 }
                             }
                             
-                            output_screen.buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 1] = (color[1] as i32).clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 3] = 0xff;
+                            output_buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
+                            output_buffer[output_offset + 1] = (color[1] as i32).clamp(0,255) as u8;
+                            output_buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
+                            output_buffer[output_offset + 3] = 0xff;
                         },
                         InterpolationAlgorithm::Lanzcos3 | InterpolationAlgorithm::Lanzcos(_) => {
                             let dx = xx - xx.floor();
@@ -449,15 +453,15 @@ impl Affine {
 
                                     let w = wx * wy;
                                     for i in 0..3 {
-                                        color[i] += w * input_screen.buffer[offset as usize + i] as f32;
+                                        color[i] += w *  input_buffer[offset as usize + i] as f32;
                                     }
                                 }
                             }
                             
-                            output_screen.buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 1] = (color[1] as i32).clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
-                            output_screen.buffer[output_offset + 3] = 0xff;
+                            output_buffer[output_offset    ] = (color[0] as i32).clamp(0,255) as u8;
+                            output_buffer[output_offset + 1] = (color[1] as i32).clamp(0,255) as u8;
+                            output_buffer[output_offset + 2] = (color[2] as i32).clamp(0,255) as u8;
+                            output_buffer[output_offset + 3] = 0xff;
                         },
                     }
                 }    

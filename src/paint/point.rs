@@ -33,13 +33,28 @@ fn _point (screen: &mut dyn Screen, x: i32, y: i32, red :u8, green :u8, blue :u8
     buf[pos + 3] = alpha;
 }
 
+// use for line only _point function
+pub(crate) fn point_for_line (screen: &mut dyn Screen, x: i32, y: i32, r :u8, g :u8, b :u8, a :u8) {
+    if x < 0 || y < 0 || x >= screen.width() as i32 || y >= screen.height() as i32 || a == 0 {
+        return;
+    }
+    let width = screen.width();
+    let buf = &mut screen.buffer_as_mut();
+    let pos :usize= (y as u32 * width * 4 + (x as u32 * 4)) as usize;
+
+    buf[pos] = r;
+    buf[pos + 1] = g;
+    buf[pos + 2] = b;
+    buf[pos + 3] =a;
+}
+
 pub fn point ( screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
     let (red, green, blue, _) = color_taple(color);
     _point(screen, x as i32, y as i32, red, green, blue, 0xff, 1.0);
 }
 
-pub fn point_with_alpha ( screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
-    let (red, green, blue, alpha) = color_taple(color);
+pub fn point_with_alpha ( screen: &mut dyn Screen, x: i32, y: i32, color: u32,alpha:u8) {
+    let (red, green, blue, _) = color_taple(color);
     _point(screen, x as i32, y as i32, red, green, blue, alpha, 1.0);
 }
 
@@ -48,8 +63,8 @@ pub fn point_with_weight ( screen: &mut dyn Screen, x: i32, y: i32, color: u32, 
     _point(screen, x as i32, y as i32, red, green, blue, 0xff, weight);
 }
 
-pub fn point_with_weight_from_alpha ( screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
-    let (red, green, blue, alpha) = color_taple(color);
+pub fn point_with_weight_from_alpha ( screen: &mut dyn Screen, x: i32, y: i32, color: u32,alpha: u8) {
+    let (red, green, blue, _) = color_taple(color);
     _point(screen, x as i32, y as i32, red, green, blue, 0xff, alpha as f32 / 255.0);
 }
 

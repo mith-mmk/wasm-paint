@@ -5,11 +5,12 @@
  * 
  *   Released under the MIT license
  */
-
+pub mod error;
 pub mod utils;
 pub mod pen;
 pub mod line;
 pub mod canvas;
+pub mod layer;
 pub mod clear;
 pub mod point;
 pub mod grayscale;
@@ -20,4 +21,4 @@ pub mod circle;
 pub mod image;
 pub mod affine;
 pub mod spline;
-//pub mod draw;
+pub mod draw;

@@ -13,9 +13,18 @@ pub fn pentagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, col
     polygram(screen,5,2,ox,oy,r,tilde,color);
 }
 
+pub fn pentagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8){ 
+  polygram_with_alpha(screen,5,2,ox,oy,r,tilde,color,alpha);
+}
+
+
 // hexagram (六芒星)
 pub fn hexagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
     polygram(screen,6,2,ox,oy,r,tilde,color);
+}
+
+pub fn hexagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8) { 
+  polygram_with_alpha(screen,6,2,ox,oy,r,tilde,color,alpha);
 }
 
 // Reglar Pollygon (正多角形)
@@ -23,10 +32,20 @@ pub fn reglar_polygon(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,til
     polygram(screen,p,1,ox,oy,r,tilde,color);
 }
 
+pub fn reglar_polygon_with_alpha(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha: u8) {
+  polygram_with_alpha(screen,p,1,ox,oy,r,tilde,color,alpha);
+}
+
 // 中点(ox,oy) 半径r の円に内接する、Schläfli symbol {p/q}角形を傾き(tilde)で指定したcolorで描画する。
 
+
 pub fn polygram(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
-    if r < 0.0 || p <= 2 {return};
+  polygram_with_alpha(screen,p,q,ox,oy,r,tilde,color,0xff)
+}
+
+pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha:u8){
+
+  if r < 0.0 || p <= 2 {return};
  
     let angle = 2.0 * PI  / p as f32; // = 72.0 dgree
 
@@ -43,7 +62,7 @@ pub fn polygram(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,ti
     for i in 0..p as usize {
         let s = i as usize;
         let e = (i + q as usize) % p as usize;
-        line(screen,x[s],y[s],x[e],y[e],color);
+        line_with_alpha(screen,x[s],y[s],x[e],y[e],color,alpha);
     }
 }
 

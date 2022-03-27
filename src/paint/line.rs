@@ -5,27 +5,10 @@
  *  Update 2022/03/13
  */
 
-use crate::point_pen;
-use crate::Pen;
-use crate::point_with_pen;
+use super::pen::*;
 use super::utils::color_taple;
 use super::canvas::*;
-
-
-// use for line only _point function
-fn _point (screen: &mut dyn Screen, x: i32, y: i32, r :u8, g :u8, b :u8, a :u8) {
-    if x < 0 || y < 0 || x >= screen.width() as i32 || y >= screen.height() as i32 || a == 0 {
-        return;
-    }
-    let width = screen.width();
-    let buf = &mut screen.buffer_as_mut();
-    let pos :usize= (y as u32 * width * 4 + (x as u32 * 4)) as usize;
-
-    buf[pos] = r;
-    buf[pos + 1] = g;
-    buf[pos + 2] = b;
-    buf[pos + 3] = 0xff;
-}
+use super::point::point_for_line;
 
 // line no antialias (Bresenham's line algorithm)
 pub fn line ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
@@ -42,7 +25,42 @@ pub fn line ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32 , colo
     let mut y = y0;
 
     loop {
-        _point(screen, x as i32, y as i32, red, green, blue, 0xff);
+        point_for_line (screen, x as i32, y as i32, red, green, blue, 0xff);
+        if x == x1 && y == y1 {
+            break;
+        }
+        
+        let err2 = err * 2;
+
+        if err2 > -dy  {
+            err = err - dy;
+            x = x + step_x;
+        }
+
+        if err2 < dx  {
+            err = err + dx;
+            y = y + step_y;
+        }
+
+    }
+}
+
+// line no antialias (Bresenham's line algorithm)
+pub fn line_with_alpha ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32, alpha: u8) {
+    let (red, green, blue, _) = color_taple(color);
+    let dx = (x0 - x1).abs();
+    let dy = (y0 - y1).abs();
+
+    let step_x = if x0 < x1 { 1 } else { -1 };
+    let step_y = if y0 < y1 { 1 } else { -1 };
+
+    let mut err = dx - dy;
+
+    let mut x = x0;
+    let mut y = y0;
+
+    loop {
+        point_for_line(screen, x as i32, y as i32, red, green, blue, alpha);
         if x == x1 && y == y1 {
             break;
         }

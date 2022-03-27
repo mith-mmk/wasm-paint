@@ -40,8 +40,12 @@ fn scan_line(screan: &mut dyn Screen,lx:u32, rx: u32,y :u32,stacks :&mut Vec<Sca
     }
 }
 
-pub fn fill ( screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u32) {
-    if sx < 0 || sx >= screan.width() as i32 || sy < 0 || sy >= screan.height() as i32 {return}
+pub fn fill(screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u32) {
+    fill_with_alpha (screan, sx, sy, paint_color, 0xff);
+}
+
+pub fn fill_with_alpha(screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u32,alpha: u8) {
+        if sx < 0 || sx >= screan.width() as i32 || sy < 0 || sy >= screan.height() as i32 {return}
     let mut stacks :Vec<ScanStack> = Vec::new();
     stacks.push(ScanStack::new(sx as u32, sy as u32));
     let base_color = pick(screan, sx as  u32, sy as u32);
@@ -79,7 +83,7 @@ pub fn fill ( screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u32) {
         }
 
         // draw line
-        line(screan,lx as i32 ,ly as i32,rx as i32 ,ly as i32, paint_color & 0xffffff);
+        line_with_alpha(screan,lx as i32 ,ly as i32,rx as i32 ,ly as i32, paint_color & 0xffffff,alpha);
 
         if ly + 1 < screan.height() {
             scan_line(screan, lx, rx, ly + 1, &mut stacks, base_color);

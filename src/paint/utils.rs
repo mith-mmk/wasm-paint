@@ -45,5 +45,5 @@ pub fn normalization_points(screen: &dyn Screen,x0: i32,y0 :i32,x1 :i32,y1 :i32 
 pub fn calc_alphablend(src: u8,dest: u8,alpha: f32) -> u8 {
     let b = (src as f32 * alpha + dest as f32 * (1.0 - alpha)) as isize;
 
-    (b & 0xff) as u8
+    (b as i32).clamp(0,255) as u8
 }

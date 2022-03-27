@@ -3,12 +3,19 @@
  * 
  */
 
+use crate::paint::layer::Layer;
 use super::canvas::*;
 
 pub fn clear_canvas(canvas: &mut Canvas) {
     let background_color = canvas.background_color();
     fillrect(canvas, background_color);
 }
+
+
+pub fn clear_layter(layer: &mut Layer) {
+    fillrect_with_alpha(layer, 0x0,0x0);
+}
+
 
 pub fn clear(screen: &mut dyn Screen) {
     let mut background_color = 0xff000000_u32;
@@ -18,7 +25,11 @@ pub fn clear(screen: &mut dyn Screen) {
     fillrect(screen, background_color);
 }
 
-pub fn fillrect(screen: &mut  dyn Screen, color: u32){
+pub fn fillrect(screen: &mut dyn Screen, color: u32){
+    fillrect_with_alpha(screen, color,0xff)
+}
+
+pub fn fillrect_with_alpha(screen: &mut  dyn Screen, color: u32,alpha: u8) {
     let width = screen.width();
     let height = screen.height();
     let buf = &mut screen.buffer_as_mut();
@@ -26,7 +37,7 @@ pub fn fillrect(screen: &mut  dyn Screen, color: u32){
     let red: u8 = ((color  >> 16) & 0xff)  as u8; 
     let green: u8  = ((color >> 8) & 0xff) as u8; 
     let blue: u8 = ((color >> 0) & 0xff) as u8; 
-    let alpha: u8 = 0xff;
+    let alpha: u8 = alpha;
 
     for y in 0..height {
         let offset = y * width * 4;
