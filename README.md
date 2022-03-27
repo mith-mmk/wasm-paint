@@ -28,6 +28,8 @@ Color model ABGR uint32LE
 
 2022/03/26 0.0.13 Screen Traitを実装
 
+2022/03/27 0.0.14 Canvasの実装変更、Layer実装、with_alpha function実装
+
 Todo 
 - border
 - polyline
