@@ -39,6 +39,8 @@ features = [
   'HtmlElement',
   'Window',
   'ImageData',
+  'HtmlCanvasElement',
+  'CanvasRenderingContext2d'
 ]
 
 [dependencies.wml2]

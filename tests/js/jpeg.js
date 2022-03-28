@@ -71,6 +71,7 @@ init().then((wasm) => {
         ibuf.set(buffer);    
         universe.jpeg_decoder(buffer,0xf9); 
 //        img = new ImageData(buf, width, height);
+        console.log(ctx);
         ctx.putImageData(img, 0, 0);
       });
 

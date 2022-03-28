@@ -1,3 +1,9 @@
+# 注意
+FireFoxではブラウザの制限でほとんど動きません。
+
+ https://github.com/rustwasm/wasm-bindgen/issues/2549
+
+
 # WebAssembly Test
 
 Color model ABGR uint32LE

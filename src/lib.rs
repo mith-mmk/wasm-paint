@@ -1,8 +1,14 @@
 mod utils;
+#[cfg(target="web")]
+pub mod web;
+#[cfg(target="web")]
+use web_sys::CanvasRenderingContext2d;
+#[cfg(target="web")]
+pub use crate::web::*;
+
 pub mod paint;
 use crate::paint::line::line_pen;
 use wml2::draw::*;
-type Error = Box<dyn std::error::Error>;
 use std::sync::{Arc,RwLock};
 use crate::paint::affine::{Affine,InterpolationAlgorithm};
 use crate::paint::circle::*;
@@ -15,8 +21,6 @@ use crate::paint::canvas::{Canvas,Screen};
 use crate::paint::pen::*;
 use crate::paint::spline::*;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
 
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -69,24 +73,6 @@ fn _rand_u32(range: u32) -> u32 {
     ( random() * (range as f64)) as u32
 }
 
-fn write_log(str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error> {
-    if web_sys::window().is_some() {
-        let window = web_sys::window().unwrap();
-        if window.document().is_some() {
-            let document = window.document().unwrap();
-            if document.get_element_by_id("wasm_verbose").is_some() {
-                let elmid = document.get_element_by_id("wasm_verbose").unwrap();
-                if elmid.dyn_ref::<HtmlElement>().is_some() {
-                    let elm = elmid.dyn_ref::<HtmlElement>().unwrap();
-                    elm.set_inner_text(str);
-                    return Ok(None)
-                }
-            }
-        }
-    }
-    log(str);
-    Ok(None)
-}
 
 /*
  * If you use Struct in Vec,you happen bollow error for function call multiple same Sturct.
@@ -126,6 +112,8 @@ pub struct Universe {
     on_worker: bool,
     input_buffer: Vec<u8>,
     append_canvas: Vec<Arc<RwLock<Canvas>>>,
+    #[cfg(target="web")]
+    ctx: Option<CanvasRenderingContext2d>,
 }
 
 #[wasm_bindgen]
@@ -152,6 +140,8 @@ impl Universe {
             on_worker: false,
             input_buffer: Vec::new(),
             append_canvas: Vec::new(),
+            #[cfg(target="web")]
+            ctx : None,
         }
     }
 
@@ -178,6 +168,11 @@ impl Universe {
             .collect();
         log(&format!("Get Buffer {}",self.input_buffer.len()));
         self.input_buffer.as_ptr()
+    }
+
+    #[cfg(target="web")]
+    pub fn set_2d_context(&mut self,context:CanvasRenderingContext2d) {
+        self.ctx = Some(context)
     }
 
 /* Wrappers */
@@ -397,6 +392,7 @@ impl Universe {
         } else {
             let canvas =&mut self.canvas;
             if !self.on_worker {
+                #[cfg(target="web")]
                 canvas.set_verbose(write_log);
             }
             let mut option = DecodeOptions{

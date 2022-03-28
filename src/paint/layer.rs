@@ -1,3 +1,4 @@
+use crate::paint::clear::fillrect_with_alpha;
 use crate::paint::clear::fillrect;
 use super::canvas::*;
 
@@ -52,11 +53,11 @@ impl Layer {
 
 impl Screen for Layer {
     fn width(&self) -> u32 {
-        self.width
+        self.width.clone()
     }
 
     fn height(&self) -> u32 {
-        self.height
+        self.height.clone()
     }
 
 
@@ -69,11 +70,11 @@ impl Screen for Layer {
     }
 
     fn clear(&mut self) {
-        self.clear_with_color(0x0000000);
+        fillrect_with_alpha(self,0,0);  
     }
 
     fn clear_with_color(&mut self,color: u32) {
-        fillrect(self,color);  
+        fillrect_with_alpha(self,color,0);  
     }
 
     fn alpha(&self) -> Option<u8> {

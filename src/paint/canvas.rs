@@ -125,7 +125,7 @@ impl Canvas {
     }
 
     pub fn color(&self) -> u32 {
-        self.color
+        self.color.clone()
     }
 
     pub fn set_color(&mut self,color: u32) {
@@ -190,11 +190,11 @@ impl Canvas {
 impl Screen for Canvas {
 
     fn width(&self) -> u32 {
-        self.canvas.width
+        self.canvas.width.clone()
     }
 
     fn height(&self) -> u32 {
-        self.canvas.height
+        self.canvas.height.clone()
     }
 
 
