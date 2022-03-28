@@ -1,5 +1,4 @@
 use crate::paint::clear::fillrect_with_alpha;
-use crate::paint::clear::fillrect;
 use super::canvas::*;
 
 

@@ -1,15 +1,18 @@
 mod utils;
-#[cfg(target="web")]
-pub mod web;
-#[cfg(target="web")]
-use web_sys::CanvasRenderingContext2d;
-#[cfg(target="web")]
-pub use crate::web::*;
-
 pub mod paint;
-use crate::paint::line::line_pen;
-use wml2::draw::*;
+
+type Error = Box<dyn std::error::Error>;
+
+use web_sys::HtmlElement;
 use std::sync::{Arc,RwLock};
+use web_sys::ImageData;
+use web_sys::CanvasRenderingContext2d;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::Clamped;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
+use wml2::draw::*;
+use crate::paint::line::line_pen;
 use crate::paint::affine::{Affine,InterpolationAlgorithm};
 use crate::paint::circle::*;
 use crate::paint::fill::fill;
@@ -20,7 +23,6 @@ use crate::paint::point::point_antialias;
 use crate::paint::canvas::{Canvas,Screen};
 use crate::paint::pen::*;
 use crate::paint::spline::*;
-use wasm_bindgen::prelude::*;
 
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -34,6 +36,24 @@ pub fn initialization() {
     utils::set_panic_hook();
 }
 
+pub(crate) fn write_log(str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error> {
+    if web_sys::window().is_some() {
+        let window = web_sys::window().unwrap();
+        if window.document().is_some() {
+            let document = window.document().unwrap();
+            if document.get_element_by_id("wasm_verbose").is_some() {
+                let elmid = document.get_element_by_id("wasm_verbose").unwrap();
+                if elmid.dyn_ref::<HtmlElement>().is_some() {
+                    let elm = elmid.dyn_ref::<HtmlElement>().unwrap();
+                    elm.set_inner_text(str);
+                    return Ok(None)
+                }
+            }
+        }
+    }
+    log(str);
+    Ok(None)
+}
 
 #[wasm_bindgen]
 extern {
@@ -112,8 +132,9 @@ pub struct Universe {
     on_worker: bool,
     input_buffer: Vec<u8>,
     append_canvas: Vec<Arc<RwLock<Canvas>>>,
-    #[cfg(target="web")]
+//    #[cfg(target="web")]
     ctx: Option<CanvasRenderingContext2d>,
+    ctx2: Option<CanvasRenderingContext2d>,
 }
 
 #[wasm_bindgen]
@@ -140,8 +161,9 @@ impl Universe {
             on_worker: false,
             input_buffer: Vec::new(),
             append_canvas: Vec::new(),
-            #[cfg(target="web")]
+ //           #[cfg(target="web")]
             ctx : None,
+            ctx2: None,
         }
     }
 
@@ -170,10 +192,6 @@ impl Universe {
         self.input_buffer.as_ptr()
     }
 
-    #[cfg(target="web")]
-    pub fn set_2d_context(&mut self,context:CanvasRenderingContext2d) {
-        self.ctx = Some(context)
-    }
 
 /* Wrappers */
     pub fn clear(&mut self,color :u32) {
@@ -392,7 +410,6 @@ impl Universe {
         } else {
             let canvas =&mut self.canvas;
             if !self.on_worker {
-                #[cfg(target="web")]
                 canvas.set_verbose(write_log);
             }
             let mut option = DecodeOptions{
@@ -417,4 +434,68 @@ impl Universe {
             }
         }
     }
+
+    // bind
+
+    #[wasm_bindgen(js_name = bindCanvas)]
+    pub fn bind_canvas(&mut self,canvas:&str) {
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let canvas = document.get_element_by_id(canvas).unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .map_err(|_| ())
+            .unwrap();
+
+        let context = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
+        self.ctx = Some(context)
+    }
+
+    #[wasm_bindgen(js_name = bindCanvas2)]
+    pub fn bind_canvas2(&mut self,canvas:&str) {
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let canvas = document.get_element_by_id(canvas).unwrap();
+        let canvas: web_sys::HtmlCanvasElement = canvas
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .map_err(|_| ())
+            .unwrap();
+
+        let context = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
+        self.ctx2 = Some(context)
+    }
+
+    #[wasm_bindgen(js_name = drawCanvas)]
+    pub fn draw_canvas(&mut self,width:u32,height:u32) -> Result<(),JsValue>{
+        if let Some(ctx) = &self.ctx {
+            let clamped = Clamped(self.canvas.buffer());
+            let img = ImageData::new_with_u8_clamped_array_and_sh(clamped,width,height)?;
+            ctx.put_image_data(&img,0_f64,0_f64)
+        } else {
+            Err(JsValue::FALSE)
+        }
+    }
+
+    #[wasm_bindgen(js_name = drawCanvas2)]
+    pub fn draw_canvas2(&mut self,width:u32,height:u32) -> Result<(),JsValue>{
+        if let Some(ctx) = &self.ctx2 {
+            let canvas = &self.append_canvas[0].read().unwrap();
+            let clamped = Clamped(canvas.buffer());
+            let img = ImageData::new_with_u8_clamped_array_and_sh(clamped,width,height)?;
+            ctx.put_image_data(&img,0_f64,0_f64)
+        } else {
+            Err(JsValue::FALSE)
+        }
+    }
+
 }
