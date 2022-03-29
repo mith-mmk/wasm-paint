@@ -3,6 +3,7 @@ pub mod paint;
 
 type Error = Box<dyn std::error::Error>;
 
+use js_sys::Uint8Array;
 use web_sys::HtmlElement;
 use std::sync::{Arc,RwLock};
 use web_sys::ImageData;
@@ -140,7 +141,7 @@ pub struct Universe {
 #[wasm_bindgen]
 impl Universe {
 
-    #[wasm_bindgen(js_name = new)]
+    #[wasm_bindgen(constructor)]
     pub fn new (width: u32, height: u32) -> Universe {
         let mut canvas = Canvas::new(width, height);
         let pen = Pen::new(9, 9, vec![
@@ -174,21 +175,24 @@ impl Universe {
         universe
     }
 
+    #[wasm_bindgen(js_name = appendCanvas)]
     pub fn append_canvas(&mut self, width: u32, height: u32) -> usize {
         let canvas = Canvas::new(width, height);
         self.append_canvas.push(Arc::new(RwLock::new(canvas)));
         self.append_canvas.len()
     }
 
+    #[wasm_bindgen(js_name = getInputBuffer)]
     pub fn input_buffer(&mut self) -> *const u8 {
         self.input_buffer.as_ptr()
     }
 
+    #[wasm_bindgen(js_name = inputBufferWithLength)]
     pub fn input_buffer_set_length(&mut self,size : u32) -> *const u8 {
         self.input_buffer = (0..size)
             .map(|_| {0})
             .collect();
-        log(&format!("Get Buffer {}",self.input_buffer.len()));
+//        log(&format!("Get Buffer {}",self.input_buffer.len()));
         self.input_buffer.as_ptr()
     }
 
@@ -199,6 +203,7 @@ impl Universe {
         self.canvas.clear();
     }
 
+    #[wasm_bindgen(js_name = clearSelectCanvas)]
     pub fn clear_with_number(&mut self,number :i32) {
         if number > self.append_canvas.len() as i32 {
             return
@@ -213,10 +218,12 @@ impl Universe {
         self.append_canvas[number as usize].as_ref().write().unwrap().clear();
     }
 
+    #[wasm_bindgen(js_name = pointAntialias)]
     pub fn point_antialias(&mut self, x: f32, y: f32, color: u32,s: f32) {
         point_antialias(&mut self.canvas,x,y,color,s);
     }
 
+    #[wasm_bindgen(js_name = pointWithPen)]
     pub fn point_with_pen(&mut self, x: f32, y: f32, color: u32) {
         point_pen(&mut self.canvas,x as i32,y as i32,color);
     }
@@ -226,6 +233,7 @@ impl Universe {
 
     }
 
+    #[wasm_bindgen(js_name = lineWithPen)]
     pub fn line_with_pen(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
         line_pen(&mut self.canvas,sx,sy,ex,ey,color);
     }
@@ -242,20 +250,25 @@ impl Universe {
         polygram(&mut self.canvas,p,q,ox, oy, r,tilde,color);
     }
 
+
+    #[wasm_bindgen(js_name = getBuffer)]
     pub fn output_buffer(&mut self) -> *const u8 {
         self.canvas.canvas()
     }
 
+    #[wasm_bindgen(js_name = getBufferSelectCanvas)]
     pub fn buffer_with_number(&mut self,number:usize) -> *const u8 {
         if number == 0 {return self.canvas.canvas()};
         let canvas = &*self.append_canvas[number - 1].write().unwrap();
         canvas.canvas()
     }
 
+    #[wasm_bindgen(js_name = getWidth)]
     pub fn width(&self) -> u32 {
         self.canvas.width()
     }
 
+    #[wasm_bindgen(js_name = getHeight)]
     pub fn height(&self) -> u32 {
         self.canvas.height()
     }
@@ -272,21 +285,26 @@ impl Universe {
         ellipse(&mut self.canvas, ox, oy, rx, ry, tilde, color);
     }
 
+    #[wasm_bindgen(js_name = quadraticCurve)]
     pub fn quadratic_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32, y3:f32,a:f32,color: u32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
         quadratic_curve(&mut self.canvas,p.to_vec(), a, color);
     }
     
+    #[wasm_bindgen(js_name = bezierCurve)]
     pub fn bezier_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,color: u32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
         bezier_curve(&mut self.canvas,p.to_vec(), color);
     }
 
+
+    #[wasm_bindgen(js_name = bezierCurve3)]
     pub fn bezier_curve3(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,x4:f32,y4:f32,color: u32) {
         let p :[(f32,f32);4]= [(x1,y1),(x2,y2),(x3,y3),(x4,y4)]; 
         bezier_curve(&mut self.canvas,p.to_vec(), color);
     }
 
+    #[wasm_bindgen(js_name = affineTest2)]
     pub fn affine_test2(&mut self,canvas_in:usize,canvas_out:usize,no: usize,interpolation:usize) {
         let mut affine = Affine::new();
 
@@ -354,6 +372,8 @@ impl Universe {
         }
 
     }
+
+    #[wasm_bindgen(js_name = affineTest)]
     pub fn affine_test(&mut self,canvas_in:usize,canvas_out:usize) {
         let mut affine = Affine::new();
         affine.invert_xy();
@@ -374,6 +394,8 @@ impl Universe {
             affine.conversion(input_canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         }
     }
+
+    #[wasm_bindgen(js_name = imageDecoder)]
     pub fn image_decoder(&mut self,buffer: &[u8],verbose:usize) {
         let r = crate::paint::image::draw_image(&mut self.canvas,buffer,verbose);
         match r {
@@ -384,10 +406,13 @@ impl Universe {
         }
     }
 
+    #[wasm_bindgen(js_name = jpegDecoder)]
     pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
         self.jpeg_decoder_select_canvas(buffer,verbose,0);
     }
 
+    
+    #[wasm_bindgen(js_name = jpegDecoderSelectCanvas)]
     pub fn jpeg_decoder_select_canvas(&mut self,buffer: &[u8],verbose:usize,number:usize) {
         if number > self.append_canvas.len() { return }
 
@@ -435,8 +460,8 @@ impl Universe {
         }
     }
 
-    // bind
-
+    /// Javascript bindCanvas() is bind rust canvas and Web Canvas.
+    /// This function cannnot run on web worker.
     #[wasm_bindgen(js_name = bindCanvas)]
     pub fn bind_canvas(&mut self,canvas:&str) {
         let window = web_sys::window().unwrap();
@@ -456,6 +481,8 @@ impl Universe {
         self.ctx = Some(context)
     }
 
+    /// Javascript bindCanvas2() is bind rust canvas and Web Canvas 2nd.
+    /// This function cannnot run on web worker.
     #[wasm_bindgen(js_name = bindCanvas2)]
     pub fn bind_canvas2(&mut self,canvas:&str) {
         let window = web_sys::window().unwrap();
@@ -475,6 +502,9 @@ impl Universe {
         self.ctx2 = Some(context)
     }
 
+    /// Javascript drawCanvas() draws binded WebCanvas.
+    /// Must call bindCanvas2 before.
+    /// This function cannnot run on web worker.
     #[wasm_bindgen(js_name = drawCanvas)]
     pub fn draw_canvas(&mut self,width:u32,height:u32) -> Result<(),JsValue>{
         if let Some(ctx) = &self.ctx {
@@ -486,8 +516,54 @@ impl Universe {
         }
     }
 
+    /// Javascript drawSelectCanvas() draws binded WebCanvas 1st.
+    /// A no selects main canvas or append canvases
+    /// Must call bindCanvas() before.
+    /// This function cannnot run on web worker.
+    #[wasm_bindgen(js_name = drawSelectCanvas)]
+    pub fn draw_canvas_with_number(&mut self,width:u32,height:u32,no:usize) -> Result<(),JsValue>{
+        if let Some(ctx) = &self.ctx {
+            if no == 0 {
+                let canvas = &self.canvas;
+                let clamped = Clamped(canvas.buffer());
+                let img = ImageData::new_with_u8_clamped_array_and_sh(clamped,width,height)?;
+                ctx.put_image_data(&img,0_f64,0_f64)
+            } else {
+                if self.append_canvas.len() > no {
+                    return Err(JsValue::FALSE)
+                } 
+                let canvas = &self.append_canvas[no - 1].read().unwrap();
+                let clamped = Clamped(canvas.buffer());
+                let img = ImageData::new_with_u8_clamped_array_and_sh(clamped,width,height)?;
+                ctx.put_image_data(&img,0_f64,0_f64)
+            }
+        } else {
+            Err(JsValue::FALSE)
+        }
+    }
+
+    #[wasm_bindgen(js_name = getImageData)]
+    pub fn get_imagedata(&mut self,no: usize) -> Result<ImageData, JsValue>{
+        if no == 0 {
+            let canvas = &self.canvas;
+            let clamped = Clamped(canvas.buffer());
+            ImageData::new_with_u8_clamped_array_and_sh(clamped,self.width(),self.height())
+        } else {
+            if self.append_canvas.len() > no {
+                return Err(JsValue::FALSE)
+            } 
+            let canvas = &self.append_canvas[no - 1].read().unwrap();
+            let clamped = Clamped(canvas.buffer());
+            ImageData::new_with_u8_clamped_array_and_sh(clamped,self.width(),self.height())
+        }
+    }
+
+
     #[wasm_bindgen(js_name = drawCanvas2)]
     pub fn draw_canvas2(&mut self,width:u32,height:u32) -> Result<(),JsValue>{
+        if self.append_canvas.len() == 0 {
+            return Err(JsValue::FALSE)
+        } 
         if let Some(ctx) = &self.ctx2 {
             let canvas = &self.append_canvas[0].read().unwrap();
             let clamped = Clamped(canvas.buffer());
@@ -496,6 +572,34 @@ impl Universe {
         } else {
             Err(JsValue::FALSE)
         }
+    }
+
+    #[wasm_bindgen(js_name = drawSelectCanvas2)]
+    pub fn draw_canvas2_with_number(&mut self,width:u32,height:u32,no:usize) -> Result<(),JsValue>{
+        if let Some(ctx) = &self.ctx2 {
+            if no == 0 {
+                let canvas = &self.canvas;
+                let clamped = Clamped(canvas.buffer());
+                let img = ImageData::new_with_u8_clamped_array_and_sh(clamped,width,height)?;
+                ctx.put_image_data(&img,0_f64,0_f64)
+            } else {
+                if self.append_canvas.len() > no {
+                    return Err(JsValue::FALSE)
+                } 
+                let canvas = &self.append_canvas[no - 1].read().unwrap();
+                let clamped = Clamped(canvas.buffer());
+                let img = ImageData::new_with_u8_clamped_array_and_sh(clamped,width,height)?;
+                ctx.put_image_data(&img,0_f64,0_f64)
+            }
+        } else {
+            Err(JsValue::FALSE)
+        }
+    }
+
+    #[wasm_bindgen(js_name = bindInputBuffer)]
+    pub fn bind_input_buffer(&mut self,ibuf:&[u8]) -> Result<(),JsValue>{
+        self.input_buffer = ibuf.to_vec();
+        Ok(())
     }
 
 }

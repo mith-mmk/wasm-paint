@@ -14,15 +14,13 @@ reader.onload = (event) => {
   console.timeEnd("reader");
   console.time("buffer");
   let buffer = new Uint8Array(reader.result);
-  universe.input_buffer_set_length(buffer.length);
-  let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
-  ibuf.set(buffer);
+  universe.bindInputBuffer(buffer);
   universe.clear(0x000000);
   console.timeEnd("buffer");
 
   console.time("decode");
 //  start_draw();
-  universe.jpeg_decoder(buffer,0xf9); 
+  universe.jpegDecoder(buffer,0xf9); 
   console.timeEnd("decode");
 //  drawed = true;
   universe.drawCanvas(width,height);
@@ -54,7 +52,7 @@ canvas.addEventListener('drop', (ev) => {
 
 init().then((wasm) => {
     memory = wasm.memory; // 共有メモリーに必要
-    universe = Universe.new(width,height);
+    universe = new Universe(width,height);
     universe.bindCanvas("canvas");
     universe.clear(0x000000);
     universe.drawCanvas(width,height);
@@ -64,10 +62,8 @@ init().then((wasm) => {
       .then(blob => blob.arrayBuffer())
       .then(arraybuffer => {
         let buffer = new Uint8Array(arraybuffer);      
-        universe.input_buffer_set_length(buffer.length);
-        let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
-        ibuf.set(buffer);    
-        universe.jpeg_decoder(buffer,0xf9);
+        universe.bindInputBuffer(buffer);
+        universe.jpegDecoder(buffer,0xf9);
         start_draw();
 //        universe.drawCanvas(width,height);
       });

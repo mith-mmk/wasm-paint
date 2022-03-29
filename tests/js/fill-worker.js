@@ -1,21 +1,15 @@
 import init,{Universe} from "../../pkg/paint.js";  // Universeは要インポート wasm.Universeでは動かない
 
 let universe;
-let buffersize;
-let buf;
 let img;
-let memory;
 
 
 function workerInit(width, height) {
     init()
     .then((wasm) => {
-        memory = wasm.memory; // 共有メモリーに必要
-        universe = Universe.new(width,height);
-        buffersize = width * height * 4;
-        buf = new Uint8ClampedArray(memory.buffer,universe.output_buffer(), buffersize);
+        universe = new Universe(width,height);
         universe.clear(0x000000);
-        img = new ImageData(buf, width, height);
+        img = universe.getImageData(0);
         postMessage({message: 'init', image: img});
     });
 }
@@ -29,8 +23,8 @@ onmessage = function(ev) {
                 break;
             case 'run':
                 const p = Math.random() * 8 + 2;
-                const sx = Math.random() * universe.width() - 1; 
-                const sy = Math.random() * universe.height() - 1;
+                const sx = Math.random() * universe.getWidth() - 1; 
+                const sy = Math.random() * universe.getHeight() - 1;
                 const r = Math.random() * 200 + 2;
 
                 universe.polygram(
@@ -46,7 +40,6 @@ onmessage = function(ev) {
                 break;
             case 'get':
                 if (universe == null) return;
-                img = new ImageData(buf, universe.width(), universe.height());
                 postMessage({message: 'get', image:img});
                 break;
             case 'clear':

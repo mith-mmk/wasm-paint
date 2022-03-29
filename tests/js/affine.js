@@ -20,7 +20,7 @@ reader.onloadend = (event) => {
   universe.jpeg_decoder(buffer,0); 
   universe.drawCanvas(width,height);
   universe.affine_test(0,1);
-  universe.drawCanvas2(width,height);
+  universe.drawSelectCanvas2(width,height,1);
 };
 // Drag and Drop
 canvas.addEventListener('dragover', (ev) => {
@@ -45,26 +45,26 @@ canvas.addEventListener('drop', (ev) => {
 
 init().then((wasm) => {
     memory = wasm.memory; // 共有メモリーに必要
-    universe = Universe.new(width,height);
-    universe.append_canvas(width,height);
+    universe = new Universe(width,height);
+    universe.appendCanvas(width,height);
     universe.bindCanvas("canvas");
     universe.bindCanvas2("canvas2");
     universe.clear(0x000000);
-    universe.clear_with_number(1);
+    universe.clearSelectCanvas(1);
     universe.drawCanvas(width,height);
-    universe.drawCanvas2(width,height);
+    universe.drawSelectCanvas2(width,height,1);
     fetch('./sample/sample02.jpg')
       .then(res => res.blob())
       .then(blob => blob.arrayBuffer())
       .then(arraybuffer => {
         let buffer = new Uint8Array(arraybuffer);      
-        universe.input_buffer_set_length(buffer.length);
-        let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
+        universe.inputBufferWithLength(buffer.length);
+        let ibuf = new Uint8Array(memory.buffer,universe.inputBuffer(), buffer.length);
         ibuf.set(buffer);    
-        universe.jpeg_decoder_select_canvas(buffer,0x0); 
+        universe.jpegDecoderSelectCanvas(buffer,0x0); 
         universe.drawCanvas(width,height);
-        universe.affine_test2(0,1);
-        universe.drawCanvas2(width,height);
+        universe.affineTest2(0,1);
+        universe.drawSelectCanvas2(width,height,1);
       });
 
 });

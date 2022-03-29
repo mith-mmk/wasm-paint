@@ -1,20 +1,13 @@
-import init,{Universe} from "../../pkg/paint.js";  // Universeは要インポート wasm.Universeでは動かない
-
+import init,{Universe} from "../../pkg/paint.js";  
 let universe;
-let buffersize;
-let buf;
 let img;
-let memory;
 
 function workerInit(width, height) {
     init()
     .then((wasm) => {
-        memory = wasm.memory; // 共有メモリーに必要
-        universe = Universe.new(width,height);
-        buffersize = width * height * 4;
-        buf = new Uint8ClampedArray(memory.buffer,universe.output_buffer(), buffersize);
+        universe = new Universe(width,height);
         universe.clear(0x000000);
-        img = new ImageData(buf, width, height);
+        img = universe.getImageData(0);
         postMessage({message: 'init', image: img});
     });
 }
@@ -59,38 +52,38 @@ onmessage = function(ev) {
                     p[0][1] = Math.random() * height;
                 }
                 y2 = (y1+y3)/2;
-                universe.quadratic_curve(
+                universe.quadraticCurve(
                     x1,y1,
                     x2,y2+dy,
                     x3,y3,
                     a ,
                     0xffffff,
                 );
-                universe.quadratic_curve(
+                universe.quadraticCurve(
                     x3,y3,
                     x2,y2-dy,
                     x1,y1,
                     a ,
                     0xffffff,
                 );
-                universe.point_with_pen(x1,y1,0x7f7f7f);
-                universe.point_with_pen(x3,y3,0x7f7f7f);
-                universe.point_with_pen(x2,y2+dy,0x7f7f7f);
-                universe.point_with_pen(x2,y2-dy,0x7f7f7f);
+                universe.pointWithPen(x1,y1,0x7f7f7f);
+                universe.pointWithPen(x3,y3,0x7f7f7f);
+                universe.pointWithPen(x2,y2+dy,0x7f7f7f);
+                universe.pointWithPen(x2,y2-dy,0x7f7f7f);
 
                 universe.line(p[0][0],p[0][1],p[1][0],p[1][1],0x7f0000);
                 universe.line(p[3][0],p[3][1],p[1][0],p[1][1],0x7f0000);
                 universe.line(p[0][0],p[0][1],p[2][0],p[2][1],0x7f0000);
                 universe.line(p[3][0],p[3][1],p[2][0],p[2][1],0x7f0000);
 
-                universe.bezier_curve(
+                universe.bezierCurve(
                     p[0][0],p[0][1],
                     p[1][0],p[1][1],
                     p[3][0],p[3][1],
                     0x00ff00,
                 );
 
-                universe.bezier_curve3(
+                universe.bezierCurve3(
                     p[0][0],p[0][1],
                     p[1][0],p[1][1],
                     p[2][0],p[2][1],
@@ -98,10 +91,10 @@ onmessage = function(ev) {
                     0xff0000,
                 );
 
-                universe.point_with_pen(p[0][0],p[0][1],0x00ffff);
-                universe.point_with_pen(p[1][0],p[1][1],0x00ffff);
-                universe.point_with_pen(p[2][0],p[2][1],0x00ffff);
-                universe.point_with_pen(p[3][0],p[3][1],0x00ffff);
+                universe.pointWithPen(p[0][0],p[0][1],0x00ffff);
+                universe.pointWithPen(p[1][0],p[1][1],0x00ffff);
+                universe.pointWithPen(p[2][0],p[2][1],0x00ffff);
+                universe.pointWithPen(p[3][0],p[3][1],0x00ffff);
 
 
                 p[1][0] += 8;
