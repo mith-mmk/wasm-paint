@@ -2,7 +2,6 @@ import init,{Universe} from "../../pkg/paint.js"
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let universe;
-let memory;
 let width = 1024;
 let height =1024;
 let drawed = true;
@@ -14,7 +13,6 @@ reader.onload = (event) => {
   console.timeEnd("reader");
   console.time("buffer");
   let buffer = new Uint8Array(reader.result);
-  universe.bindInputBuffer(buffer);
   universe.clear(0x000000);
   console.timeEnd("buffer");
 
@@ -51,7 +49,6 @@ canvas.addEventListener('drop', (ev) => {
   }, false);
 
 init().then((wasm) => {
-    memory = wasm.memory; // 共有メモリーに必要
     universe = new Universe(width,height);
     universe.bindCanvas("canvas");
     universe.clear(0x000000);
@@ -62,7 +59,6 @@ init().then((wasm) => {
       .then(blob => blob.arrayBuffer())
       .then(arraybuffer => {
         let buffer = new Uint8Array(arraybuffer);      
-        universe.bindInputBuffer(buffer);
         universe.jpegDecoder(buffer,0xf9);
         start_draw();
 //        universe.drawCanvas(width,height);

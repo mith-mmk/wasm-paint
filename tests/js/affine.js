@@ -3,7 +3,6 @@ import init,{Universe} from "../../pkg/paint.js"
 const canvas = document.getElementById('canvas');
 const canvas2 = document.getElementById('canvas2');
 let universe;
-let memory;
 let drawed = true;
 const width = canvas.width;
 const height = canvas.width
@@ -41,7 +40,6 @@ canvas.addEventListener('drop', (ev) => {
   }, false);
 
 init().then((wasm) => {
-    memory = wasm.memory; // 共有メモリーに必要
     universe = new Universe(width,height);
     universe.appendCanvas(width,height);
     universe.bindCanvas("canvas");

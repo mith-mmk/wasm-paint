@@ -7,9 +7,6 @@ const reader = new FileReader();
 reader.onload = (event) => {
   console.time("buffer");
   let buffer = new Uint8Array(reader.result);
-  universe.inputBufferWithLength(buffer.length);
-  let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
-  ibuf.set(buffer);
   postMessage({message: 'loadstart'});
   universe.clear(0x000000);
   console.timeEnd("buffer");
@@ -49,9 +46,6 @@ onmessage = function(ev) {
                     .then(arraybuffer => {
                         postMessage({message: 'loadstart'});
                         let buffer = new Uint8Array(arraybuffer);      
-                        universe.inputBufferWithLength(buffer.length);
-                        let ibuf = new Uint8Array(memory.buffer,universe.getInputBuffer(), buffer.length);
-                        ibuf.set(buffer);    
                         universe.jpegDecoder(buffer,0);
                         postMessage({message: 'loadend'});
                 });
