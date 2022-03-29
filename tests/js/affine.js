@@ -12,9 +12,6 @@ canvas2.height = height;
 const reader = new FileReader();
 reader.onloadend = (event) => {
   let buffer = new Uint8Array(reader.result);
-  universe.input_buffer_set_length(buffer.length);
-  let ibuf = new Uint8Array(memory.buffer,universe.input_buffer(), buffer.length);
-  ibuf.set(buffer);
   universe.clear(0x000000);
 
   universe.jpeg_decoder(buffer,0); 
@@ -58,9 +55,6 @@ init().then((wasm) => {
       .then(blob => blob.arrayBuffer())
       .then(arraybuffer => {
         let buffer = new Uint8Array(arraybuffer);      
-        universe.inputBufferWithLength(buffer.length);
-        let ibuf = new Uint8Array(memory.buffer,universe.inputBuffer(), buffer.length);
-        ibuf.set(buffer);    
         universe.jpegDecoderSelectCanvas(buffer,0x0); 
         universe.drawCanvas(width,height);
         universe.affineTest2(0,1);

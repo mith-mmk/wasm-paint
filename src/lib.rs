@@ -3,7 +3,6 @@ pub mod paint;
 
 type Error = Box<dyn std::error::Error>;
 
-use js_sys::Uint8Array;
 use web_sys::HtmlElement;
 use std::sync::{Arc,RwLock};
 use web_sys::ImageData;
@@ -131,7 +130,7 @@ fn _rand_u32(range: u32) -> u32 {
 pub struct Universe {
     canvas:  Canvas,
     on_worker: bool,
-    input_buffer: Vec<u8>,
+//    input_buffer: Vec<u8>,
     append_canvas: Vec<Arc<RwLock<Canvas>>>,
 //    #[cfg(target="web")]
     ctx: Option<CanvasRenderingContext2d>,
@@ -160,7 +159,7 @@ impl Universe {
         Universe {
             canvas,
             on_worker: false,
-            input_buffer: Vec::new(),
+//            input_buffer: Vec::new(),
             append_canvas: Vec::new(),
  //           #[cfg(target="web")]
             ctx : None,
@@ -182,11 +181,11 @@ impl Universe {
         self.append_canvas.len()
     }
 
-    #[wasm_bindgen(js_name = getInputBuffer)]
-    pub fn input_buffer(&mut self) -> *const u8 {
-        self.input_buffer.as_ptr()
-    }
-
+//    #[wasm_bindgen(js_name = getInputBuffer)]
+//    pub fn input_buffer(&mut self) -> *const u8 {
+//        self.input_buffer.as_ptr()
+//    }
+/*
     #[wasm_bindgen(js_name = inputBufferWithLength)]
     pub fn input_buffer_set_length(&mut self,size : u32) -> *const u8 {
         self.input_buffer = (0..size)
@@ -195,7 +194,7 @@ impl Universe {
 //        log(&format!("Get Buffer {}",self.input_buffer.len()));
         self.input_buffer.as_ptr()
     }
-
+*/
 
 /* Wrappers */
     pub fn clear(&mut self,color :u32) {
@@ -594,12 +593,6 @@ impl Universe {
         } else {
             Err(JsValue::FALSE)
         }
-    }
-
-    #[wasm_bindgen(js_name = bindInputBuffer)]
-    pub fn bind_input_buffer(&mut self,ibuf:&[u8]) -> Result<(),JsValue>{
-        self.input_buffer = ibuf.to_vec();
-        Ok(())
     }
 
 }
