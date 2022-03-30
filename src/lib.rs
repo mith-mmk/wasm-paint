@@ -3,6 +3,7 @@ pub mod paint;
 
 type Error = Box<dyn std::error::Error>;
 
+use crate::paint::line::line_antialias;
 use web_sys::HtmlElement;
 use std::sync::{Arc,RwLock};
 use web_sys::ImageData;
@@ -229,7 +230,11 @@ impl Universe {
 
     pub fn line(&mut self,sx :i32, sy :i32, ex: i32, ey: i32,color: u32) {
         line(&mut self.canvas,sx,sy,ex,ey,color);
+    }
 
+    #[wasm_bindgen(js_name = lineAntialias)]
+    pub fn line_antialias(&mut self,sx :f32, sy :f32, ex: f32, ey: f32,color: u32) {
+        line_antialias(&mut self.canvas,sx,sy,ex,ey,color,0xff);
     }
 
     #[wasm_bindgen(js_name = lineWithPen)]

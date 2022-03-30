@@ -28,9 +28,15 @@ onmessage = function(ev) {
                 break;
             case 'run':
                 if (universe == null) return;
-                universe.line(sx,sy,ex,ey,
-                            Math.random() * 0xffffff,
-                );
+                if (data.method != null && data.method == "antialias") {
+                    universe.lineAntialias(sx,sy,ex,ey,
+                        Math.random() * 0xffffff,
+                    );
+                } else {
+                    universe.line(sx,sy,ex,ey,
+                        Math.random() * 0xffffff,
+                    );
+                }
                 if ( mode == 0 ) {
                     ex -= step;
                     if (ex < 0) {

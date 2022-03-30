@@ -2,6 +2,12 @@ import * as fps from './fps.js';
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+const method = document.getElementById('flag');
+let command = "";
+method.addEventListener('change', (ev) => {
+  command = method.value;
+});
+
 
 let width = 512;
 let height =512;
@@ -27,7 +33,7 @@ function workerInit() {
       case 'init':
         img = data.image;
         ctx.putImageData(img, 0, 0);
-        PixelWorker.postMessage({command: 'run'});
+        PixelWorker.postMessage({command: 'run',method: command});
         function draw() { // draw loop
           fps.fps.render();          
           PixelWorker.postMessage({command: 'get'});
@@ -36,7 +42,7 @@ function workerInit() {
         draw();
       break;
       case 'run': // run loop
-        PixelWorker.postMessage({command: 'run'});
+        PixelWorker.postMessage({command: 'run',method: command});
         break;
       case 'get':
         img = data.image;

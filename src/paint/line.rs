@@ -5,12 +5,14 @@
  *  Update 2022/03/13
  */
 
+use crate::point_antialias;
 use super::pen::*;
 use super::utils::color_taple;
 use super::canvas::*;
 use super::point::point_for_line;
 
-// line no antialias (Bresenham's line algorithm)
+/// line no antialias (Bresenham's line algorithm)
+/// color = RGB888 no include alpha mask
 pub fn line ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
     let (red, green, blue, _) = color_taple(color);
     let dx = (x0 - x1).abs();
@@ -60,7 +62,7 @@ pub fn line_with_alpha ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1:
     let mut y = y0;
 
     loop {
-        point_for_line(screen, x as i32, y as i32, red, green, blue, alpha);
+        point_for_line (screen, x as i32, y as i32, red, green, blue, alpha);
         if x == x1 && y == y1 {
             break;
         }
@@ -79,6 +81,51 @@ pub fn line_with_alpha ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1:
 
     }
 }
+
+
+/// line_antialias uses alternative Xiaolin Wu's line algorithm
+pub fn line_antialias ( screen: &mut dyn Screen, x0: f32, y0: f32, x1: f32, y1: f32 , color: u32, alpha: u8) {
+    let weight = alpha as f32 / 255.0;
+    if x0 == x1 && y0 == y1 {
+        point_antialias(screen, x0, y0, color, weight);
+        return;
+    }
+
+    let dx = x0 - x1;
+    let dy = y0 - y1;
+    let ddx = dx.abs();
+    let ddy = dy.abs();
+
+    let step_x = if ddx > ddy { if x0 < x1 { 1.0 } else { -1.0 } } else { if y0 < y1 { dx/dy } else { -dx/dy } };
+    let step_y = if ddx <=ddy { if y0 < y1 { 1.0 } else { -1.0 } } else { if x0 < x1 { dy/dx } else { -dy/dx } };
+
+    let step = if ddx > ddy {true} else {false};
+
+
+    let (mut x, mx) = if x0 < x1 {let x=x0.ceil();(x,x-x0)} else {let x=x0.floor();(x,x0-x)};
+    let (mut y, my) = if y0 < y1 {let y=y0.ceil();(y,y-y0)} else {let y=y0.floor();(y,y0-y)};
+    let x1 = if x0 > x1 { x1.ceil()} else { x1.floor() };
+    let y1 = if y0 > y1 { y1.ceil()} else { y1.floor() };
+
+    if !step {
+        x = (dx / dy) * my + x0;
+    } else {
+        y = (dy / dx) * mx + y0;
+    }
+
+
+    point_antialias(screen, x0, y0, color, weight);
+    loop {
+      point_antialias(screen, x , y , color, weight);
+        if step && x == x1 || !step && y == y1 {
+            break;
+        }
+        x += step_x;
+        y += step_y;
+    }
+    point_antialias(screen, x1, y1, color, weight);
+}
+
 
 pub fn line_pen (canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
     let dx = (x0 - x1).abs();
