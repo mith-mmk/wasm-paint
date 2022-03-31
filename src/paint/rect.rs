@@ -1,10 +1,13 @@
+//! draw a rect
 use super::utils::*;
 use super::canvas::*;
 
+/// draw rect
 pub fn rect(screen: &mut dyn Screen,x0: i32,y0: i32,x1: i32,y1: i32, color: u32){ 
     rect_with_alpha(screen,x0,y0,x1,y1, color,0xff);
 }
 
+/// draw rect with alpha channel
 pub fn rect_with_alpha(screen: &mut dyn Screen,x0: i32,y0: i32,x1: i32,y1: i32, color: u32,alpha: u8){ 
     let (sx,sy,ex,ey) = normalization_points(screen,x0,y0,x1,y1);
 

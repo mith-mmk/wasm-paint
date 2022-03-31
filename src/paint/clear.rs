@@ -1,3 +1,6 @@
+//! clear screen,layer,canvas.
+//! A layer is default alpha is zero.
+//! A canvas is default alha is max(255).
 /*
  * clear.rs  Mith@mmk (C) 2022
  * 

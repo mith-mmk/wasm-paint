@@ -1,3 +1,4 @@
+//! paint module some paint functions
 /*
  * paint module
  *   mith@mmk (c) 2022

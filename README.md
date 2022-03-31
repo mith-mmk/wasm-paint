@@ -38,7 +38,8 @@ Color model ABGR uint32LE
 
 2022/03/29 0.0.15 JavaScriptとのバインド関数の変更、input_bufferの削除
 
-Todo 
+Todo
+- organize Functions
 - border
 - polyline
 - layer(Multi canvas)
@@ -59,7 +60,6 @@ Todo
 - font support
 - image effects
 - multi thread
-- inclued html canvas
 - support SIMD/OpenCL/WebGL
 
 - and documents

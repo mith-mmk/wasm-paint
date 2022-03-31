@@ -1,3 +1,4 @@
+//! draw a line.
 /*
  *  line.rs (C)2022 Mith@mmk 
  *  Create 2022/02/21

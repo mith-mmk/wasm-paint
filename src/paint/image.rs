@@ -1,3 +1,4 @@
+//! image is decoding enconded image and draw.
 /* image.rs
  * (C)2022 Mith@mmk 
  */

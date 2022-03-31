@@ -1,15 +1,17 @@
+//! spline module draws curve quadratic curve,bezier curve.
 
-use crate::paint::point::point_with_alpha;
-use crate::line_antialias;
-use crate::point_antialias;
-use crate::paint::line::line_with_alpha;
-use crate::Screen;
-use crate::Canvas;
+use super::point::*;
+use super::line::*;
+use super::canvas::*;
 
+/// draw quadratic curve
+/// Parameter a changes half circle, ellipse, parabola or hyperbola
+/// Circle or ellipse is a = -2.0
 pub fn quadratic_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32) {
     quadratic_curve_with_alpha(screen,p,a,color,0xff,false,None)
 }
 
+/// with_alpha is with alpha channel,antialias flag,draw size (only is_antialias = true)
 pub fn quadratic_curve_with_alpha(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32,alpha: u8,is_antialias:bool,size: Option<f32>) {
     let s = if let Some(_s) = size {
        _s
@@ -78,6 +80,12 @@ fn pascal_triangle(n:usize) -> Vec::<i32>{
     ret[1..ret.len()-1].to_vec()
 }
 
+/// draw n bezier curve
+/// - p = [x,y].to_vec() -> point
+/// - p = [[x0,y0],[x1,y1]].to_vec() Linear Bézier curves = Strait line
+/// - p = [[x0,y0],[x1,y1],[x2,y2]].to_vec() Quadratic Bézier curve
+/// - p = [[x0,y0],[x1,y1],[x2,y2],[x3,y3]].to_vec() Cubic Bézier curve
+///     and Poly Bézier curves
 pub fn bezier_curve(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
     bezier_curve_with_alpha(screen,p,color,0xff,false,None)
 }

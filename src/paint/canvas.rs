@@ -1,3 +1,4 @@
+//! A canvas is base on image.
 /*
  * canvas.rs  Mith@mmk (C) 2022
  * update 2022/03/13

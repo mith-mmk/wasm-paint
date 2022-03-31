@@ -1,3 +1,17 @@
+//! Affine trasration
+//! 
+//! usage
+//! 
+//! ```
+//! paint::paint::affine;
+//! 
+//! let affine = Affine::new();
+//! let affine.translation(20,20); //  x +20 ,y +20
+//! let affine.invertXY(); // reverse up-down and right-left
+//! let affine.scale(3.0,3.0); // image scale x 3.0
+//! affineconversion(input_screen,output_screen,InterpolationAlgorithm::Bilinear);  // conversion with Bilinear algorithm
+//! ```
+//! 
 /*
  * affine.rs  Mith@mmk (C) 2022
  * create 2022/03/13
@@ -47,41 +61,48 @@ impl Affine {
         self.affine = result;
     }
 
+    /// transration image (x,y) position
     pub fn translation(self:&mut Self,x:f32,y:f32) {
         self.matrix(&[[1.0 ,0.0 ,  x],
                       [0.0 ,1.0 ,  y],
                       [0.0 ,0.0 ,1.0]]);
     }
 
+    /// reverse image right-left
     pub fn invert_x(self:&mut Self) {
         self.matrix(&[[-1.0 , 0.0 , 0.0],
                       [ 0.0 , 1.0 , 0.0],
                       [ 0.0 , 0.0 , 1.0]]);
     }
 
+    /// reverse image up-down
     pub fn invert_y(self:&mut Self) {
         self.matrix(&[[ 1.0 ,  0.0 , 0.0],
                       [ 0.0 , -1.0 , 0.0],
                       [ 0.0 ,  0.0 , 1.0]]);
     }
 
+    /// reverse image right-left and up-down
     pub fn invert_xy(self:&mut Self) {
         self.matrix(&[[-1.0 , 0.0 , 0.0],
                       [ 0.0 ,-1.0 , 0.0],
                       [ 0.0 , 0.0 , 1.0]]);
     }
 
+    /// change scale x X x Y
     pub fn scale(self:&mut Self,x:f32,y:f32) {
         self.matrix(&[[   x ,0.0 , 0.0],
                       [ 0.0 ,  y , 0.0],
                       [ 0.0 ,0.0 , 1.0]]);
     }
 
+    /// rotate by dgree
     pub fn rotate_by_dgree(self:&mut Self,theta:f32) {
         let theta = PI * theta / 180.0;
         self.rotate(theta);
     }
 
+    /// rotate by radian
     pub fn rotate(self:&mut Self,theta:f32) {
         let c = theta.cos();
         let s = theta.sin();
@@ -90,6 +111,7 @@ impl Affine {
                       [ 0.0 ,0.0 , 1.0]]);    
     }
 
+    /// shear
     pub fn shear(self:&mut Self,x:f32,y:f32) {
         self.matrix(&[[ 1.0 ,  y , 0.0],
                       [   x ,1.0 , 0.0],
@@ -101,7 +123,7 @@ impl Affine {
         (x * PI).sin() / (x * PI)
     }
 
-    /* not implement Scaling Routine */
+    /// conversion no implement interpolations
     pub fn _conversion(self:&mut Self,input_screen: &dyn Screen,output_screen:&mut dyn Screen) {
         let min_x = 0;
         let max_x = output_screen.width() as i32;
@@ -153,7 +175,8 @@ impl Affine {
         }
     }
 
-    pub fn conversion(self:&mut Self,input_screen: &Canvas,output_screen:&mut Canvas,algorithm:InterpolationAlgorithm) {
+    /// conversion implement interpolations
+    pub fn conversion(self:&mut Self,input_screen: &dyn Screen,output_screen:&mut dyn Screen,algorithm:InterpolationAlgorithm) {
 
         let start_x = 0 as f32;
         let start_y = 0 as f32;
@@ -467,9 +490,5 @@ impl Affine {
                 }    
             }
         }
-
-
     }
-
-
 }

@@ -1,6 +1,6 @@
+//! Layer is canvas overlay images.
 use crate::paint::clear::fillrect_with_alpha;
 use super::canvas::*;
-
 
 pub struct Layer {
     pub label:String,

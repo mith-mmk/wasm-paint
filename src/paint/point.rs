@@ -1,3 +1,4 @@
+//! draw a point
 /*  point.rs
  *  create 2022/02/20
  *  update 2022/02/28  internal point method change

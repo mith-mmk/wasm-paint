@@ -1,3 +1,4 @@
+//! blend screen and screen.
 /*
  * draw.rs  Mith@mmk (C) 2022
  * 

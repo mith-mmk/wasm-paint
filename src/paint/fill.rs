@@ -1,3 +1,4 @@
+//! fill a closed shape.
 /*
  * fill.rs  Mith@mmk (C) 2022
  * 

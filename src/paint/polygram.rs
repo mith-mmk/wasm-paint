@@ -8,44 +8,47 @@ use super::line::*;
 use super::canvas::Screen;
 
 
-// pentagram (五芒星)
-pub fn pentagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
+/// A pentagram (五芒星) draw an inscribed pentagram in center position (ox,oy)'s radius r circle.
+pub fn pentagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
     polygram(screen,5,2,ox,oy,r,tilde,color);
 }
 
-pub fn pentagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8,is_antialias:bool){ 
-  polygram_with_alpha(screen,5,2,ox,oy,r,tilde,color,alpha,is_antialias);
+/// with alpha channnel,size uses only is_antialias == true.
+pub fn pentagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8,is_antialias:bool,size:Option<f32>){ 
+  polygram_with_alpha(screen,5,2,ox,oy,r,tilde,color,alpha,is_antialias,size);
 }
 
 
-// hexagram (六芒星)
+/// A hexagram (六芒星) draws an inscribed hexagram in center position (ox,oy)'s radius r circle.
 pub fn hexagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){ 
     polygram(screen,6,2,ox,oy,r,tilde,color);
 }
 
-pub fn hexagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8,is_antialias:bool) { 
-  polygram_with_alpha(screen,6,2,ox,oy,r,tilde,color,alpha,is_antialias);
+pub fn hexagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8,is_antialias:bool,size:Option<f32>) { 
+  polygram_with_alpha(screen,6,2,ox,oy,r,tilde,color,alpha,is_antialias,size);
 }
 
-// Reglar Pollygon (正多角形)
+/// A reglar Pollygon (正多角形) draws an inscribed hexagram in center position (ox,oy)'s radius r circle.
 pub fn reglar_polygon(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32) {
     polygram(screen,p,1,ox,oy,r,tilde,color);
 }
 
-pub fn reglar_polygon_with_alpha(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha: u8,is_antialias:bool) {
-  polygram_with_alpha(screen,p,1,ox,oy,r,tilde,color,alpha,is_antialias);
+pub fn reglar_polygon_with_alpha(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha: u8,is_antialias:bool,size:Option<f32>) {
+  polygram_with_alpha(screen,p,1,ox,oy,r,tilde,color,alpha,is_antialias,size);
 }
 
 // 中点(ox,oy) 半径r の円に内接する、Schläfli symbol {p/q}角形を傾き(tilde)で指定したcolorで描画する。
-
-
+/// A Schläfli symbol {p/q} Pollygon ({p/q}角形) draws an inscribed hexagram in center position (ox,oy)'s radius r circle.
 pub fn polygram(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
-  polygram_with_alpha(screen,p,q,ox,oy,r,tilde,color,0xff,false)
+  polygram_with_alpha(screen,p,q,ox,oy,r,tilde,color,0xff,false,None)
 }
 
-pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha:u8,is_antialias:bool){
+pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha:u8,is_antialias:bool,size: Option<f32>){
+  let ss = if let Some(_s) = size {
+    _s
+  } else { 1.0 };
 
-  if r < 0.0 || p <= 2 {return};
+ if r < 0.0 || p <= 2 {return};
  
     let angle = 2.0 * PI  / p as f32; // = 72.0 dgree
 
@@ -63,7 +66,7 @@ pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32
         let s = i as usize;
         let e = (i + q as usize) % p as usize;
         if is_antialias {
-          line_antialias(screen,x[s] as f32,y[s] as f32,x[e] as f32,y[e] as f32,color,alpha,1.0);
+          line_antialias(screen,x[s] as f32,y[s] as f32,x[e] as f32,y[e] as f32,color,alpha,ss);
         } else {
           line_with_alpha(screen,x[s],y[s],x[e],y[e],color,alpha);
         }

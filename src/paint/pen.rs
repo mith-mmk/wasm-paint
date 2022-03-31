@@ -1,3 +1,4 @@
+//! draw a point using a pen.
 use super::point::point_with_weight;
 use super::canvas::{Screen,Canvas};
 

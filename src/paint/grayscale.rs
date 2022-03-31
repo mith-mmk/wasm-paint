@@ -1,3 +1,4 @@
+//! grayscaling and output other screen
 /*
  * galyscale.rs  Mith@mmk (C) 2022
  * 
