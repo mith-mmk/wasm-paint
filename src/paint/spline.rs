@@ -86,11 +86,11 @@ fn pascal_triangle(n:usize) -> Vec::<i32>{
 /// - p = [[x0,y0],[x1,y1],[x2,y2]].to_vec() Quadratic Bézier curve
 /// - p = [[x0,y0],[x1,y1],[x2,y2],[x3,y3]].to_vec() Cubic Bézier curve
 ///     and Poly Bézier curves
-pub fn bezier_curve(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
+pub fn bezier_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,color: u32) {
     bezier_curve_with_alpha(screen,p,color,0xff,false,None)
 }
 
-pub fn bezier_curve_with_alpha(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32,alpha: u8,is_antialias:bool,size:Option<f32>) {
+pub fn bezier_curve_with_alpha(screen:&mut dyn Screen,p:Vec<(f32,f32)>,color: u32,alpha: u8,is_antialias:bool,size:Option<f32>) {
     let s = if let Some(_s) = size {
         _s
      } else { 1.0 };

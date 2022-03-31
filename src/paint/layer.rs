@@ -1,4 +1,7 @@
 //! Layer is canvas overlay images.
+use wml2::error::*;
+use wml2::draw::*;
+type Error = Box<dyn std::error::Error>;
 use crate::paint::clear::fillrect_with_alpha;
 use super::canvas::*;
 
@@ -12,7 +15,10 @@ pub struct Layer {
     pub(crate) z_index: i32,
     pub(crate) use_canvas_alpha: bool,
     pub(crate) canvas_alpha: u8,
+    pub(crate) enable: bool,
+    fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
 }
+
 
 impl Layer {
     pub fn new(label:String,width:u32,height:u32) -> Self {
@@ -27,6 +33,8 @@ impl Layer {
             z_index: 0,
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
+            enable: true,
+            fnverbose: super::canvas::default_verbose,
         }
     }
 
@@ -41,13 +49,48 @@ impl Layer {
             z_index: 0,
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
+            enable: true,
+            fnverbose: super::canvas::default_verbose,
         }
     }
-    pub fn move_layer(&mut self,dx:i32,dy:i32) {
+
+    pub fn set_enable(&mut self) {
+        self.enable = true
+    }
+
+    pub fn set_disable(&mut self) {
+        self.enable = false
+    }
+
+    pub fn enable(&self) -> bool {
+        self.enable
+    }
+
+    pub fn set_z_index(&mut self,z_index: i32) {
+        self.z_index = z_index;
+    }
+
+    pub fn z_index(&mut self) -> i32 {
+        self.z_index.clone()
+    }
+
+    pub fn set_pos(&mut self,x:i32,y:i32) {
+        self.x = x;
+        self.y = y;
+    }
+
+    pub fn pos(&self) -> (i32,i32) {
+        (self.x.clone(),self.y.clone())
+    }
+
+    pub fn move_pos(&mut self,dx:i32,dy:i32) {
         self.x += dx;
         self.y += dy;
     }
 
+    pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>) {
+        self.fnverbose = verbose;
+    }
 }
 
 impl Screen for Layer {
@@ -89,4 +132,57 @@ impl Screen for Layer {
         self.use_canvas_alpha = true;
     }
 
+
+}
+
+impl DrawCallback for Layer {
+    fn init(&mut self, width: usize, height: usize,_: Option<InitOptions>) -> Result<Option<CallbackResponse>, Error> {
+        if width <= 0 || height <= 0 {
+            return Err(Box::new(ImgError::new_const(ImgErrorKind::SizeZero,"image size zero or minus".to_string())))
+        }
+        if self.width() == 0 || self.height() == 0 {
+            let buffersize = width as usize * height as usize * 4;
+            self.buffer = (0..buffersize).map(|_| 0).collect();
+        }
+        Ok(None)
+    }
+
+    fn draw(&mut self, start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8],_: Option<DrawOptions>)
+                -> Result<Option<CallbackResponse>,Error>  {
+        let self_width = self.width() as usize;
+        let self_height = self.height() as usize;
+
+        let buffer =  &mut self.buffer_as_mut();
+        if start_x >= self_width || start_y >= self_height {return Ok(None);}
+        let w = if self_width < width + start_x {self_width - start_x} else { width };
+        let h = if self_height < height + start_y {self_height - start_y} else { height };
+        for y in 0..h {
+            let scanline_src =  y * width * 4;
+            let scanline_dest= (start_y + y) * self_width * 4;
+            for x in 0..w {
+                let offset_src = scanline_src + x * 4;
+                let offset_dest = scanline_dest + (x + start_x) * 4;
+                if offset_src + 3 >= data.len() {
+                    return Err(Box::new(ImgError::new_const(ImgErrorKind::OutboundIndex,"decoder buffer in draw".to_string())))
+                }
+                buffer[offset_dest    ] = data[offset_src];
+                buffer[offset_dest + 1] = data[offset_src + 1];
+                buffer[offset_dest + 2] = data[offset_src + 2];
+                buffer[offset_dest + 3] = data[offset_src + 3];
+            }
+        }
+        Ok(None)
+    }
+
+    fn terminate(&mut self,_: Option<TerminateOptions>) -> Result<Option<CallbackResponse>, Error> {
+        Ok(None)
+    }
+
+    fn next(&mut self, _: Option<NextOptions>) -> Result<Option<CallbackResponse>, Error> {
+        Ok(Some(CallbackResponse::abort()))
+    }
+
+    fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error> { 
+        return (self.fnverbose)(str,None);
+    }
 }

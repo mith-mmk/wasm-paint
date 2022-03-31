@@ -8,6 +8,10 @@ function workerInit(width, height) {
         universe = new Universe(width,height);
         universe.clear(0x000000);
         img = universe.getImageData(0);
+        universe.addLayer("komono",10,10);
+        let prev = universe.setCurrentLayer("komono");
+        universe.fill(5,5,0x3333ff);
+        universe.setCurrentLayer(prev);
         postMessage({message: 'init', image: img});
     });
 }
@@ -25,7 +29,8 @@ let p = [
     [200,400]
 ];
 
-
+let x = 10;
+let y = 10;
 
 onmessage = function(ev) {
     const data = ev.data;
@@ -33,12 +38,17 @@ onmessage = function(ev) {
         switch(data.command) {
             case 'init':
                 workerInit(data.width,data.height);
+
+        
                 width = data.width;
                 height = data.height;
                 break;
             case 'run':
-                if (universe == null) return;
-                universe.clear(0x000000);
+                if (universe == null) return;                
+                universe.clearLayer("main");
+
+                universe.setPos("komono",x,y);
+
                 if(p[2][0] < -511) {
                     p[1][0] = 0;
                     p[2][0] = 511;
@@ -108,6 +118,8 @@ onmessage = function(ev) {
 
 //                a += 0.5;
                 if(mode == 0) {
+                    x = x + 8;
+                    y = y + 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 1;
@@ -115,12 +127,16 @@ onmessage = function(ev) {
                         mode = 1;
                     }
                 } else if (mode == 1) {
+                    x = x + 4;
+                    y = y + 4;
                     x1 += 32;
                     x3 -= 32;
                     if (x3 < 0) {
                         mode = 2;
                     }
                 } else if (mode == 2){
+                    x = x - 4;
+                    y = y + 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 3;
@@ -131,6 +147,8 @@ onmessage = function(ev) {
                         mode =4;
                     }
                 } else if (mode == 4) {
+                    x = x - 4;
+                    y = y - 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 1;
@@ -141,7 +159,7 @@ onmessage = function(ev) {
                 break;
             case 'get':
                 if (universe == null) return;
-                img = universe.getImageData(0);
+                universe.combine();
                 postMessage({message: 'get', image:img});
                 break;
             default:

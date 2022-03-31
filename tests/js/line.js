@@ -14,7 +14,7 @@ let height =512;
 canvas.width = width;
 canvas.height = height;
 let img;
-
+const PixelWorker = new Worker('js/line-worker.js', { type: 'module' });
 if (window.Worker) {
   workerInit();  
 } else {
@@ -23,7 +23,6 @@ if (window.Worker) {
 console.log("init");
 
 function workerInit() {
-  const PixelWorker = new Worker('js/line-worker.js', { type: 'module' });
   PixelWorker.postMessage({command: 'init',width: width,height: height});
 
   PixelWorker.onmessage = (ev) => {
@@ -34,12 +33,7 @@ function workerInit() {
         img = data.image;
         ctx.putImageData(img, 0, 0);
         PixelWorker.postMessage({command: 'run',method: command});
-        function draw() { // draw loop
-          fps.fps.render();          
-          PixelWorker.postMessage({command: 'get'});
-          window.requestAnimationFrame(draw);
-        }
-        draw();
+//        draw();
       break;
       case 'run': // run loop
         PixelWorker.postMessage({command: 'run',method: command});
@@ -57,3 +51,13 @@ function workerInit() {
   }
 }
 
+setTimeout(function(){draw();},1000/60);
+
+let i = 0;
+function draw() {
+  setTimeout(function(){draw();},1000/60);
+  if(img == null) return;
+  PixelWorker.postMessage({command: 'get'});
+  PixelWorker.postMessage({command: 'run',tilde: i++ / 16 * Math.PI});
+  if (i > 16) i = 0;
+}

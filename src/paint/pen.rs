@@ -2,6 +2,7 @@
 use super::point::point_with_weight;
 use super::canvas::{Screen,Canvas};
 
+#[derive(Clone)]
 pub struct Pen {
     buffer: Vec<u8>,
     width : u32,

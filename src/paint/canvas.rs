@@ -28,12 +28,148 @@ pub trait Screen {
 
 }
 
+struct PackedLayers {
+    layers: HashMap<String,Layer>,
+    sorted: Vec<String>,
+}
+
+impl PackedLayers {
+    fn new() -> Self {
+        Self {
+            layers: HashMap::new(),
+            sorted: Vec::new(),
+        }
+    }
+
+    fn sort(&mut self) {
+        let mut vector:Vec<(&String,i32)> = self.layers.iter().map(|(k, v)| (k,v.z_index)).collect();
+        vector.sort_by(|a, b| a.1.cmp(&b.1));
+        let sorted:Vec<String> = vector.iter().map(|x| x.0.to_string()).collect();
+        self.sorted = sorted;
+    }
+
+
+    fn set_z_index(&mut self,label:String,z_index:i32) -> Result<(),Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.set_z_index(z_index);
+                self.sort();
+                Ok(())
+            },
+            _ => {
+                return Err(Box::new(super::error::Error{message:"No exist Layer".to_string()}))
+            },
+        }
+    }
+
+    fn add(&mut self,label:String,width :u32,height: u32,x: i32,y :i32) -> Result<(),Error> {
+        match self.layers.get(&label) {
+            Some(..) => {
+                return Err(Box::new(super::error::Error{message:"Exist Layer name".to_string()}))
+            },
+            _ => {},
+
+        };
+        let mut layer = Layer::new(label.clone(), width, height);
+        layer.z_index = self.layers.len() as i32;
+        layer.x = x;
+        layer.y = y;
+        self.layers.insert(label.clone(),layer);
+        self.sorted.push(label);
+        self.sort();
+        Ok(())
+    }
+
+    fn get(&self,label:String) -> Option<&Layer> {
+        self.layers.get(&label)
+    }
+
+    fn get_mut(&mut self,label:String) -> Option<&mut Layer> {
+        self.layers.get_mut(&label)
+    }
+
+    fn sorted(&self) -> &Vec<String> {
+        &self.sorted
+    }
+
+    fn len(&self) -> usize {
+        self.layers.len()
+    }
+
+    fn clear(&mut self) {
+        for key in &self.sorted {
+            let layer = self.layers.get_mut(key).unwrap();
+            layer.clear();
+        }
+    }
+
+    fn clear_layer(&mut self,label:String) -> Result<(),Error>  {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.clear();
+                Ok(())
+            },
+            _ => {
+                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            },
+        }        
+    }
+
+    fn set_enable(&mut self,label:String) -> Result<(),Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.set_enable();
+                Ok(())
+            },
+            _ => {
+                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            },
+        }        
+    }
+
+    fn set_disable(&mut self,label:String) -> Result<(),Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.set_disable();
+                Ok(())
+            },
+            _ => {
+                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            },
+        }        
+    }
+
+    fn enable(&self,label:String) -> Result<bool,Error> {
+        match self.layers.get(&label) {
+            Some(layer) => {
+                Ok(layer.enable())
+            },
+            _ => {
+                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            },
+        }        
+    }
+
+    fn remove(&mut self,label:String) {
+        self.layers.remove(&label);
+        let mut sorted:Vec<String> = Vec::new();
+        for key in &self.sorted {
+            if key != &label {
+                sorted.push(key.to_string())
+            }
+        }
+        self.sorted = sorted;
+        self.sort();
+    }
+
+}
+
 pub struct Canvas {
     canvas: Layer,
     color: u32,
     background_color: u32,
     pen: Pen,
-    layers: HashMap<String,Layer>,
+    layers: PackedLayers,
     fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
     draw_width: u32,
     draw_height: u32,
@@ -41,7 +177,7 @@ pub struct Canvas {
     canvas_alpha: u8,
 }
 
-fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error>{
+pub(crate) fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error>{
     Ok(None)
 }
 
@@ -62,7 +198,7 @@ impl Canvas {
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
             pen,
-            layers: HashMap::new(),
+            layers: PackedLayers::new(),
             fnverbose,
             draw_width: 0,
             draw_height: 0,
@@ -77,7 +213,7 @@ impl Canvas {
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
             pen: Pen::new(1, 1, vec![255]),
-            layers: HashMap::new(),
+            layers: PackedLayers::new(),
             fnverbose: default_verbose,
             draw_width: 0,
             draw_height: 0,
@@ -99,7 +235,8 @@ impl Canvas {
             background_color,
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
-            layers: HashMap::new(),
+            layers: PackedLayers::new(),
+
             pen,
             fnverbose,
             draw_width: 0,
@@ -110,6 +247,10 @@ impl Canvas {
     /// for WebAssembly
     pub fn canvas(&self) -> *const u8 {
         self.canvas.buffer.as_ptr()
+    }
+
+    pub fn layers_len(&self) -> usize {
+        self.layers.len()
     }
 
     /// for Wml2
@@ -137,55 +278,94 @@ impl Canvas {
         self.pen = pen;
     }
 
-    pub fn pen(&self) -> &Pen{
-        &self.pen
+    pub fn pen(&self) -> Pen{
+        self.pen.clone()
     }
 
-    pub fn add_layer(&mut self,label:String,width:u32,height:u32) -> Result<(),Error> {
-        let mut layer = Layer::new(label.clone(),width,height);
-        layer.z_index = self.layers.len() as i32;
-        match self.layers.get(&label.clone()) {
-            Some(..) => {
-                return Err(Box::new(super::error::Error{message:"Exist Layer name".to_string()}))
-            },
-            _ => {},
-
-        };
-        self.layers.insert(label.clone(), layer);
+    pub fn add_layer(&mut self,label:String,width:u32,height:u32,x:i32,y:i32) -> Result<(),Error> {
+        self.layers.add(label.clone(),width,height,x,y)?;
         Ok(())
     }
 
     pub fn set_layer_alpha(&mut self,label:String,alpha:u8) -> Result<(),Error> {
-        if let Some(layer) = self.layers.get_mut(&label) {
+        if let Some(layer) = self.layers.get_mut(label) {
             layer.set_alpha(alpha);
         }  
         Ok(())
     }
 
-    pub fn layer_composition(&mut self) {
+    pub fn set_z_index(&mut self,label:String,z_index:i32) -> Result<(),Error> {
+        self.layers.set_z_index(label,z_index)
+    }
+
+    pub fn layer(&mut self,label:String) -> Option<&Layer> {
+        self.layers.get(label)
+    }
+
+    pub fn layer_as_mut(&mut self,label:String) -> Option<&mut Layer> {
+        self.layers.get_mut(label)
+    }
+
+    pub fn set_enable(&mut self,label:String) -> Result<(),Error> {
+        self.layers.set_enable(label)
+    }
+
+    pub fn set_disable(&mut self,label:String) -> Result<(),Error> {
+        self.layers.set_disable(label)
+    }
+
+    pub fn enable(&self,label:String) -> Result<bool,Error> {
+        self.layers.enable(label)
+    }
+
+    pub fn combine(&mut self) {
         let background_color = &self.background_color();
         let canvas = &mut self.canvas;
-        let mut sorted: Vec<_> = self.layers.iter().collect();
-        sorted.sort_by(|a,b| a.1.z_index.cmp(&b.1.z_index));
+
         fillrect(canvas,*background_color);
-        for layer in sorted {
-            let src = &*layer.1.clone();
-            draw_over_screen_with_alpha(src,canvas,layer.1.x,layer.1.y);
+        let sorted = self.layers.sorted();
+        for label in sorted {
+            match self.layers.get(label.clone()) {
+                Some(layer) => {
+                    let (x,y) = layer.pos();
+                    if layer.enable() {
+                        draw_over_screen_with_alpha(layer,canvas,x,y);
+                    }
+                },
+                _ => {}
+            }
         }
+    }
+
+    pub fn clear_layer(&mut self,label:String) -> Result<(),Error> {
+        self.layers.clear_layer(label)
     }
 
     pub fn delete_layer(&mut self,label:String){ 
-        if let Some(..) = self.layers.get_mut(&label) {
-           self.layers.remove(&label);
+        if let Some(..) = self.layers.get_mut(label.clone()) {
+           self.layers.remove(label);
         }
     }
 
-    pub fn move_layer(&mut self,label:String,dx:i32,dy:i32) {
-        if let Some(layer) = self.layers.get_mut(&label) {
-                layer.move_layer(dx,dy);
+    pub fn set_pos(&mut self,label:String,x:i32,y:i32) {
+        if let Some(layer) = self.layers.get_mut(label) {
+                layer.set_pos(x,y);
         }
     }
 
+    pub fn move_pos(&mut self,label:String,dx:i32,dy:i32) {
+        if let Some(layer) = self.layers.get_mut(label) {
+                layer.move_pos(dx,dy);
+        }
+    }
+
+    pub fn pos(&mut self,label:String) -> Option<(i32,i32)> {
+        if let Some(layer) = self.layers.get_mut(label) {
+            Some(layer.pos())
+        } else {
+            None
+        }
+    }
 }
 
 impl Screen for Canvas {
@@ -209,6 +389,7 @@ impl Screen for Canvas {
 
     fn clear(&mut self) {
         self.clear_with_color(self.background_color);
+        self.layers.clear();
     }
 
     fn clear_with_color(&mut self,color: u32) {

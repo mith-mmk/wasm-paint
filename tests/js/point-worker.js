@@ -33,6 +33,7 @@ onmessage = function(ev) {
                 break;
             case 'get':
                 if (universe == null) return;
+                universe.combine();
                 postMessage({message: 'get', image:img});
                 break;
             default:

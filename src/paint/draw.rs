@@ -45,8 +45,8 @@ pub fn draw_over_screen_with_alpha(src:&dyn Screen,dest:&mut dyn Screen, dx: i32
 
     let sx = if dx < 0 {0} else {dx as u32};
     let sy = if dy < 0 {0} else {dy as u32};
-    let ex = if dx + (width as i32) > dest_width as i32 {dest_width} else {(dx + (width as i32)) as u32};
-    let ey = if dx + (height as i32) > dest_height as i32 {dest_height} else {(dy + (height as i32)) as u32};
+    let ex = if dx + (width as i32) >= dest_width as i32 {dest_width} else {(dx + (width as i32)) as u32};
+    let ey = if dy + (height as i32) >= dest_height as i32 {dest_height} else {(dy + (height as i32)) as u32};
     let global_alpha = if let Some(ga) = src.alpha() {
         ga as f32 / 255.0
     } else { 1.0 };

@@ -22,6 +22,7 @@ reader.onload = (event) => {
 
   console.time("decode");
   start_draw();
+  universe.combine();
   universe.imageDecoder(buffer,0xf9); 
   console.timeEnd("decode");
   drawed = true;
@@ -62,7 +63,8 @@ init().then((wasm) => {
       .then(blob => blob.arrayBuffer())
       .then(arraybuffer => {
         let buffer = new Uint8Array(arraybuffer);      
-        universe.imageDecoder(buffer,0xf9); 
+        universe.imageDecoder(buffer,0xf9);
+        universe.combine();
 //        img = new ImageData(buf, width, height);
         ctx.putImageData(img, 0, 0);
       });
@@ -76,5 +78,6 @@ function start_draw() {
 function draw() {
   if(img == null || drawed) return;
   setTimeout(function(){draw();},1000 / 120);
+  universe.combine();
   ctx.putImageData(img, 0, 0);
 }

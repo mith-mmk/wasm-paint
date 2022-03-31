@@ -31,7 +31,6 @@ function workerInit() {
         PixelWorker.postMessage({command: 'run',tilde: 0.0 *Math.PI});
         break;
       case 'get':
-        console.log('get');
         img = data.image;
         ctx.putImageData(img, 0, 0);
         break;

@@ -69,7 +69,8 @@ onmessage = function(ev) {
                 break;
             case 'get':
                 if (universe == null) return;
-//                img = new ImageData(buf, universe.width(), universe.height());
+                universe.combine();
+                img = universe.getImageData(0);
                 postMessage({message: 'get', image:img});
                 break;
             default:

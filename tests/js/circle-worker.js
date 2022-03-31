@@ -39,10 +39,12 @@ onmessage = function(ev) {
                             data.tilde,
                             Math.random() * 0xffffff
                 );
+                postMessage({message: 'get', image:img});
 //                postMessage({message: 'run'});
                 break;
             case 'get':
                 if (universe == null) return;
+                universe.combine();
                 postMessage({message: 'get', image:img});
                 break;
             default:
