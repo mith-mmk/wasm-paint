@@ -68,20 +68,20 @@ pub fn point_with_weight_from_alpha ( screen: &mut dyn Screen, x: i32, y: i32, c
     _point(screen, x as i32, y as i32, red, green, blue, 0xff, alpha as f32 / 255.0);
 }
 
-pub fn point_antialias(screen: &mut dyn Screen, x: f32, y: f32, color: u32,s: f32) {
-    if s <= 0.0 {return};
+pub fn point_antialias(screen: &mut dyn Screen, x: f32, y: f32, color: u32,alpha: u8,size: f32) {
+    if size<= 0.0 {return};
     let (red, green, blue, _) = color_taple(color);
-    let alpha = 1.0_f32;
-                                                // x = 4.5 y = 5.0 s = 4.5
-    let sx :f32 = (x + 0.5 - s / 2.0).floor();  // sx : 2
-    let sy :f32 = (y + 0.5 - s / 2.0).floor();  // sy : 3
-    let ex :f32 = (x + 0.5 + s / 2.0).ceil();   // ex : 8
-    let ey :f32 = (y + 0.5 + s / 2.0).ceil();   // ey : 8
+    let alpha = alpha as f32 /255.0_f32;
+                                                // x = 4.5 y = 5.0size= 4.5
+    let sx :f32 = (x + 0.5 -size/ 2.0).floor();  // sx : 2
+    let sy :f32 = (y + 0.5 -size/ 2.0).floor();  // sy : 3
+    let ex :f32 = (x + 0.5 +size/ 2.0).ceil();   // ex : 8
+    let ey :f32 = (y + 0.5 +size/ 2.0).ceil();   // ey : 8
 
-    let dx0 = 1.0_f32 - ((x + 0.5 - s / 2.0) - sx);  // dx0 = 0.25
-    let dy0 = 1.0_f32 - ((y + 0.5 - s / 2.0) - sy);   // dy0 = 0.75
-    let dx1 = 1.0_f32 - (ex - (x + 0.5 + s / 2.0));   // dx1 = 0.25
-    let dy1 = 1.0_f32 - (ey - (y+ 0.5 + s / 2.0));  // dy1 = 0.75
+    let dx0 = 1.0_f32 - ((x + 0.5 -size/ 2.0) - sx);  // dx0 = 0.25
+    let dy0 = 1.0_f32 - ((y + 0.5 -size/ 2.0) - sy);   // dy0 = 0.75
+    let dx1 = 1.0_f32 - (ex - (x + 0.5 +size/ 2.0));   // dx1 = 0.25
+    let dy1 = 1.0_f32 - (ey - (y+ 0.5 +size/ 2.0));  // dy1 = 0.75
     /*
       00        0y       10
      (dx0,dy0)   (1 ,dy0)  (dx1, dy0)

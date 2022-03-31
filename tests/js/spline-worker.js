@@ -52,19 +52,21 @@ onmessage = function(ev) {
                     p[0][1] = Math.random() * height;
                 }
                 y2 = (y1+y3)/2;
-                universe.quadraticCurve(
+                universe.quadraticCurveAntialias(
                     x1,y1,
                     x2,y2+dy,
                     x3,y3,
                     a ,
                     0xffffff,
+                    0.8
                 );
-                universe.quadraticCurve(
+                universe.quadraticCurveAntialias(
                     x3,y3,
                     x2,y2-dy,
                     x1,y1,
                     a ,
                     0xffffff,
+                    0.1
                 );
                 universe.pointWithPen(x1,y1,0x7f7f7f);
                 universe.pointWithPen(x3,y3,0x7f7f7f);
@@ -76,19 +78,21 @@ onmessage = function(ev) {
                 universe.line(p[0][0],p[0][1],p[2][0],p[2][1],0x7f0000);
                 universe.line(p[3][0],p[3][1],p[2][0],p[2][1],0x7f0000);
 
-                universe.bezierCurve(
+                universe.bezierCurveAntialias(
                     p[0][0],p[0][1],
                     p[1][0],p[1][1],
                     p[3][0],p[3][1],
                     0x00ff00,
+                    0.1
                 );
 
-                universe.bezierCurve3(
+                universe.bezierCurve3Antialias(
                     p[0][0],p[0][1],
                     p[1][0],p[1][1],
                     p[2][0],p[2][1],
                     p[3][0],p[3][1],
                     0xff0000,
+                    0.1
                 );
 
                 universe.pointWithPen(p[0][0],p[0][1],0x00ffff);
@@ -137,7 +141,7 @@ onmessage = function(ev) {
                 break;
             case 'get':
                 if (universe == null) return;
-//                img = new ImageData(buf, universe.width(), universe.height());
+                img = universe.getImageData(0);
                 postMessage({message: 'get', image:img});
                 break;
             default:

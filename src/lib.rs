@@ -219,8 +219,8 @@ impl Universe {
     }
 
     #[wasm_bindgen(js_name = pointAntialias)]
-    pub fn point_antialias(&mut self, x: f32, y: f32, color: u32,s: f32) {
-        point_antialias(&mut self.canvas,x,y,color,s);
+    pub fn point_antialias(&mut self, x: f32, y: f32, color: u32,alpha: u8) {
+        point_antialias(&mut self.canvas,x,y,color,alpha,1.0);
     }
 
     #[wasm_bindgen(js_name = pointWithPen)]
@@ -234,7 +234,7 @@ impl Universe {
 
     #[wasm_bindgen(js_name = lineAntialias)]
     pub fn line_antialias(&mut self,sx :f32, sy :f32, ex: f32, ey: f32,color: u32) {
-        line_antialias(&mut self.canvas,sx,sy,ex,ey,color,0xff);
+        line_antialias(&mut self.canvas,sx,sy,ex,ey,color,0xff,1.0);
     }
 
     #[wasm_bindgen(js_name = lineWithPen)]
@@ -294,18 +294,35 @@ impl Universe {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
         quadratic_curve(&mut self.canvas,p.to_vec(), a, color);
     }
-    
+
+    #[wasm_bindgen(js_name = quadraticCurveAntialias)]
+    pub fn quadratic_curve_antialias(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32, y3:f32,a:f32,color: u32,size:f32) {
+        let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
+        quadratic_curve_with_alpha(&mut self.canvas,p.to_vec(), a, color,0xff,true,Some(size));
+    }
+
     #[wasm_bindgen(js_name = bezierCurve)]
     pub fn bezier_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,color: u32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
         bezier_curve(&mut self.canvas,p.to_vec(), color);
     }
 
+    #[wasm_bindgen(js_name = bezierCurveAntialias)]
+    pub fn bezier_curve_antialias(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,color: u32,size:f32) {
+        let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
+        bezier_curve_with_alpha(&mut self.canvas,p.to_vec(), color,0xff,true,Some(size));
+    }
 
     #[wasm_bindgen(js_name = bezierCurve3)]
     pub fn bezier_curve3(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,x4:f32,y4:f32,color: u32) {
         let p :[(f32,f32);4]= [(x1,y1),(x2,y2),(x3,y3),(x4,y4)]; 
         bezier_curve(&mut self.canvas,p.to_vec(), color);
+    }
+
+    #[wasm_bindgen(js_name = bezierCurve3Antialias)]
+    pub fn bezier_curve3_antialias(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,x4:f32,y4:f32,color: u32,size:f32) {
+        let p :[(f32,f32);4]= [(x1,y1),(x2,y2),(x3,y3),(x4,y4)]; 
+        bezier_curve_with_alpha(&mut self.canvas,p.to_vec(), color,0xff,true,Some(size));
     }
 
     #[wasm_bindgen(js_name = affineTest2)]

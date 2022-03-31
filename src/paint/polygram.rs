@@ -13,8 +13,8 @@ pub fn pentagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, col
     polygram(screen,5,2,ox,oy,r,tilde,color);
 }
 
-pub fn pentagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8){ 
-  polygram_with_alpha(screen,5,2,ox,oy,r,tilde,color,alpha);
+pub fn pentagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8,is_antialias:bool){ 
+  polygram_with_alpha(screen,5,2,ox,oy,r,tilde,color,alpha,is_antialias);
 }
 
 
@@ -23,8 +23,8 @@ pub fn hexagram(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, colo
     polygram(screen,6,2,ox,oy,r,tilde,color);
 }
 
-pub fn hexagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8) { 
-  polygram_with_alpha(screen,6,2,ox,oy,r,tilde,color,alpha);
+pub fn hexagram_with_alpha(screen: &mut dyn Screen,ox: i32,oy: i32,r : f32,tilde :f32, color: u32, alpha: u8,is_antialias:bool) { 
+  polygram_with_alpha(screen,6,2,ox,oy,r,tilde,color,alpha,is_antialias);
 }
 
 // Reglar Pollygon (正多角形)
@@ -32,18 +32,18 @@ pub fn reglar_polygon(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,til
     polygram(screen,p,1,ox,oy,r,tilde,color);
 }
 
-pub fn reglar_polygon_with_alpha(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha: u8) {
-  polygram_with_alpha(screen,p,1,ox,oy,r,tilde,color,alpha);
+pub fn reglar_polygon_with_alpha(screen: &mut dyn Screen,p: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha: u8,is_antialias:bool) {
+  polygram_with_alpha(screen,p,1,ox,oy,r,tilde,color,alpha,is_antialias);
 }
 
 // 中点(ox,oy) 半径r の円に内接する、Schläfli symbol {p/q}角形を傾き(tilde)で指定したcolorで描画する。
 
 
 pub fn polygram(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32){
-  polygram_with_alpha(screen,p,q,ox,oy,r,tilde,color,0xff)
+  polygram_with_alpha(screen,p,q,ox,oy,r,tilde,color,0xff,false)
 }
 
-pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha:u8){
+pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32,r : f32,tilde :f32, color: u32,alpha:u8,is_antialias:bool){
 
   if r < 0.0 || p <= 2 {return};
  
@@ -62,7 +62,11 @@ pub fn polygram_with_alpha(screen: &mut dyn Screen,p: u32,q: u32,ox: i32,oy: i32
     for i in 0..p as usize {
         let s = i as usize;
         let e = (i + q as usize) % p as usize;
-        line_with_alpha(screen,x[s],y[s],x[e],y[e],color,alpha);
+        if is_antialias {
+          line_antialias(screen,x[s] as f32,y[s] as f32,x[e] as f32,y[e] as f32,color,alpha,1.0);
+        } else {
+          line_with_alpha(screen,x[s],y[s],x[e],y[e],color,alpha);
+        }
     }
 }
 

@@ -1,23 +1,35 @@
 
+use crate::paint::point::point_with_alpha;
+use crate::line_antialias;
+use crate::point_antialias;
 use crate::paint::line::line_with_alpha;
 use crate::Screen;
-use crate::line;
-use crate::paint::point::point;
 use crate::Canvas;
 
 pub fn quadratic_curve(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32) {
-    quadratic_curve_with_alpha(screen,p,a,color,0xff)
+    quadratic_curve_with_alpha(screen,p,a,color,0xff,false,None)
 }
 
-pub fn quadratic_curve_with_alpha(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32,alpha: u8) {
+pub fn quadratic_curve_with_alpha(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,color: u32,alpha: u8,is_antialias:bool,size: Option<f32>) {
+    let s = if let Some(_s) = size {
+       _s
+    } else { 1.0 };
     if p.len() == 0 {
         return
     }
     if p.len() == 1 {
-        return point(screen,p[0].0 as i32,p[0].1 as i32,color)
+        if is_antialias {
+            return point_antialias(screen,p[0].0,p[0].1,color,alpha,s)
+        } else {
+            return point_with_alpha(screen,p[0].0 as i32,p[0].1 as i32,color,alpha)
+        }
     }
     if p.len() == 2 {
-        return line(screen,p[0].0 as i32,p[0].1 as i32,p[1].0 as i32,p[1].1 as i32,color)
+        if is_antialias {
+            return line_antialias(screen,p[0].0 ,p[0].1 ,p[1].0 ,p[1].1 ,color,alpha,s)
+        } else {
+            return line_with_alpha(screen,p[0].0 as i32,p[0].1 as i32,p[1].0 as i32,p[1].1 as i32,color,alpha)
+        }
     }
 
     for i in 0..p.len() -2 {
@@ -38,7 +50,11 @@ pub fn quadratic_curve_with_alpha(screen:&mut dyn Screen,p:Vec<(f32,f32)>,a:f32,
                 pp = (x,y);
                 continue;
             }
-            line_with_alpha(screen,pp.0 as i32,pp.1 as i32, x as i32, y as  i32, color, alpha);
+            if is_antialias {
+                line_antialias(screen,pp.0 ,pp.1 , x , y , color, alpha,s);
+            } else {
+                line_with_alpha(screen,pp.0 as i32,pp.1 as i32, x as i32, y as  i32, color, alpha);
+            }
             pp = (x,y);
         }
     }
@@ -63,10 +79,13 @@ fn pascal_triangle(n:usize) -> Vec::<i32>{
 }
 
 pub fn bezier_curve(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32) {
-    bezier_curve_with_alpha(screen,p,color,0xff)
+    bezier_curve_with_alpha(screen,p,color,0xff,false,None)
 }
 
-pub fn bezier_curve_with_alpha(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32,alpha: u8) {
+pub fn bezier_curve_with_alpha(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32,alpha: u8,is_antialias:bool,size:Option<f32>) {
+    let s = if let Some(_s) = size {
+        _s
+     } else { 1.0 };
     let n = p.len() - 1;
     if p.len() < 1 {
         return
@@ -96,7 +115,11 @@ pub fn bezier_curve_with_alpha(screen:&mut Canvas,p:Vec<(f32,f32)>,color: u32,al
             pp = (bx,by);
             continue;
         }
-        line_with_alpha(screen,pp.0 as i32,pp.1 as i32, bx as i32, by as  i32, color,alpha);
+        if is_antialias {
+            line_antialias(screen,pp.0 ,pp.1 ,bx ,by ,color,alpha,s)
+        } else {
+            line_with_alpha(screen,pp.0 as i32,pp.1 as i32, bx as i32, by as  i32, color,alpha);
+        }
         pp = (bx,by);
     }
 }

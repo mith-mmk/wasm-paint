@@ -135,7 +135,7 @@ pub fn arc_tilde(canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32
     arc_tilde_with_alpha(canvas ,ox ,oy ,rx ,ry ,t0 ,t1 ,tilde ,color ,0xff);
 }
 
-pub fn arc_tilde_with_alpha(canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32  ,color: u32,alpha:u8) {
+pub fn arc_tilde_with_alpha(canvas: &mut dyn Screen,ox: i32,oy: i32,rx :f32,ry: f32,t0: f32,t1: f32,tilde : f32 ,color: u32,alpha:u8) {
     if rx <= 0.0 || ry <= 0.0 {return;}
 
     /* arc */

@@ -84,10 +84,9 @@ pub fn line_with_alpha ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1:
 
 
 /// line_antialias uses alternative Xiaolin Wu's line algorithm
-pub fn line_antialias ( screen: &mut dyn Screen, x0: f32, y0: f32, x1: f32, y1: f32 , color: u32, alpha: u8) {
-    let weight = alpha as f32 / 255.0;
+pub fn line_antialias ( screen: &mut dyn Screen, x0: f32, y0: f32, x1: f32, y1: f32 , color: u32, alpha: u8,size: f32) {
     if x0 == x1 && y0 == y1 {
-        point_antialias(screen, x0, y0, color, weight);
+        point_antialias(screen, x0, y0, color, alpha, size);
         return;
     }
 
@@ -104,26 +103,29 @@ pub fn line_antialias ( screen: &mut dyn Screen, x0: f32, y0: f32, x1: f32, y1: 
 
     let (mut x, mx) = if x0 < x1 {let x=x0.ceil();(x,x-x0)} else {let x=x0.floor();(x,x0-x)};
     let (mut y, my) = if y0 < y1 {let y=y0.ceil();(y,y-y0)} else {let y=y0.floor();(y,y0-y)};
-    let x1 = if x0 > x1 { x1.ceil()} else { x1.floor() };
-    let y1 = if y0 > y1 { y1.ceil()} else { y1.floor() };
 
     if !step {
         x = (dx / dy) * my + x0;
     } else {
         y = (dy / dx) * mx + y0;
     }
+    let x1 = if x0 > x1 { x1.ceil()} else { x1.floor() };
+    let y1 = if y0 > y1 { y1.ceil()} else { y1.floor() };
 
 
-    point_antialias(screen, x0, y0, color, weight);
+    point_antialias(screen, x0, y0, color,alpha, size);
+    point_antialias(screen, x1, y1, color,alpha,size);
+    if step && (x - x1).abs() <= 1.0 || !step && (y - y1).abs() <= 1.0 {
+        return;
+    }
     loop {
-      point_antialias(screen, x , y , color, weight);
+      point_antialias(screen, x , y , color,alpha, size);
         if step && x == x1 || !step && y == y1 {
             break;
         }
         x += step_x;
         y += step_y;
     }
-    point_antialias(screen, x1, y1, color, weight);
 }
 
 
