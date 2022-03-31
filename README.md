@@ -38,6 +38,8 @@ Color model ABGR uint32LE
 
 2022/03/29 0.0.15 JavaScriptとのバインド関数の変更、input_bufferの削除
 
+2022/03/31 0.0.16 antialias実装(Circle以外)、Layer拡張、Layer combined cambas
+
 Todo
 - organize Functions
 - border

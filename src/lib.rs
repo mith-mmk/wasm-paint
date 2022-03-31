@@ -187,18 +187,40 @@ impl Universe {
     }
 
 /* Wrappers */
-    fn layer(&mut self) -> &mut Layer {
+    fn layer_as_mut(&mut self) -> &mut Layer {
         self.canvas.layer_as_mut(self.current.to_string()).unwrap()    
     }
     
+    #[wasm_bindgen(js_name = setEnable)]
     pub fn set_enable(&mut self,label:String) {
         let _ = self.canvas.set_enable(label);
     }
 
+    #[wasm_bindgen(js_name = setLayerAlpha)]
+    pub fn set_layer_alpha(&mut self,label:String,alpha:u8) {
+        let _ = self.canvas.set_layer_alpha(label,alpha);
+    }
+
+    #[wasm_bindgen(js_name = getLayerAlpha)]
+    pub fn layer_alpha(&mut self,label:String) -> u8 {
+        let r = self.canvas.get_layer_alpha(label);
+        if let Ok(alpha) = r {
+            if let Some(alpha) = alpha {
+                alpha
+            } else {
+                0xff
+            }
+        } else {
+            0
+        }
+    }
+
+    #[wasm_bindgen(js_name = setDisable)]
     pub fn set_disable(&mut self,label:String) {
         let _ = self.canvas.set_disable(label);
     }
 
+    #[wasm_bindgen(js_name = getEnable)]
     pub fn enable(&self,label:String) -> bool {
         let r = self.canvas.enable(label);
         if let Ok(enable) = r {
@@ -251,23 +273,23 @@ impl Universe {
 
     #[wasm_bindgen(js_name = pointAntialias)]
     pub fn point_antialias(&mut self, x: f32, y: f32, color: u32,alpha: u8) {
-        point_antialias(self.layer(),x,y,color,alpha,1.0);
+        point_antialias(self.layer_as_mut(),x,y,color,alpha,1.0);
     }
 
     #[wasm_bindgen(js_name = pointWithPen)]
     pub fn point_with_pen(&mut self, x: f32, y: f32, color: u32) {
 //        point_pen(&mut self.canvas,x as i32,y as i32,color);
         let pen = self.canvas.pen();
-        point_with_pen(self.layer(),x as i32,y as i32,color,&pen);
+        point_with_pen(self.layer_as_mut(),x as i32,y as i32,color,&pen);
     }
 
     pub fn line(&mut self,sx :i32, sy :i32, ex: i32, ey: i32,color: u32) {
-        line(self.layer(),sx,sy,ex,ey,color);
+        line(self.layer_as_mut(),sx,sy,ex,ey,color);
     }
 
     #[wasm_bindgen(js_name = lineAntialias)]
     pub fn line_antialias(&mut self,sx :f32, sy :f32, ex: f32, ey: f32,color: u32) {
-        line_antialias(self.layer(),sx,sy,ex,ey,color,0xff,1.0);
+        line_antialias(self.layer_as_mut(),sx,sy,ex,ey,color,0xff,1.0);
     }
 
     #[wasm_bindgen(js_name = lineWithPen)]
@@ -276,15 +298,15 @@ impl Universe {
     }
 
     pub fn rect(&mut self,sx :i32, sy :i32, ey: i32, ex: i32,color: u32) {
-        rect(self.layer(),sx,sy,ex,ey,color);
+        rect(self.layer_as_mut(),sx,sy,ex,ey,color);
     }
 
     pub fn pentagram(&mut self,ox :i32, oy: i32, r: f32,tilde: f32,color: u32) {
-        pentagram(self.layer(),ox, oy, r,tilde,color);
+        pentagram(self.layer_as_mut(),ox, oy, r,tilde,color);
     }
 
     pub fn polygram(&mut self,p :u32,q :u32,ox :i32, oy: i32, r: f32,tilde: f32,color: u32) {
-        polygram(self.layer(),p,q,ox, oy, r,tilde,color);
+        polygram(self.layer_as_mut(),p,q,ox, oy, r,tilde,color);
     }
 
 
@@ -324,51 +346,51 @@ impl Universe {
     }
 
     pub fn fill(&mut self, sx: i32, sy: i32, color: u32) {
-        fill(self.layer(), sx, sy, color);
+        fill(self.layer_as_mut(), sx, sy, color);
     }
 
     pub fn circle(&mut self,ox :i32, oy: i32, r: i32,color:u32){
-        circle(self.layer(), ox, oy, r, color);
+        circle(self.layer_as_mut(), ox, oy, r, color);
     }
 
     pub fn ellipse(&mut self,ox :i32, oy: i32, rx: i32, ry: i32,tilde : f32,color:u32){
-        ellipse(self.layer(), ox, oy, rx, ry, tilde, color);
+        ellipse(self.layer_as_mut(), ox, oy, rx, ry, tilde, color);
     }
 
     #[wasm_bindgen(js_name = quadraticCurve)]
     pub fn quadratic_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32, y3:f32,a:f32,color: u32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)];
-        quadratic_curve(self.layer(),p.to_vec(), a, color);
+        quadratic_curve(self.layer_as_mut(),p.to_vec(), a, color);
     }
 
     #[wasm_bindgen(js_name = quadraticCurveAntialias)]
     pub fn quadratic_curve_antialias(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32, y3:f32,a:f32,color: u32,size:f32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
-        quadratic_curve_with_alpha(self.layer(),p.to_vec(), a, color,0xff,true,Some(size));
+        quadratic_curve_with_alpha(self.layer_as_mut(),p.to_vec(), a, color,0xff,true,Some(size));
     }
 
     #[wasm_bindgen(js_name = bezierCurve)]
     pub fn bezier_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,color: u32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
-        bezier_curve(self.layer(),p.to_vec(), color);
+        bezier_curve(self.layer_as_mut(),p.to_vec(), color);
     }
 
     #[wasm_bindgen(js_name = bezierCurveAntialias)]
     pub fn bezier_curve_antialias(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,color: u32,size:f32) {
         let p :[(f32,f32);3]= [(x1,y1),(x2,y2),(x3,y3)]; 
-        bezier_curve_with_alpha(self.layer(),p.to_vec(), color,0xff,true,Some(size));
+        bezier_curve_with_alpha(self.layer_as_mut(),p.to_vec(), color,0xff,true,Some(size));
     }
 
     #[wasm_bindgen(js_name = bezierCurve3)]
     pub fn bezier_curve3(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,x4:f32,y4:f32,color: u32) {
         let p :[(f32,f32);4]= [(x1,y1),(x2,y2),(x3,y3),(x4,y4)]; 
-        bezier_curve(self.layer(),p.to_vec(), color);
+        bezier_curve(self.layer_as_mut(),p.to_vec(), color);
     }
 
     #[wasm_bindgen(js_name = bezierCurve3Antialias)]
     pub fn bezier_curve3_antialias(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32,y3:f32,x4:f32,y4:f32,color: u32,size:f32) {
         let p :[(f32,f32);4]= [(x1,y1),(x2,y2),(x3,y3),(x4,y4)]; 
-        bezier_curve_with_alpha(self.layer(),p.to_vec(), color,0xff,true,Some(size));
+        bezier_curve_with_alpha(self.layer_as_mut(),p.to_vec(), color,0xff,true,Some(size));
     }
 
     #[wasm_bindgen(js_name = affineTest2)]
@@ -467,7 +489,7 @@ impl Universe {
 
     #[wasm_bindgen(js_name = imageDecoder)]
     pub fn image_decoder(&mut self,buffer: &[u8],verbose:usize) {
-        let r = crate::paint::image::draw_image(self.layer(),buffer,verbose);
+        let r = crate::paint::image::draw_image(self.layer_as_mut(),buffer,verbose);
         match r {
             Err(error) => {
                 log(&format!("{:?}",error));
@@ -506,7 +528,7 @@ impl Universe {
             }
         } else {
             let worker = self.on_worker;
-            let canvas = self.layer();
+            let canvas = self.layer_as_mut();
             if !worker {
                 canvas.set_verbose(write_log);
             }

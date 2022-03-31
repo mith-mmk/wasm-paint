@@ -290,8 +290,10 @@ impl Canvas {
     pub fn set_layer_alpha(&mut self,label:String,alpha:u8) -> Result<(),Error> {
         if let Some(layer) = self.layers.get_mut(label) {
             layer.set_alpha(alpha);
-        }  
-        Ok(())
+            Ok(())
+        }  else {
+            Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+        }
     }
 
     pub fn set_z_index(&mut self,label:String,z_index:i32) -> Result<(),Error> {
@@ -366,6 +368,14 @@ impl Canvas {
             None
         }
     }
+
+    pub fn get_layer_alpha(&mut self,label:String) -> Result<Option<u8>,Error>  { 
+        if let Some(layer) = self.layers.get_mut(label) {
+            Ok(layer.alpha())
+        } else {
+            Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+        }
+    }
 }
 
 impl Screen for Canvas {
@@ -408,6 +418,7 @@ impl Screen for Canvas {
         self.canvas_alpha = alpha;
         self.use_canvas_alpha = true;
     }
+    
 
 }
 

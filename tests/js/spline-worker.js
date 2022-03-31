@@ -8,9 +8,10 @@ function workerInit(width, height) {
         universe = new Universe(width,height);
         universe.clear(0x000000);
         img = universe.getImageData(0);
-        universe.addLayer("komono",10,10);
+        universe.addLayer("komono",100,100);
         let prev = universe.setCurrentLayer("komono");
-        universe.fill(5,5,0x3333ff);
+        universe.circle(50,50,40,0x3333ff);
+        universe.fill(50,50,0x3333ff);
         universe.setCurrentLayer(prev);
         postMessage({message: 'init', image: img});
     });
@@ -31,6 +32,7 @@ let p = [
 
 let x = 10;
 let y = 10;
+let count = 255;
 
 onmessage = function(ev) {
     const data = ev.data;
@@ -48,6 +50,9 @@ onmessage = function(ev) {
                 universe.clearLayer("main");
 
                 universe.setPos("komono",x,y);
+                universe.setLayerAlpha("komono",128);
+                count -= 8;
+                if (count < 0) count = 255;
 
                 if(p[2][0] < -511) {
                     p[1][0] = 0;
@@ -128,7 +133,7 @@ onmessage = function(ev) {
                     }
                 } else if (mode == 1) {
                     x = x + 4;
-                    y = y + 4;
+                    y = y + 0;
                     x1 += 32;
                     x3 -= 32;
                     if (x3 < 0) {
@@ -148,7 +153,7 @@ onmessage = function(ev) {
                     }
                 } else if (mode == 4) {
                     x = x - 4;
-                    y = y - 4;
+                    y = y + 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 1;
@@ -156,6 +161,10 @@ onmessage = function(ev) {
                         x1=1.0,y1=250.0,x2=255.0,y2=400.0,x3=510.0,y3=250.0;
                     }
                 }
+                if (x > 512) x = 0;
+                if (y > 512) y = 0;
+                if (x < 0) x = 511;
+                if (y < 0) y = 511;
                 break;
             case 'get':
                 if (universe == null) return;
