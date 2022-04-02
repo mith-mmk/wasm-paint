@@ -19,7 +19,7 @@ pub trait Screen {
     fn height(&self) -> u32;
 
     fn buffer(&self) -> &[u8];
-    fn buffer_as_mut(&mut self) -> &mut [u8];
+    fn buffer_mut(&mut self) -> &mut [u8];
     fn clear(&mut self);
     fn clear_with_color(&mut self,color: u32);
 
@@ -304,7 +304,7 @@ impl Canvas {
         self.layers.get(label)
     }
 
-    pub fn layer_as_mut(&mut self,label:String) -> Option<&mut Layer> {
+    pub fn layer_mut(&mut self,label:String) -> Option<&mut Layer> {
         self.layers.get_mut(label)
     }
 
@@ -393,7 +393,7 @@ impl Screen for Canvas {
         &self.canvas.buffer
     }
 
-    fn buffer_as_mut(&mut self) -> &mut [u8] {
+    fn buffer_mut(&mut self) -> &mut [u8] {
         &mut self.canvas.buffer
     }
 
@@ -441,7 +441,7 @@ impl DrawCallback for Canvas {
         let self_width = self.width() as usize;
         let self_height = self.height() as usize;
 
-        let buffer =  &mut self.buffer_as_mut();
+        let buffer =  &mut self.buffer_mut();
         if start_x >= self_width || start_y >= self_height {return Ok(None);}
         let w = if self_width < width + start_x {self_width - start_x} else { width };
         let h = if self_height < height + start_y {self_height - start_y} else { height };

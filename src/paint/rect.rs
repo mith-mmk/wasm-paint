@@ -13,7 +13,7 @@ pub fn rect_with_alpha(screen: &mut dyn Screen,x0: i32,y0: i32,x1: i32,y1: i32, 
 
     let width = screen.width();
 
-    let buf = &mut screen.buffer_as_mut();
+    let buf = &mut screen.buffer_mut();
     // Color model u32 LE (ARGB)  -> u8 BGRA
     let (red,green,blue,_) = color_taple(color);
 

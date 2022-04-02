@@ -13,7 +13,7 @@ fn _point (screen: &mut dyn Screen, x: i32, y: i32, red :u8, green :u8, blue :u8
     }
     let a = weight;
     let width = screen.width();
-    let buf = &mut screen.buffer_as_mut();
+    let buf = &mut screen.buffer_mut();
     let pos :usize= (y as u32 * width * 4 + (x as u32 * 4)) as usize;
 
     if a == 1.0 {
@@ -40,7 +40,7 @@ pub(crate) fn point_for_line (screen: &mut dyn Screen, x: i32, y: i32, r :u8, g 
         return;
     }
     let width = screen.width();
-    let buf = &mut screen.buffer_as_mut();
+    let buf = &mut screen.buffer_mut();
     let pos :usize= (y as u32 * width * 4 + (x as u32 * 4)) as usize;
 
     buf[pos] = r;

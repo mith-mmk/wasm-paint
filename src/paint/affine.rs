@@ -131,7 +131,7 @@ impl Affine {
         let max_y = output_screen.height() as i32;
 
         let input_buffer =  input_screen.buffer();
-        let output_buffer: &mut [u8] = output_screen.buffer_as_mut();
+        let output_buffer: &mut [u8] = output_screen.buffer_mut();
 
         let ox = max_x / 2;
         let oy = max_y / 2;
@@ -205,7 +205,7 @@ impl Affine {
         let oy = (out_height / 2) as f32;
 
         let output_screen_width = &output_screen.width();
-        let output_buffer = output_screen.buffer_as_mut();
+        let output_buffer = output_screen.buffer_mut();
         let input_buffer =  input_screen.buffer();
 
         let mut alpha = -0.5;   // -0.5 - -1.0

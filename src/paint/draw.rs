@@ -12,7 +12,7 @@ pub fn draw_over_screen(src:&dyn Screen,dest:&mut dyn Screen, dest_x: u32, dest_
     let height = if dest_y + src.height() < dest.height() { src.height() } else { dest.height() };
     let dest_width = dest.width();
     let srcbuf = &src.buffer();
-    let destbuf = &mut dest.buffer_as_mut(); // move ownership dest -> destbuf because use mut
+    let destbuf = &mut dest.buffer_mut(); // move ownership dest -> destbuf because use mut
 
     for y in 0..height {
         let src_offset = y * src.width() * 4;
@@ -41,7 +41,7 @@ pub fn draw_over_screen_with_alpha(src:&dyn Screen,dest:&mut dyn Screen, dx: i32
     if dy >= dest_height as i32 {return}
 
     let srcbuf = &src.buffer();
-    let destbuf = &mut dest.buffer_as_mut(); // move ownership dest -> destbuf because use mut
+    let destbuf = &mut dest.buffer_mut(); // move ownership dest -> destbuf because use mut
 
     let sx = if dx < 0 {0} else {dx as u32};
     let sy = if dy < 0 {0} else {dy as u32};

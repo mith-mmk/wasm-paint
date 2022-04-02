@@ -35,7 +35,7 @@ pub fn fillrect(screen: &mut dyn Screen, color: u32){
 pub fn fillrect_with_alpha(screen: &mut  dyn Screen, color: u32,alpha: u8) {
     let width = screen.width();
     let height = screen.height();
-    let buf = &mut screen.buffer_as_mut();
+    let buf = &mut screen.buffer_mut();
     // Color model u32 LE (ARGB)  -> u8 BGRA
     let red: u8 = ((color  >> 16) & 0xff)  as u8; 
     let green: u8  = ((color >> 8) & 0xff) as u8; 

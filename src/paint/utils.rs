@@ -14,7 +14,7 @@ pub fn color_taple(color: u32) -> (u8,u8,u8,u8) {
 #[inline]
 pub fn pick_taple(screen: &mut dyn Screen,x :u32,y: u32) ->  (u8,u8,u8,u8) {
     let pos :usize= (y * screen.width() * 4 + (x * 4)) as usize;
-    let buf = &screen.buffer_as_mut();
+    let buf = &screen.buffer_mut();
 
     let r = buf[pos];
     let g = buf[pos + 1];

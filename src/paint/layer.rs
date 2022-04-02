@@ -107,7 +107,7 @@ impl Screen for Layer {
         &self.buffer
     }
 
-    fn buffer_as_mut(&mut self) -> &mut [u8] {
+    fn buffer_mut(&mut self) -> &mut [u8] {
         &mut self.buffer
     }
 
@@ -152,7 +152,7 @@ impl DrawCallback for Layer {
         let self_width = self.width() as usize;
         let self_height = self.height() as usize;
 
-        let buffer =  &mut self.buffer_as_mut();
+        let buffer =  &mut self.buffer_mut();
         if start_x >= self_width || start_y >= self_height {return Ok(None);}
         let w = if self_width < width + start_x {self_width - start_x} else { width };
         let h = if self_height < height + start_y {self_height - start_y} else { height };

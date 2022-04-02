@@ -122,9 +122,9 @@ onmessage = function(ev) {
                 p[2][1] -= 4;
 
 //                a += 0.5;
+                x = x + 8;
+                y = y + 1;
                 if(mode == 0) {
-                    x = x + 8;
-                    y = y + 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 1;
@@ -132,16 +132,12 @@ onmessage = function(ev) {
                         mode = 1;
                     }
                 } else if (mode == 1) {
-                    x = x + 4;
-                    y = y + 0;
                     x1 += 32;
                     x3 -= 32;
                     if (x3 < 0) {
                         mode = 2;
                     }
                 } else if (mode == 2){
-                    x = x - 4;
-                    y = y + 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 3;
@@ -152,8 +148,6 @@ onmessage = function(ev) {
                         mode =4;
                     }
                 } else if (mode == 4) {
-                    x = x - 4;
-                    y = y + 4;
                     y1 += 32;
                     y3 -= 32;
                     mode = 1;

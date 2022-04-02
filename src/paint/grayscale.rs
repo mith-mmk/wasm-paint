@@ -43,8 +43,8 @@ pub fn weight(t: usize) -> (f64,f64,f64) {
 pub fn to_grayscale(input: &mut dyn Screen, output: &mut dyn Screen, t: usize) {
     let height = output.height();
     let width = output.width();
-    let ibuf = &input.buffer_as_mut();
-    let buf = &mut output.buffer_as_mut();
+    let ibuf = &input.buffer_mut();
+    let buf = &mut output.buffer_mut();
     let (wred, wgreen, wblue)  = weight(t);
     for y in 0..height {
         let offset = y * width * 4;
