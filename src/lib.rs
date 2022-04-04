@@ -47,13 +47,33 @@ pub(crate) fn write_log(str: &str,_: Option<VerboseOptions>) -> Result<Option<Ca
                 let elmid = document.get_element_by_id("wasm_verbose").unwrap();
                 if elmid.dyn_ref::<HtmlElement>().is_some() {
                     let elm = elmid.dyn_ref::<HtmlElement>().unwrap();
-                    elm.set_inner_text(str);
+                    let mut text = elm.inner_text();
+                    text = text +"\n" + str;
+                    elm.set_inner_text(&text);
                     return Ok(None)
                 }
             }
         }
     }
     log(str);
+    Ok(None)
+}
+
+pub(crate) fn flush_log() -> Result<Option<CallbackResponse>,Error> {
+    if web_sys::window().is_some() {
+        let window = web_sys::window().unwrap();
+        if window.document().is_some() {
+            let document = window.document().unwrap();
+            if document.get_element_by_id("wasm_verbose").is_some() {
+                let elmid = document.get_element_by_id("wasm_verbose").unwrap();
+                if elmid.dyn_ref::<HtmlElement>().is_some() {
+                    let elm = elmid.dyn_ref::<HtmlElement>().unwrap();
+                    elm.set_inner_text("");
+                    return Ok(None)
+                }
+            }
+        }
+    }
     Ok(None)
 }
 
@@ -489,15 +509,7 @@ impl Universe {
 
     #[wasm_bindgen(js_name = imageDecoder)]
     pub fn image_decoder(&mut self,buffer: &[u8],verbose:usize) {
-        let r = crate::paint::image::draw_image(self.layer_mut(),buffer,verbose);
-        match r {
-            Err(error) => {
-                log(&format!("{:?}",error));
-            }
-            _ => {
-  
-            },
-        }
+        self.jpeg_decoder(buffer,verbose)
     }
 
     #[wasm_bindgen(js_name = jpegDecoder)]
@@ -530,6 +542,7 @@ impl Universe {
             let worker = self.on_worker;
             let canvas = self.layer_mut();
             if !worker {
+                let _ = flush_log();
                 canvas.set_verbose(write_log);
             }
             let mut option = DecodeOptions{
