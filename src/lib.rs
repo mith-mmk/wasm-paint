@@ -509,17 +509,17 @@ impl Universe {
 
     #[wasm_bindgen(js_name = imageDecoder)]
     pub fn image_decoder(&mut self,buffer: &[u8],verbose:usize) {
-        self.jpeg_decoder(buffer,verbose)
+        self.image_decoder_select_canvas(buffer,verbose,0);
     }
 
     #[wasm_bindgen(js_name = jpegDecoder)]
     pub fn jpeg_decoder(&mut self,buffer: &[u8],verbose:usize) {
-        self.jpeg_decoder_select_canvas(buffer,verbose,0);
+        self.image_decoder_select_canvas(buffer,verbose,0);
     }
 
     
     #[wasm_bindgen(js_name = jpegDecoderSelectCanvas)]
-    pub fn jpeg_decoder_select_canvas(&mut self,buffer: &[u8],verbose:usize,number:usize) {
+    pub fn image_decoder_select_canvas(&mut self,buffer: &[u8],verbose:usize,number:usize) {
         if number > self.append_canvas.len() { return }
 
         if number != 0 {
