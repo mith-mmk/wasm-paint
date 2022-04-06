@@ -1,6 +1,6 @@
 [package]
 name = "paint"
-version = "0.0.16"
+version = "0.0.17"
 authors = ["mith-mmk <47620686+mith-mmk@users.noreply.github.com>"]
 edition = "2018"
 license = "MIT"
