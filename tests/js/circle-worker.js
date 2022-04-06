@@ -31,14 +31,27 @@ onmessage = function(ev) {
                 if (data.tilde) {
                     tilde = data.tilde;
                 }
-                universe.ellipse(
+                
+                universe.ellipseAntialias(
                             Math.random() * width,
                             Math.random() * height,
                             Math.random() * width / 4 + 1,
                             Math.random() * height / 4 + 1,
                             data.tilde,
-                            Math.random() * 0xffffff
+                            Math.random() * 0xffffff,
+                            0xff,
+                            0.3
                 );
+                
+                universe.circleAntialias(
+                    Math.random() * width,
+                    Math.random() * height,
+                    Math.random() * width / 4 + 1,
+                    Math.random() * 0xffffff,
+                    0xff,
+                    0.3
+                );
+                
                 postMessage({message: 'get', image:img});
 //                postMessage({message: 'run'});
                 break;

@@ -373,9 +373,21 @@ impl Universe {
         circle(self.layer_mut(), ox, oy, r, color);
     }
 
+
+    #[wasm_bindgen(js_name = circleAntialias)]
+    pub fn circle_antialias(&mut self,ox :f32, oy: f32, r: f32,color:u32,alpha:u8,size: f32){
+        circle_antialias(self.layer_mut(),ox, oy, r, color, alpha, size);
+    }
+
     pub fn ellipse(&mut self,ox :i32, oy: i32, rx: i32, ry: i32,tilde : f32,color:u32){
         ellipse(self.layer_mut(), ox, oy, rx, ry, tilde, color);
     }
+
+    #[wasm_bindgen(js_name = ellipseAntialias)]
+    pub fn ellipse_antialias(&mut self,ox :f32, oy: f32, rx: f32, ry: f32,tilde : f32,color:u32,alpha:u8,size: f32){
+        ellipse_antialias(self.layer_mut(), ox, oy, rx, ry, tilde, color,alpha,size);
+    }
+
 
     #[wasm_bindgen(js_name = quadraticCurve)]
     pub fn quadratic_curve(&mut self,x1: f32,y1: f32,x2: f32,y2: f32,x3:f32, y3:f32,a:f32,color: u32) {

@@ -152,7 +152,7 @@ pub fn arc_antialias (screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f32,t0
     let mut err1: f64 = -2.0 * d +       a  + 2.0 * b;
     let mut err2: f64 = -4.0 * d + 2.0 * a +        b;
 
-    while x >= 0.0 {
+    while x >= -1.0 {
     // 0<= θ < PI/2
         let mut theta = (x as f32 / rx as f32).asin(); // calc θ
         let mut thetam = theta - 2.0 * PI ;
@@ -166,31 +166,31 @@ pub fn arc_antialias (screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f32,t0
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            point_antialias(screen, ox + x, oy - y, color,alpha,size);
+            point_antialias(screen, ox + x, oy + y, color,alpha,size);
         }
     // PI <= θ < 3PI/2
         theta =  PI * 1.0 +  (x as f32 / rx as f32).asin();
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            point_antialias(screen, ox + x, oy - y, color,alpha,size);
+            point_antialias(screen, ox - x, oy + y, color,alpha,size);
         }
     // 3PI/2 <= θ < 2PI  この象限は2PI -> 3PI/2 で描画するので反転する
         theta =  PI * 2.0 -  (x as f32 / rx as f32).asin();
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            point_antialias(screen, ox + x, oy - y, color,alpha,size);
+            point_antialias(screen, ox - x, oy - y, color,alpha,size);
         }
     // next
         if err1 >= 0.0 {
-            x = x - 1.0;
+            x = x - 0.5;
             err1 = err1 - 4.0 * a * x as f64;
             err2 = err2 - 4.0 * a * x as f64 - 2.0 * a;
         }
 
         if err2 < 0.0 {
-            y = y + 1.0;
+            y = y + 0.5;
             err1 = err1 + 4.0 * b * y as f64 + 2.0 * b;
             err2 = err2 + 4.0 * b * y as f64;
         }
@@ -421,7 +421,7 @@ pub fn arc_tilde_antialias(screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f
     let r: f64 = rx as f64 * ry as f64;
     let d: f64 = ry as f64 * r as f64;
 
-    let mut x: f32 = rx.ceil() as f32;
+    let mut x: f32 = rx as f32;
     let mut y: f32 = 0.0;
 
     let mut err1: f64 = -2.0 * d +     a  + 2.0 * b;
@@ -435,39 +435,26 @@ pub fn arc_tilde_antialias(screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f
     let tcos: f32 = tilde.cos();
 
 
-    while x >= 0.0 {
+    while x >=  -1.0 {
     // 0<= θ < PI/2
-        let mut theta = (x / rx ).asin(); // calc θ
+        let mut theta = (x / rx).asin(); // calc θ
         let mut thetam = theta - 2.0 * PI ; 
+
+        crate::log(&format!("{}, {}",theta,thetam));
 
         let mut i = 0;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) { // arc check
-            // afin transration
-            /*          shift         tilde      rev y
-             * |x'|  | 1 0 ox|| cosθ -sinθ  0||1  0  0|
-             * |y'| =| 0 1 oy|| sinθ  cosθ  0||0 -1  0||x y 1|
-             * |1 |  | 0 0  1||   0      0  1||0  0  1|
-             * 
-             *  x' = ox + xx , y' = oy + yy
-             * |xx|   | cosθ -sinθ 0|
-             * |yy| = | sinθ cosθ  0||x -y 1|
-             * | 1|   | 0     0    1|
-             *
-             * xx = x * cosθ + y * sinθ
-             * yy = y * sinθ - y * cosθ
-             */
-
-             // rotate (tilde), becose the roteate start point is clock number 12.
             let xx =  x * tcos + y * tsin;
             let yy =  x * tsin - y * tcos;
 
             if bx[i] == f32::MIN {
                 bx[i] = xx;
                 by[i] = yy;
+                point_antialias(screen,ox + xx,oy + yy, color,alpha,size);
+            } else {
+                line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
             }
-
-            line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
 
             bx[i] = xx;
             by[i] = yy;
@@ -482,29 +469,16 @@ pub fn arc_tilde_antialias(screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            // reverce y + rotate (tilde)
-            /*          shift         tilde      rev y    rev y
-             * |x'|  | 1 0 ox|| cosθ  -sinθ  0||1  0  0||1  0  1|
-             * |y'| =| 0 1 oy|| sinθ   cosθ  0||0 -1  0||0 -1  1||x y 1|
-             * |1 |  | 0 0  1||  0       0   1||0  0  1||0  0  1|
-             * 
-             *  x' = ox + xx , y' = oy + yy
-             * |xx|   |cosθ -sinθ 0||1 0 0|           | cosθ -sinθ 0|
-             * |yy| = |sinθ  cosθ 0||0 1 0||x y 1| =  | sinθ  cosθ 0||x y 1|
-             * | 1|   |0     0    1||0 0 1|           | 0     0    1|
-             * 
-             * xx = x * cosθ - y * sinθ
-             * yy = x * sinθ + y * cosθ
-             */
             let xx =  x * tcos - y * tsin;
             let yy =  x * tsin + y * tcos;
 
             if bx[i] == f32::MIN {
                 bx[i] = xx;
                 by[i] = yy;
+                point_antialias(screen,ox + xx,oy + yy, color,alpha,size);
+            } else {
+                line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
             }
-
-            line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
 
             bx[i] = xx;
             by[i] = yy;
@@ -519,29 +493,16 @@ pub fn arc_tilde_antialias(screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            // reverce xy + rotate (tilde)
-            /*          shift         tilde      rev xy    rev y
-             * |x'|  | 1 0 ox|| cosθ  -sinθ  0||-1  0  0||1  0  1|
-             * |y'| =| 0 1 oy|| sinθ   cosθ  0|| 0 -1  0||0 -1  1||x y 1|
-             * |1 |  | 0 0  1||  0       0   1|| 0  0  1||0  0  1|
-             * 
-             *  x' = ox + xx , y' = oy + yy
-             * |xx|   |cosθ -sinθ 0|            |-cosθ -sinθ 0|
-             * |yy| = |sinθ  cosθ 0||-x y 1| =  |-sinθ  cosθ 0||x y 1|
-             * | 1|   |0     0    1|            | 0      0    1|
-             * 
-             * xx = - x * cosθ - y * sinθ
-             * yy = - x * sinθ + y * cosθ
-             */
             let xx = -x as f32 * tcos - y as f32 * tsin;
             let yy = -x as f32 * tsin + y as f32 * tcos;
 
             if bx[i] == f32::MIN {
                 bx[i] = xx;
                 by[i] = yy;
+                point_antialias(screen,ox + xx,oy + yy, color,alpha,size);
+            } else {
+                line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
             }
-
-            line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
 
             bx[i] = xx;
             by[i] = yy;
@@ -550,49 +511,38 @@ pub fn arc_tilde_antialias(screen: &mut dyn Screen,ox: f32,oy: f32,rx :f32,ry: f
             bx[i] = f32::MIN;
             i = i + 1;
         }
+
         // 3PI/2 <= θ < 2PI
         theta =  PI * 2.0 - (x as f32 / rx as f32).asin();
         thetam = theta - 2.0 * PI ; 
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            // reverce x + rotate (tilde)
-            /*          shift         tilde      rev x    rev y
-             * |x'|  | 1 0 ox|| cosθ  -sinθ  0||-1  0  0||1  0  1|
-             * |y'| =| 0 1 oy|| sinθ   cosθ  0|| 0  1  0||0 -1  1||x y 1|
-             * |1 |  | 0 0  1||  0       0   1|| 0  0  1||0  0  1|
-             * 
-             *  x' = ox + xx , y' = oy + yy
-             * |xx|   |cosθ -sinθ 0|             |-cosθ  sinθ 0|
-             * |yy| = |sinθ  cosθ 0||-x -y 1| =  |-sinθ -cosθ 0||x y 1|
-             * | 1|   |0     0    1|             | 0      0    1|
-             * 
-             * xx = - x * cosθ + y * sinθ
-             * yy = - x * sinθ - y * cosθ
-             */
             let xx = -x as f32 * tcos + y as f32 * tsin;
             let yy = -x as f32 * tsin - y as f32 * tcos;
 
             if bx[i] == f32::MIN {
                 bx[i] = xx;
                 by[i] = yy;
+                point_antialias(screen,ox + xx,oy + yy, color,alpha,size);
+            } else {
+                line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
             }
-
-            line_antialias(screen, ox + bx[i], oy + by[i],ox + xx,oy + yy, color,alpha,size);
 
             bx[i] = xx;
             by[i] = yy;
         } else {
             bx[i] = f32::MIN;
         }
+
         // next
         if err1 >= 0.0 {
-            x = x - 1.0;
+            x = x - 0.5;
             err1 = err1 - 4.0 * a * x as f64;
             err2 = err2 - 4.0 * a * x as f64 - 2.0 * a;
         }
 
         if err2 < 0.0 {
-            y = y + 1.0;
+            y = y + 0.5;
             err1 = err1 + 4.0 * b * y as f64 + 2.0 * b;
             err2 = err2 + 4.0 * b * y as f64;
         }
