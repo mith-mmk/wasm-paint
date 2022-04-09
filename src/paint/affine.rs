@@ -560,9 +560,8 @@ impl Affine {
 
         }
 
-        crate::log(&format!("{} {}",ox,oy));
-        affine.scale(scale, scale);
         affine.translation(ox,oy);
+        affine.scale(scale, scale);
         affine.conversion_with_area_center(input_screen,output_screen,
             0.0,0.0,input_screen.width() as f32,input_screen.height() as f32,
             0,0,output_width,output_height,

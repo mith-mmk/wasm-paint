@@ -59,8 +59,6 @@ pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<
       scale =  screen.height() as f32 / image_buffer.height() as f32;
     }
 
-
-
     Affine::resize(&image_buffer,screen,scale,interop,align);
 
     Ok(warnings)
