@@ -7,7 +7,7 @@ let buf;
 let img;
 let memory;
 let width = 1024;
-let height =1024;
+let height =768;
 let drawed = true;
 canvas.width = width;
 canvas.height = height;
