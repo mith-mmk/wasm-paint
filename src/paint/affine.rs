@@ -192,22 +192,22 @@ impl Affine {
                 algorithm);
     }
 
-    pub fn conversion_with_area(self:&mut Self,input_screen: &dyn Screen,output_screen:&mut dyn Screen,
-                start_x :f32,start_y:f32 ,width: f32,height: f32,
-                out_start_x :i32,out_start_y:i32 ,out_width: i32,out_height: i32,
-                algorithm:InterpolationAlgorithm) {
+    pub fn conversion_with_area_center(self:&mut Self,input_screen: &dyn Screen,output_screen:&mut dyn Screen,
+        start_x :f32,start_y:f32 ,width: f32,height: f32,
+        out_start_x :i32,out_start_y:i32 ,out_width: i32,out_height: i32,
+        ox: f32, oy: f32,
+        algorithm:InterpolationAlgorithm) {
         let end_x = width - start_x - 1.0;
         let end_y = height - start_y - 1.0;
         let out_end_x = out_width - out_start_x - 1;
         let out_end_y = out_height - out_start_y - 1;
-
-        let ox = (out_width / 2) as f32;
-        let oy = (out_height / 2) as f32;
-
+    
+    
+    
         let output_screen_width = &output_screen.width();
         let output_buffer = output_screen.buffer_mut();
         let input_buffer =  input_screen.buffer();
-
+    
         let mut alpha = -0.5;   // -0.5 - -1.0
         let mut lanzcos_n = 3;
         match algorithm {
@@ -221,25 +221,25 @@ impl Affine {
                     lanzcos_n = n.unwrap();
                 }
             }
-
+    
             _ => {}
         }
-
+    
         /*
          * |X|   |a00 a01 a02||x|         X = a00 * x + a01 * y + a02
          * |Y| = |a10 a11 a12||y|         Y = a10 * x + a11 * y + a12
          * |Z|   |a20 a21 a22||1|         _  do not use
          */
-
+    
         let x0 = self.affine[0][0];
         let x1 = self.affine[0][1];
         let x2 = self.affine[0][2];
         let y0 = self.affine[1][0];
         let y1 = self.affine[1][1];
         let y2 = self.affine[1][2];
-
+    
         // calc rectangle 4x affine trans
-
+    
         let mut xy = [(0_i32,0_i32);4];
         let x = start_x - ox;
         let y = start_y - oy;
@@ -253,7 +253,7 @@ impl Affine {
         let x = end_x - ox;
         let y = end_y - oy;
         xy[3] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 +oy) as i32);
-
+    
         xy.sort_by(|a, b| 
             if a.1 == b.1 {
                 if a.0 < b.0 {
@@ -268,11 +268,11 @@ impl Affine {
             } else {
                 Ordering::Greater
             });
-
+    
         // pre-calc inverse affine transformation
         // x =  y1 * X - x0 * Y  + x1 * y2 - x2 * y1
         // y = -y0 * X + x1 * X  + x2 * y0 - x0 * x2
-
+    
         let t = x0 * y1 - x1 * y0;
         let ix0 =  y1;
         let ix1 = -x1;
@@ -280,7 +280,7 @@ impl Affine {
         let iy0 = -y0;
         let iy1 =  x0;
         let iy2 =  x2 * y0 - x0 * x2;
-
+    
         // stage 0 y0..y1 (x0,y0) - (x1,y1) &  (x0,y0) - (x2,y2)
         // stage 1 y1..y2 (x0,y0) - (x2,x2) &  (x1,y1) - (x3,y3) 
         // stage 2 y2..y3 (x1,y1) - (x3,y3) &  (x2,y2) - (x3,y3)
@@ -325,12 +325,13 @@ impl Affine {
                     xy3 = (0,0);
                 }
             }
-
+    
             if sy < out_start_y { sy = out_start_y;}
             if ey > out_end_y {ey = out_end_y;}
-
+    
             let d0 = if xy0.1 != xy1.1 {(xy0.0 as f32 - xy1.0 as f32) / (xy0.1  as f32 - xy1.1 as f32)} else {0.0};
             let d1 = if xy2.1 != xy3.1 {(xy2.0 as f32 - xy3.0 as f32) / (xy2.1  as f32 - xy3.1 as f32)} else {0.0};
+    
 
             for y in sy..ey {
                 // (x0,y0) - (x1,y1) &  (x2,y2) - (x3,y3)
@@ -349,11 +350,13 @@ impl Affine {
                 if sx < out_start_x { sx = out_start_x;}
                 if ex > out_end_x {ex = out_end_x;}
 
+    
                 for x in sx..ex {
                     // inverse affine transformation from output image integer position
                     let xx = (ix0 * (x as f32 - ox) + ix1 * ( y as f32 - oy) + ix2 ) / t + ox;
                     let yy = (iy0 * (x as f32 - ox) + iy1 * ( y as f32 - oy) + iy2 ) / t + oy;
-                    if xx < start_x || xx >= end_x || yy < start_y || yy >= end_x {continue;}
+
+                    if xx < start_x || xx >= end_x || yy < start_y || yy >= end_y {continue;}
                     let output_offset = output_base_line + x as usize * 4;
                     let input_offset = (yy as usize * input_screen.width() as usize + xx as usize) * 4;
                     match algorithm {
@@ -368,10 +371,10 @@ impl Affine {
                             let dy = yy - yy.floor();
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
-
+    
                             let nx = if xx + 1 > end_x as i32 {0} else {4};
                             let ny = if yy + 1 > end_y as i32 {0} else {input_screen.width() as usize * 4};
-
+    
                             let r   =( input_buffer[input_offset         ] as f32 * (1.0-dx) * (1.0-dy)
                                     +  input_buffer[input_offset     + nx] as f32 * dx * (1.0-dy)
                                     +  input_buffer[input_offset     + ny] as f32 * (1.0-dx) * dy
@@ -399,9 +402,9 @@ impl Affine {
                             let dy = yy - yy.floor();
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
-
+    
                             let mut color = [0.0;4];
-
+    
                             for _y in 0..4 {
                                 let dy = _y as f32 - dy - 1.0 ;
                                 let dy = dy.abs();
@@ -410,13 +413,13 @@ impl Affine {
                                 } else if dy < 2.0 {
                                     alpha * dy.powi(3) - 5.0 * alpha * dy.powi(2) + 8.0 * alpha * dy - 4.0 * alpha
                                 } else {0.0};
-
+    
                                 let jy = _y - 1;  
                                 let baseoffset = if yy + jy < start_y as i32
                                      {start_y as isize * input_screen.width() as isize * 4 }
                                 else if yy + jy >= end_y as i32 { end_y as isize * input_screen.width() as isize * 4}
                                 else { ((yy + jy) as isize * input_screen.width() as isize) * 4 };
-
+    
                                 for _x in 0..4 {
                                     let dx = _x as f32 - dx - 1.0;
                                     let dx = dx.abs();
@@ -429,9 +432,9 @@ impl Affine {
                                     } else if dx < 2.0 {
                                         alpha * dx.powi(3) - 5.0 * alpha * dx.powi(2) + 8.0 * alpha * dx - 4.0 * alpha
                                     } else {0.0};
-
+    
                                     let w = wx * wy;
-
+    
                                     for i in 0..3 {
                                         color[i] += w *  input_buffer[offset as usize + i] as f32;
                                     }
@@ -449,10 +452,10 @@ impl Affine {
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
                             let n = lanzcos_n as i32;
-
+    
                             let mut color = [0.0;4];
-
-
+    
+    
                             for _y in 0..2 * n {
                                 let jy = _y - n + 1;  
                                 let dy = (jy as f32 - dy).abs();
@@ -463,7 +466,7 @@ impl Affine {
                                      {start_y as isize * input_screen.width() as isize * 4 }
                                 else if yy + jy > end_y as i32 { end_y  as isize * input_screen.width() as isize * 4}
                                 else { ((yy + jy) as isize * input_screen.width() as isize) * 4 };
-
+    
                                 for _x in 0..2 * n {
                                     let jx = _x - n + 1;  
                                     let dx = (jx as f32 - dx).abs();
@@ -473,7 +476,7 @@ impl Affine {
                                     let offset = if xx + jx <= start_x as i32 { baseoffset + start_x as isize * 4 }
                                         else if xx + jx >= end_x as i32 { baseoffset + end_x as isize * 4}
                                         else { baseoffset + (xx + jx) as isize * 4 };
-
+    
                                     let w = wx * wy;
                                     for i in 0..3 {
                                         color[i] += w *  input_buffer[offset as usize + i] as f32;
@@ -490,5 +493,30 @@ impl Affine {
                 }    
             }
         }
+    }
+
+    pub fn conversion_with_area(self:&mut Self,input_screen: &dyn Screen,output_screen:&mut dyn Screen,
+                start_x :f32,start_y:f32 ,width: f32,height: f32,
+                out_start_x :i32,out_start_y:i32 ,out_width: i32,out_height: i32,
+                algorithm:InterpolationAlgorithm) {
+        let ox = (out_width / 2) as f32;
+        let oy = (out_height / 2) as f32;
+
+        self.conversion_with_area_center(input_screen,output_screen,
+        start_x as f32,start_y,width,height,
+        out_start_x,out_start_y,out_width as i32,out_height as i32,
+        ox,oy,
+        algorithm);
+    }
+
+    pub fn resize(input_screen: &dyn Screen,output_screen:&mut dyn Screen,scale:f32,algorithm:InterpolationAlgorithm) {
+        let mut affine = Affine::new();
+        let output_width = output_screen.width() as i32;
+        let output_height = output_screen.height() as i32;
+        affine.scale(scale, scale);
+        affine.conversion_with_area_center(input_screen,output_screen,
+            0.0,0.0,input_screen.width() as f32,input_screen.height() as f32,
+            0,0,output_width,output_height,
+            0.0,0.0,algorithm);
     }
 }

@@ -142,6 +142,8 @@ impl DrawCallback for Layer {
         }
         if self.width() == 0 || self.height() == 0 {
             let buffersize = width as usize * height as usize * 4;
+            self.width = width as u32;
+            self.height = height as u32;
             self.buffer = (0..buffersize).map(|_| 0).collect();
         }
         Ok(None)

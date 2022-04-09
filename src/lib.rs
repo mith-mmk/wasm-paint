@@ -3,6 +3,7 @@ pub mod paint;
 
 type Error = Box<dyn std::error::Error>;
 
+use crate::paint::image::draw_image_fit_screen;
 use crate::paint::layer::Layer;
 use crate::paint::line::line_antialias;
 use web_sys::HtmlElement;
@@ -491,7 +492,6 @@ impl Universe {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             affine.conversion(input_canvas,output_canvas,algorithom);
         }
-
     }
 
     #[wasm_bindgen(js_name = affineTest)]
@@ -516,6 +516,47 @@ impl Universe {
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             affine.conversion(input_canvas,output_canvas,InterpolationAlgorithm::Bilinear);
+        }
+    }
+
+
+    #[wasm_bindgen(js_name = imageLoader)]
+    pub fn image_loader(&mut self,buffer: &[u8],interlop:usize) {
+        let interlop = match interlop {
+            0 => {
+                Some(InterpolationAlgorithm::NearestNeighber)
+            },
+            1 => {
+                Some(InterpolationAlgorithm::Bilinear)
+            },
+            2 => {
+                Some(InterpolationAlgorithm::Bicubic)
+            },
+            3 => {
+                Some(InterpolationAlgorithm::Lanzcos3)
+            },
+            4 => {
+                Some(InterpolationAlgorithm::BicubicAlpha(Some(-1.0)))
+            },
+            _ => { None },
+        };
+
+        let r = draw_image_fit_screen(self.layer_mut(), buffer,interlop);
+
+        match r {
+            Err(error) => {
+                if self.on_worker {
+                    log(&format!("{:?}",error));
+                } else {
+                    alert(&format!("{:?}",error));
+                }
+            },
+            Ok(s) => {
+                if let Some(warning) = s {                        
+                    log(&format!("{:?}",warning));
+                }
+                self.combine();
+            }
         }
     }
 
