@@ -42,6 +42,8 @@ Color model ABGR uint32LE
 
 2022/04/07 0.0.17 antialias circle/ellipse/arc
 
+2022/04/08 0.0.18 resized image loader
+
 Todo
 - organize Functions
 - border

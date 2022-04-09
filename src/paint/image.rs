@@ -10,6 +10,19 @@ use crate::Screen;
 use crate::Layer;
 
 
+pub enum ImageAlign {
+  Default,
+  Center,
+  RightUp,
+  RightBottom,
+  LeftUp,
+  LeftBottom,
+  Right,
+  Left,
+  Up,
+  Bottom,
+}
+
 use wml2::warning::ImgWarnings;
 use wml2::draw::{image_loader, DecodeOptions, DrawCallback};
 
@@ -25,7 +38,7 @@ pub fn draw_image (screen:&mut (dyn DrawCallback + Sync + Send),data: &[u8],verb
   image_loader(data, &mut option)
 }
 
-pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<InterpolationAlgorithm>) -> Result<Option<ImgWarnings>,Error> {
+pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<InterpolationAlgorithm>,align: ImageAlign) -> Result<Option<ImgWarnings>,Error> {
 
     let interop =  if let Some(interop) = interop { interop} else {InterpolationAlgorithm::Bilinear};
 
@@ -45,7 +58,10 @@ pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<
     if (screen.height() as f32) < image_buffer.height() as f32 * scale {
       scale =  screen.height() as f32 / image_buffer.height() as f32;
     }
-    Affine::resize(&image_buffer,screen,scale,interop);
+
+
+
+    Affine::resize(&image_buffer,screen,scale,interop,align);
 
     Ok(warnings)
   }

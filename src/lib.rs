@@ -15,6 +15,7 @@ use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wml2::draw::*;
+use crate::paint::image::ImageAlign;
 use crate::paint::line::line_pen;
 use crate::paint::affine::{Affine,InterpolationAlgorithm};
 use crate::paint::circle::*;
@@ -541,7 +542,7 @@ impl Universe {
             _ => { None },
         };
 
-        let r = draw_image_fit_screen(self.layer_mut(), buffer,interlop);
+        let r = draw_image_fit_screen(self.layer_mut(), buffer,interlop,ImageAlign::Center);
 
         match r {
             Err(error) => {

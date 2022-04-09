@@ -18,6 +18,7 @@
  */
 
 
+use crate::ImageAlign;
 use core::cmp::max;
 use core::cmp::min;
 use std::cmp::Ordering;
@@ -243,16 +244,16 @@ impl Affine {
         let mut xy = [(0_i32,0_i32);4];
         let x = start_x - ox;
         let y = start_y - oy;
-        xy[0] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 +oy) as i32);
+        xy[0] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 + oy) as i32);
         let x = end_x - ox;
         let y = start_y - oy ;
-        xy[1] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 +oy) as i32);
+        xy[1] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 + oy) as i32);
         let x = start_x - ox;
         let y = end_y - oy;
-        xy[2] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 +oy) as i32);
+        xy[2] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 + oy) as i32);
         let x = end_x - ox;
         let y = end_y - oy;
-        xy[3] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 +oy) as i32);
+        xy[3] = ((x * x0 + y * x1 + x2 + ox) as i32 ,(x * y0 + y * y1 + y2 + oy) as i32);
     
         xy.sort_by(|a, b| 
             if a.1 == b.1 {
@@ -270,16 +271,16 @@ impl Affine {
             });
     
         // pre-calc inverse affine transformation
-        // x =  y1 * X - x0 * Y  + x1 * y2 - x2 * y1
-        // y = -y0 * X + x1 * X  + x2 * y0 - x0 * x2
+        // x =  y1 * X - x0 * Y  +  x1 * y2 - y1 * x2
+        // y = -y0 * X + x1 * X  +  y0 * x2 - x0 * y2
     
         let t = x0 * y1 - x1 * y0;
         let ix0 =  y1;
         let ix1 = -x1;
-        let ix2 =  x1 * y2 - x2 * y1; 
+        let ix2 = x1 * y2 - y1 * x2; 
         let iy0 = -y0;
         let iy1 =  x0;
-        let iy2 =  x2 * y0 - x0 * x2;
+        let iy2 = y0 * x2 - x0 * y2;
     
         // stage 0 y0..y1 (x0,y0) - (x1,y1) &  (x0,y0) - (x2,y2)
         // stage 1 y1..y2 (x0,y0) - (x2,x2) &  (x1,y1) - (x3,y3) 
@@ -509,11 +510,59 @@ impl Affine {
         algorithm);
     }
 
-    pub fn resize(input_screen: &dyn Screen,output_screen:&mut dyn Screen,scale:f32,algorithm:InterpolationAlgorithm) {
+    pub fn resize(input_screen: &dyn Screen,output_screen:&mut dyn Screen,scale:f32,algorithm:InterpolationAlgorithm,align: ImageAlign) {
         let mut affine = Affine::new();
         let output_width = output_screen.width() as i32;
         let output_height = output_screen.height() as i32;
+
+        let cx = (output_screen.width() as f32 - input_screen.width() as f32 * scale)   / 2.0;
+        let cy = (output_screen.height() as f32 - input_screen.height() as f32 * scale) / 2.0;
+
+        let (ox,oy);
+
+        match align {
+            ImageAlign::Default | ImageAlign::LeftUp => {
+                ox = 0.0;
+                oy = 0.0;
+            },
+            ImageAlign::Center => {
+                ox = cx;
+                oy = cy;
+            },
+            ImageAlign::Up => {
+                ox = cx;
+                oy = 0.0;
+            },
+            ImageAlign::Bottom => {
+                ox = cx;
+                oy = cy * 2.0;
+            },
+            ImageAlign::Left => {
+                ox = 0.0;
+                oy = cy;
+            },
+            ImageAlign::LeftBottom => {
+                ox = 0.0;
+                oy = cy * 2.0;
+            },
+            ImageAlign::Right => {
+                ox = cx * 2.0;
+                oy = cy;
+            },
+            ImageAlign::RightUp => {
+                ox = 0.0;
+                oy = cy;
+            },
+            ImageAlign::RightBottom => {
+                ox = 0.0;
+                oy = cy * 2.0;
+            },
+
+        }
+
+        crate::log(&format!("{} {}",ox,oy));
         affine.scale(scale, scale);
+        affine.translation(ox,oy);
         affine.conversion_with_area_center(input_screen,output_screen,
             0.0,0.0,input_screen.width() as f32,input_screen.height() as f32,
             0,0,output_width,output_height,

@@ -1,6 +1,6 @@
 [package]
 name = "paint"
-version = "0.0.17"
+version = "0.0.18"
 authors = ["mith-mmk <47620686+mith-mmk@users.noreply.github.com>"]
 edition = "2018"
 license = "MIT"
@@ -46,7 +46,7 @@ features = [
 [dependencies.wml2]
 #git = "https://github.com/mith-mmk/wml2-on-rust"
 #version = "0.0.7"
-path = "../wml2"
+path = "../wml2/wml2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
