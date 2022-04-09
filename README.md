@@ -42,7 +42,7 @@ Color model ABGR uint32LE
 
 2022/04/07 0.0.17 antialias circle/ellipse/arc
 
-2022/04/08 0.0.18 resized image loader
+2022/04/08 0.0.18 resized image loader/Affine逆変換の計算式のシフトの部分が間違っていたので修正
 
 Todo
 - organize Functions
