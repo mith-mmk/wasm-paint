@@ -1,29 +1,29 @@
 import init,{Universe} from "../../pkg/paint.js"
-let universe;
+let universe = null;
 let img;
-let memory;
 const reader = new FileReader();
 
 reader.onload = (event) => {
   console.time("buffer");
   let buffer = new Uint8Array(reader.result);
   postMessage({message: 'loadstart'});
-  universe.clear(0x000000);
-  console.timeEnd("buffer");
-  postMessage({message: 'get', image:img});
+  if (universe != null) {
+    universe.clear(0x000000);
+    console.timeEnd("buffer");
+    postMessage({message: 'get', image:img});
 
-  console.time("decode");
-  universe.jpegDecoder(buffer,0xf9); 
-  console.timeEnd("decode");
-  postMessage({message: 'get', image:img});
-  postMessage({message: 'loadend'});
+    console.time("decode");
+     universe.jpegDecoder(buffer,0xf9); 
+    console.timeEnd("decode");
+    postMessage({message: 'get', image:img});
+    postMessage({message: 'loadend'});
+  }
 };
 
 function workerInit(width, height) {
     init()
-    .then((wasm) => {
-        memory = wasm.memory;
-        universe = new Universe(width,height);
+    .then(() => {
+        universe = Universe.newOnWorker(width,height);
         universe.clear(0x000000);
         img = universe.getImageData(0);
         postMessage({message: 'init', image: img});
@@ -44,10 +44,12 @@ onmessage = function(ev) {
                     .then(res => res.blob())
                     .then(blob => blob.arrayBuffer())
                     .then(arraybuffer => {
-                        postMessage({message: 'loadstart'});
-                        let buffer = new Uint8Array(arraybuffer);      
-                        universe.jpegDecoder(buffer,0);
-                        postMessage({message: 'loadend'});
+                        if (universe != null) {
+                            postMessage({message: 'loadstart'});
+                            let buffer = new Uint8Array(arraybuffer);      
+                            universe.imageDecoder(buffer,0);
+                            postMessage({message: 'loadend'});
+                        }
                 });
 
                 break;

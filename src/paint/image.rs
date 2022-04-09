@@ -26,7 +26,7 @@ pub enum ImageAlign {
 use wml2::warning::ImgWarnings;
 use wml2::draw::{image_loader, DecodeOptions, DrawCallback};
 
-pub fn draw_image (screen:&mut (dyn DrawCallback + Sync + Send),data: &[u8],verbose:usize) -> Result<Option<ImgWarnings>,Error> {
+pub fn draw_image(screen:&mut (dyn DrawCallback + Sync + Send),data: &[u8],verbose:usize) -> Result<Option<ImgWarnings>,Error> {
 
 //  canvas.set_verbose(write_log);
 
