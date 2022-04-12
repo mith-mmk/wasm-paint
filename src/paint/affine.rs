@@ -112,6 +112,31 @@ impl Affine {
                       [ 0.0 ,0.0 , 1.0]]);    
     }
 
+    /// skew
+    pub fn skew_x(self:&mut Self,theta:f32) {
+        let s = theta.tan();
+        self.matrix(&[[ 1.0 ,0.0 , 0.0],
+                      [   s ,1.0 , 0.0],
+                      [ 0.0 ,0.0 , 1.0]]);
+    }
+
+    pub fn skew_y(self:&mut Self,theta:f32) {
+        let s = theta.tan();
+        self.matrix(&[[ 1.0 ,  s , 0.0],
+                      [ 0.0 ,1.0 , 0.0],
+                      [ 0.0 ,0.0 , 1.0]]);
+    }
+
+    pub fn skew_x_by_degree(self:&mut Self,theta:f32) {
+        let theta = PI * theta / 180.0;
+        self.skew_x(theta);
+    }
+
+    pub fn skew_y_by_degree(self:&mut Self,theta:f32) {
+        let theta = PI * theta / 180.0;
+        self.skew_y(theta);
+    }
+
     /// shear
     pub fn shear(self:&mut Self,x:f32,y:f32) {
         self.matrix(&[[ 1.0 ,  y , 0.0],
@@ -504,10 +529,117 @@ impl Affine {
         let oy = (out_height / 2) as f32;
 
         self.conversion_with_area_center(input_screen,output_screen,
-        start_x as f32,start_y,width,height,
-        out_start_x,out_start_y,out_width as i32,out_height as i32,
-        ox,oy,
-        algorithm);
+            start_x as f32,start_y,width,height,
+            out_start_x,out_start_y,out_width as i32,out_height as i32,
+            ox,oy,
+            algorithm)
+    }
+
+    // only scale < 0.5
+    fn pixel_mixing(input_screen: &dyn Screen,output_screen:&mut dyn Screen,scale_x:f32,scale_y:f32, ox: f32,oy: f32) {
+        let ox = ox as u32;
+        let oy = oy as u32;
+        /*
+         *
+         *      
+         * x0,y0  xn,y0   x0,y0 = w(0,0) ,xn,y0 = w(n,0) x0,yn = w(0,n) xn,yn = w(n,n)
+         *   +----+       x0,y1 .. x0,yn-1 = w(0,1)  xn,y1 .. xn,yn-1 w(0,n)  
+         *   |    |       x1,y0 .. xn-1,y0 = w(1,0)  x1,yn .. xn-1,yn w(n,0)
+         *   +----+       other w(1,1)
+         * x0,yn  xn,yn  w(0,0) = err_x0 * err_y0, w(n,0) = err_xn  * erry0 ...
+         *               w(1,1) = (1.0 - Σ w(i,n) - Σ w(n,i) - Σ w(0,i) - Σ w(i,0) - w(0,0) ... - w(n,n)) / (n-2)(n-2)
+         *                      = (1.0 - w(1,0) * n - w(1,n) * n - w(0,1) * n - w(n,1) * n      
+         *                          + w(0,0)  w(0,n) w(n,0) + w(n,m) ) / (n-2)(n-2)
+         *                    (n > 2)
+         *  d = 1.0 / scale
+         * 
+         *  nx,ny  > 2 → scale < 0.5 
+         *     nx = d ([d] = d) , n = d +1 p(x) = p([x]) or d + 2 ( p(x) != p([x]) )
+         *     ny = d ([d] = d) , n = d +1 p(y) = p([y]) or d + 2 ( p(y) != p([y]) )
+         * 
+         *  P(X,Y) * scale  bx = X * d  by = Y * d , ex = (X + 1) * d, ey = (Y + 1) * d
+         * 
+         *   err_y0 = 1.0 - (bx - [bx]); 
+         *   err_yn = ex - [ex];
+
+         *   err_y0 = 1.0 - (by - [by]);
+         *   err_yn = ey - [ey];
+         * 
+         *  S = err_x0 * err_y0 + err_x0 * err_yn + err_xn * err_y0 + err_xn * err_yn 
+         *       + err_x0 *(n-2) + err_xn * (n-2) + err_y0 * (n-2) + err_yn * (n-2) + (n-2)(n-2)
+         *    = scale * scale
+         * ∴
+         *   w(i,j) = 1 / S ( 2 <=i <= n - 1 ,2 <= j <= n - 1)
+         *   w(0,0) = err_x0 * err_y0 / S
+         *   w(n,0) = err_xn * err_y0 / S
+         *   w(0,n) = err_x0 * err_yn / S
+         *   w(n,n) = err_xn * err_yn / S
+         *   w(0,j) = err_x0 / S
+         *   w(i,0) = err_y0 / S
+         *   w(n,j) = err_xn / S
+         *   w(i,n) = err_yn / S
+         */
+
+//        let d = (1.0 / scale).ceil() as usize;
+        let d_x = 1.0 / scale_x;
+        let d_y = 1.0 / scale_y;
+//        let weight = 1.0 / d as f32 * 1.0 / d as f32;
+        let weight = scale_x * scale_y;
+        let ey = output_screen.height() - oy;
+        let ex = output_screen.width() - ox;
+        for y in oy..ey {
+            let output_base_line = output_screen.width() as usize * 4 * y as usize;
+            let mut dest_offset = output_base_line + ox as usize * 4;
+
+            let by = (y - oy) as f32 / scale_y;
+            let base_y = by as usize;
+            let end_y = by + d_y;
+            let err_y0 = 1.0 - (by - base_y as f32);
+            let err_y1 = end_y - end_y.floor();
+            let dy = end_y as usize - base_y + 1;
+
+            for x in ox..ex {
+                let bx = (x - ox) as f32 / scale_x;
+                let base_x = bx as usize;
+                let end_x = bx + d_x;
+                let err_x0 = 1.0 - (bx - base_x as f32);
+                let err_x1 = end_x - end_x.floor();
+                let dx = end_x as usize - base_x + 1;
+ 
+                let mut red   = 0.0;
+                let mut green = 0.0;
+                let mut blue  = 0.0;
+                let mut alpha = 0.0;
+                for yy_ in 0..dy {
+                    let mut yy = yy_ + base_y;
+                    if yy >= input_screen.height() as usize {
+                        yy = input_screen.height() as usize - 1;
+                    }
+                    let input_base_line = input_screen.width() as usize * 4 * yy as usize;
+                    let err_y = if yy_ == 0 {err_y0} else if yy_ == dy -1 {err_y1} else {1.0};
+                    for xx_ in 0..dx {
+                        let mut xx = xx_ + base_x;
+                        if xx >= input_screen.width() as usize {
+                            xx = input_screen.width() as usize - 1;
+                        }
+                        let err_x = if xx_ == 0 {err_x0} else if xx_ == dx -1 {err_x1} else {1.0};
+                        let src_offset = input_base_line + xx * 4;
+                        let weight = weight * err_x * err_y;
+                        red += input_screen.buffer()[src_offset] as f32 * weight;
+                        green += input_screen.buffer()[src_offset+1] as f32 * weight;
+                        blue += input_screen.buffer()[src_offset+2] as f32 * weight;
+                        alpha += input_screen.buffer()[src_offset+3] as f32 * weight;
+                    }
+                }
+
+                output_screen.buffer_mut()[dest_offset  ] = (red as u32).clamp(0,255) as u8;
+                output_screen.buffer_mut()[dest_offset+1] = (green as u32).clamp(0,255) as u8;
+                output_screen.buffer_mut()[dest_offset+2] = (blue as u32).clamp(0,255) as u8;
+                output_screen.buffer_mut()[dest_offset+3] = (alpha as u32).clamp(0,255) as u8;
+                dest_offset += 4;
+            }
+        }
+
     }
 
     pub fn resize(input_screen: &dyn Screen,output_screen:&mut dyn Screen,scale:f32,algorithm:InterpolationAlgorithm,align: ImageAlign) {
@@ -560,11 +692,16 @@ impl Affine {
 
         }
 
+        if scale < 0.5 {
+            Self::pixel_mixing(input_screen, output_screen, scale, scale, ox, oy);
+            return
+        }
+
         affine.translation(ox,oy);
         affine.scale(scale, scale);
         affine.conversion_with_area_center(input_screen,output_screen,
             0.0,0.0,input_screen.width() as f32,input_screen.height() as f32,
             0,0,output_width,output_height,
-            0.0,0.0,algorithm);
+            0.0,0.0,algorithm)
     }
 }

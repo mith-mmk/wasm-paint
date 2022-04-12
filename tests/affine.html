@@ -9,13 +9,37 @@
   <script src="/js/default.js"></script>
   <a name="header" class="dummy"></a>
 </header>
+
 <body>
 <main>
   <div>
     <div><p>枠内に画像をドラッグ＆ドロップしてください</p></div>
-    <div><canvas id="canvas" width="512" height="512" style="border: double gray 4px;"></canvas></div>
-    <div>出力</div>
-    <div><canvas id="canvas2" width="512" height="512" style="border: double gray 4px;"></canvas></div>
+     <div><canvas id="canvas" width="512" height="512" style="border: double gray 4px;"></canvas></div>
+     <div>出力</div>
+     <div id="option_raws" class="narrow" >
+     <p id="line_0" class="narrow"><select id="method_0" class="narrow">
+      <option value="0">上下左右反転</option>       
+      <option value="1">回転 30°</option>
+      <option value="2">縮小 1/3</option>
+      <option value="3">拡大 4.5</option>
+      <option value="4">シフト +20,+20</option>
+      <option value="5">平行四辺形(X) 20°</option>
+      <option value="6">平行四辺形(Y) -50°</option>
+    </select>
+    <input type="text" id="value1_0" size="3" style="display: none;" class="narrow">
+    <input type="text" id="value2_0" size="3" style="display: none;" class="narrow">
+    <button id="add_0">追加</button>
+    </p>
+    </div>
+
+    <p><select id="interpolation">
+      <option value="0">ニアレストネイバー</option>
+      <option value="1">バイリニア</option>
+      <option value="2">バイキュービック</option>
+      <option value="3">Lanczos3</option>
+    </select></p>
+  
+    <div><canvas id="canvas2" width="512" height="512" style="border: double gray 4px  4px 4px 4px;"></canvas></div>
   </div>
   <script type="module" src="./js/affine.js"></script>
 </main>

@@ -40,7 +40,7 @@ pub fn draw_image(screen:&mut (dyn DrawCallback + Sync + Send),data: &[u8],verbo
 
 pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<InterpolationAlgorithm>,align: ImageAlign) -> Result<Option<ImgWarnings>,Error> {
 
-    let interop =  if let Some(interop) = interop { interop} else {InterpolationAlgorithm::Bilinear};
+    let interop =  if let Some(interop) = interop { interop } else {InterpolationAlgorithm::Bilinear};
 
     let mut image_buffer = Layer::new("temp".to_string(), 0, 0);
   
@@ -60,7 +60,6 @@ pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<
     }
 
     Affine::resize(&image_buffer,screen,scale,interop,align);
-
     Ok(warnings)
   }
   

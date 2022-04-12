@@ -160,6 +160,7 @@ pub struct Universe {
 //    #[cfg(target="web")]
     ctx: Option<CanvasRenderingContext2d>,
     ctx2: Option<CanvasRenderingContext2d>,
+    affine: Affine,
 }
 
 #[wasm_bindgen]
@@ -191,6 +192,7 @@ impl Universe {
  //           #[cfg(target="web")]
             ctx : None,
             ctx2: None,
+            affine: Affine::new(),
         }
     }
 
@@ -427,6 +429,82 @@ impl Universe {
         bezier_curve_with_alpha(self.layer_mut(),p.to_vec(), color,0xff,true,Some(size));
     }
 
+    #[wasm_bindgen(js_name = affineNew)]
+    pub fn affine_new(&mut self) {
+        self.affine = Affine::new();
+    }
+
+    #[wasm_bindgen(js_name = affineAdd)]
+    pub fn affine_add(&mut self,no:usize,value1:f32,value2:f32) {
+        match no {
+            0 => {
+                self.affine.invert_xy()
+            },
+            1 => {
+                self.affine.rotate_by_dgree(value1)
+            },
+            2 => {
+                self.affine.scale(value1,value1)
+            },
+            3 => {
+                self.affine.scale(value1,value2)
+            },
+            4 => {
+                self.affine.translation(value1,value2)
+            },
+            5 => {
+                self.affine.skew_y_by_degree(value1)
+            },
+            6 => {
+                self.affine.skew_x_by_degree(value1)
+            },
+            _ => {
+                
+            }
+
+        }
+
+    }
+
+    #[wasm_bindgen(js_name = affineRun)]
+    pub fn affine_run(&mut self,canvas_in:usize,canvas_out:usize,interpolation:usize) {
+        
+        let algorithom = match interpolation {
+            0 => {
+                InterpolationAlgorithm::NearestNeighber
+            },
+            1 => {
+                InterpolationAlgorithm::Bilinear
+            },
+            2 => {
+                InterpolationAlgorithm::Bicubic
+            },
+            3 => {
+                InterpolationAlgorithm::Lanzcos3
+            }
+
+            _ => {
+                InterpolationAlgorithm::BicubicAlpha(Some(-1.0))
+            }
+
+        };
+
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            self.affine.conversion(&self.canvas,output_canvas,algorithom);
+//            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
+//            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
+        } else if canvas_out == 0 {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            self.affine.conversion(input_canvas,&mut self.canvas,algorithom);
+        } else {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            self.affine.conversion(input_canvas,output_canvas,algorithom);
+        }
+    }
+
+
     #[wasm_bindgen(js_name = affineTest2)]
     pub fn affine_test2(&mut self,canvas_in:usize,canvas_out:usize,no: usize,interpolation:usize) {
         let mut affine = Affine::new();
@@ -448,12 +526,20 @@ impl Universe {
                 affine.translation(20.0,20.0)
             },
             5 => {
+                affine.skew_y_by_degree(30.0)
+            },
+            6 => {
+                affine.skew_x_by_degree(-50.0)
+            },
+            7 => {
                 affine.invert_xy();
                 affine.rotate_by_dgree(30.0);
                 affine.scale(1.0/3.0,1.0/3.0);
                 affine.scale(4.5,4.5);
-                affine.translation(20.0,20.0)
-            }
+                affine.translation(20.0,20.0);
+                affine.skew_y_by_degree(30.0);
+                affine.skew_x_by_degree(-50.0);
+            },
             _ => {
                 
             }
