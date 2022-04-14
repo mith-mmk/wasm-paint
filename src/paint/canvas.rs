@@ -5,6 +5,7 @@
  */
 extern crate wml2;
 type Error = Box<dyn std::error::Error>;
+use crate::paint::layer::AnimationControl;
 use std::collections::HashMap;
 use wml2::draw::*;
 use wml2::error::ImgError;
@@ -170,6 +171,9 @@ pub struct Canvas {
     background_color: u32,
     pen: Pen,
     layers: PackedLayers,
+    current_layer: Option<String>,
+    frame_no:usize,
+    loop_count: Option<u32>,
     fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
     draw_width: u32,
     draw_height: u32,
@@ -199,6 +203,9 @@ impl Canvas {
             canvas_alpha: 0xff,
             pen,
             layers: PackedLayers::new(),
+            current_layer: None,
+            loop_count: None,
+            frame_no: 0,
             fnverbose,
             draw_width: 0,
             draw_height: 0,
@@ -214,6 +221,9 @@ impl Canvas {
             canvas_alpha: 0xff,
             pen: Pen::new(1, 1, vec![255]),
             layers: PackedLayers::new(),
+            current_layer: None,
+            frame_no: 0,
+            loop_count: None,
             fnverbose: default_verbose,
             draw_width: 0,
             draw_height: 0,
@@ -236,7 +246,9 @@ impl Canvas {
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
             layers: PackedLayers::new(),
-
+            current_layer: None,
+            frame_no: 0,
+            loop_count: None,
             pen,
             fnverbose,
             draw_width: 0,
@@ -423,25 +435,47 @@ impl Screen for Canvas {
 }
 
 impl DrawCallback for Canvas {
-    fn init(&mut self, width: usize, height: usize,_: Option<InitOptions>) -> Result<Option<CallbackResponse>, Error> {
+    fn init(&mut self, width: usize, height: usize,opt: Option<InitOptions>) -> Result<Option<CallbackResponse>, Error> {
         if width <= 0 || height <= 0 {
             return Err(Box::new(ImgError::new_const(ImgErrorKind::SizeZero,"image size zero or minus".to_string())))
         }
-        if self.width() == 0 || self.height() == 0 {
-            let buffersize = width as usize * height as usize * 4;
-            self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
+        if self.current_layer.is_none() {
+            if self.width() == 0 || self.height() == 0 {
+                let buffersize = width as usize * height as usize * 4;
+                self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
+            }
+            self.draw_width = width as u32;
+            self.draw_height = height as u32;
+        } else if let Some(option) = opt {
+            self.loop_count = Some(option.loop_count);
+            self.frame_no = 0;
         }
-        self.draw_width = width as u32;
-        self.draw_height = height as u32;
         Ok(None)
     }
 
     fn draw(&mut self, start_x: usize, start_y: usize, width: usize, height: usize, data: &[u8],_: Option<DrawOptions>)
                 -> Result<Option<CallbackResponse>,Error>  {
-        let self_width = self.width() as usize;
-        let self_height = self.height() as usize;
+        let layer;
+        let current_layer = &self.current_layer.clone();
+        match current_layer {
+            Some(label) => {
+                if self.frame_no == 0 {
+                    layer = self.layer_mut(label.to_string()).unwrap();
+                } else {
+                    let l = format!("{}_{}",label,self.frame_no);
+                    layer = self.layer_mut(l.to_string()).unwrap();
+                }
+            },
+            _ => {
+                layer = self.canvas.get_mut();
+            }
+        }
 
-        let buffer =  &mut self.buffer_mut();
+
+        let self_width = layer.width() as usize;
+        let self_height = layer.height() as usize;
+
+        let buffer =  &mut layer.buffer_mut();
         if start_x >= self_width || start_y >= self_height {return Ok(None);}
         let w = if self_width < width + start_x {self_width - start_x} else { width };
         let h = if self_height < height + start_y {self_height - start_y} else { height };
@@ -464,11 +498,48 @@ impl DrawCallback for Canvas {
     }
 
     fn terminate(&mut self,_: Option<TerminateOptions>) -> Result<Option<CallbackResponse>, Error> {
+        self.frame_no = 0;
         Ok(None)
     }
 
-    fn next(&mut self, _: Option<NextOptions>) -> Result<Option<CallbackResponse>, Error> {
-        Ok(Some(CallbackResponse::abort()))
+    fn next(&mut self, opt: Option<NextOptions>) -> Result<Option<CallbackResponse>, Error> {
+   
+        let current_layer = &self.current_layer.clone();
+        if let Some(label) = current_layer {
+            if let Some(opt) = opt {
+                self.frame_no += 1;
+                let l = format!("{}_{}",label,self.frame_no);
+                let (width,height,start_x,start_y);
+                if let Some(rect) = opt.image_rect {
+                    width = rect.width as u32;
+                    height = rect.height as u32;
+                    start_x = rect.start_x;
+                    start_y = rect.start_y;
+                } else {
+                    width = self.layer(label.to_string()).unwrap().width();
+                    height = self.layer(label.to_string()).unwrap().height();
+                    start_x = 0;
+                    start_y = 0;
+                }
+                let await_time = opt.await_time;
+                let dispose_option = opt.dispose_option;
+                let blend = opt.blend;
+                self.add_layer(l.to_string(), width, height, start_x, start_y)?;
+                self.layer_mut(l.to_string()).unwrap().set_disable();
+                let control = AnimationControl{
+                    await_time,
+                    dispose_option,
+                    blend,
+                };
+                self.layer_mut(l.to_string()).unwrap().control = Some(control);
+             
+                Ok(Some(CallbackResponse::cont()))
+            } else {
+                Ok(Some(CallbackResponse::abort()))
+            }
+        } else {
+            Ok(Some(CallbackResponse::abort()))
+        }
     }
 
     fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error> { 

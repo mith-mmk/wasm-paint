@@ -5,6 +5,22 @@ type Error = Box<dyn std::error::Error>;
 use crate::paint::clear::fillrect_with_alpha;
 use super::canvas::*;
 
+pub struct AnimationControl {
+    pub await_time: u64,
+    pub dispose_option: Option<NextDispose>,
+    pub blend: Option<NextBlend>,
+}
+
+impl AnimationControl {
+    pub fn new(await_time:u64) -> Self {
+        Self {
+            await_time,
+            dispose_option:None,
+            blend:None,
+        }
+    }
+}
+
 pub struct Layer {
     pub label:String,
     pub(crate) buffer: Vec<u8>,
@@ -16,9 +32,9 @@ pub struct Layer {
     pub(crate) use_canvas_alpha: bool,
     pub(crate) canvas_alpha: u8,
     pub(crate) enable: bool,
+    pub(crate) control: Option<AnimationControl>,
     fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
 }
-
 
 impl Layer {
     pub fn new(label:String,width:u32,height:u32) -> Self {
@@ -34,6 +50,7 @@ impl Layer {
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
             enable: true,
+            control: None,
             fnverbose: super::canvas::default_verbose,
         }
     }
@@ -50,6 +67,7 @@ impl Layer {
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
             enable: true,
+            control: None,
             fnverbose: super::canvas::default_verbose,
         }
     }
@@ -90,6 +108,10 @@ impl Layer {
 
     pub fn set_verbose(&mut self,verbose:fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>) {
         self.fnverbose = verbose;
+    }
+
+    pub fn get_mut(&mut self) -> &mut Self {
+        self
     }
 }
 
