@@ -44,6 +44,8 @@ Color model ABGR uint32LE
 
 2022/04/08 0.0.18 resized image loader/Affine逆変換の計算式のシフトの部分が間違っていたので修正
 
+2022/04/24 0.0.19 WML2 0.0.10で追加されたmetadata を追加
+
 Todo
 - organize Functions
 - border
