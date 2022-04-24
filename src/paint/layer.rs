@@ -1,7 +1,8 @@
 //! Layer is canvas overlay images.
+type Error = Box<dyn std::error::Error>;
 use wml2::error::*;
 use wml2::draw::*;
-type Error = Box<dyn std::error::Error>;
+use std::collections::HashMap;
 use crate::paint::clear::fillrect_with_alpha;
 use super::canvas::*;
 
@@ -34,6 +35,7 @@ pub struct Layer {
     pub(crate) enable: bool,
     pub(crate) control: Option<AnimationControl>,
     fnverbose: fn(&str,Option<VerboseOptions>) -> Result<Option<CallbackResponse>,Error>,
+    pub(crate) metadata: Option<HashMap<String,DataMap>>,
 }
 
 impl Layer {
@@ -52,6 +54,7 @@ impl Layer {
             enable: true,
             control: None,
             fnverbose: super::canvas::default_verbose,
+            metadata: None,
         }
     }
 
@@ -69,6 +72,7 @@ impl Layer {
             enable: true,
             control: None,
             fnverbose: super::canvas::default_verbose,
+            metadata: None,
         }
     }
 
@@ -208,5 +212,17 @@ impl DrawCallback for Layer {
 
     fn verbose(&mut self, str: &str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error> { 
         return (self.fnverbose)(str,None);
+    }
+
+    fn set_metadata(&mut self,key: &str, value: DataMap) -> Result<Option<CallbackResponse>, Error> { 
+        let hashmap = if let Some(ref mut hashmap) = self.metadata {
+            hashmap
+        } else {
+            self.metadata = Some(HashMap::new());
+            self.metadata.as_mut().unwrap()
+        };
+        hashmap.insert(key.to_string(), value);
+
+        return Ok(None)
     }
 }
