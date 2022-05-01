@@ -1,5 +1,6 @@
 //! Layer is canvas overlay images.
 type Error = Box<dyn std::error::Error>;
+use wml2::metadata::DataMap;
 use wml2::error::*;
 use wml2::draw::*;
 use std::collections::HashMap;

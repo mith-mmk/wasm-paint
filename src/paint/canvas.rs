@@ -5,6 +5,7 @@
  */
 extern crate wml2;
 type Error = Box<dyn std::error::Error>;
+use wml2::metadata::DataMap;
 use crate::paint::layer::AnimationControl;
 use wml2::draw::*;
 use wml2::error::ImgError;
