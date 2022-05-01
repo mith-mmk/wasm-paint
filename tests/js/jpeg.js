@@ -66,15 +66,17 @@ init().then((wasm) => {
 
 });
 
+
+
 function start_draw() {
   universe.drawCanvas(width,height);
-  setTimeout(function(){draw();},1000 / 120);
-  drawed = false;  
+  setTimeout(function(){draw();},120/1000);
 }
 
 
 function draw() {
-    if(drawed) return;
-    setTimeout(function(){draw();},1000 / 120);
     universe.drawCanvas(width,height);
+    let wait = universe.nextFrame();
+    console.log(wait);
+    setTimeout(function(){draw();},wait*1000);
 }

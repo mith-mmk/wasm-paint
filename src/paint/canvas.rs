@@ -5,6 +5,8 @@
  */
 extern crate wml2;
 type Error = Box<dyn std::error::Error>;
+use crate::paint::draw::draw_over_screen;
+use crate::paint::clear::clear_layter;
 use wml2::metadata::DataMap;
 use crate::paint::layer::AnimationControl;
 use wml2::draw::*;
@@ -12,7 +14,7 @@ use wml2::error::ImgError;
 use wml2::error::ImgErrorKind;
 use std::collections::HashMap;
 use super::layer::Layer;
-use super::draw::draw_over_screen_with_alpha;
+use super::draw::*;
 use super::pen::Pen;
 use super::clear::fillrect;
 
@@ -30,8 +32,160 @@ pub trait Screen {
 
 }
 
+struct AnimationLayer{
+    pub x:i32,
+    pub y:i32,
+    layer: Layer,
+    layers: Vec<Layer>,
+    frame_no: usize,
+    enable: bool,
+}
+
+impl AnimationLayer {
+    pub fn new(label:String,width:u32,height:u32) -> Self {
+        let layer = Layer::new(label.to_string(),width,height);
+        let layers = vec![layer];
+        let layer = Layer::new(label.to_string(),width,height);
+
+        Self {
+            x: 0,
+            y: 0,
+            layer: layer,
+            layers,
+            frame_no:0,
+            enable: true,
+        }
+    }
+
+    pub fn set_frame_no(&mut self,no: usize) -> usize{
+        if self.layers.len() >= no {
+            self.frame_no = 0;
+        } else {
+            self.frame_no = no;
+        }
+        self.frame_no
+    }
+
+    pub fn layer(&mut self) -> &Layer {
+        &self.layers[self.frame_no]
+    }
+
+    pub fn layer_mut(&mut self) -> &mut Layer {
+        &mut self.layers[self.frame_no]
+    }
+
+    pub fn wait(&mut self) -> u64 {
+        if let Some(control) = &self.layers[self.frame_no].control {
+            control.await_time
+        } else {
+            0
+        }
+    }
+
+    pub fn next(&mut self) -> usize {
+        let control = self.layers[self.frame_no].control.as_ref();
+        if let Some(control) = control {
+            if let Some(dispose) = &control.dispose_option {
+                match dispose {
+                    NextDispose::Previous => {
+                        self.layers[self.frame_no].set_disable();
+                    },
+                    NextDispose::Background => {
+                        for i in 0..self.frame_no {
+                            self.layers[i].set_disable();
+                        }
+                    },
+                    _ => {
+                    }
+                }
+            }
+        }
+
+        self.frame_no += 1;
+        if self.frame_no >= self.layers.len() {
+            self.reset();
+        }
+        self.layers[self.frame_no].set_enable();
+        self.frame_no
+    }
+
+    pub fn reset(&mut self) {
+        for i in 1..self.layers.len() {
+            self.layers[i].set_disable();
+        }       
+        self.set_frame_no(0);
+        self.layers[self.frame_no].set_enable();
+    }
+
+    pub fn truncate(&mut self) {
+        self.frame_no = 0;
+        self.layers.truncate(1);
+    }
+
+    pub fn combined_layer(&mut self) -> &mut Layer {
+        let layers = &mut self.layers;
+        if layers.len() == 1 {
+            return &mut layers[0]
+        }
+
+        clear_layter(&mut self.layer);
+        for layer in layers {
+            let x = layer.x;
+            let y = layer.y;
+            if layer.enable() {
+                if let Some(control) = &layer.control {
+                    if let Some(blend) = &control.blend {
+                        match blend {
+                            NextBlend::Source => {
+                                draw_over_screen_with_alpha(layer,&mut self.layer,x,y);
+                            },
+                            _ => {
+                                draw_over_screen(layer,&mut self.layer,x,y);
+                            }
+                        }
+                    } else {
+                        draw_over_screen(layer,&mut self.layer,x,y);
+                    }
+                } else {
+                    draw_over_screen(layer,&mut self.layer,x,y);
+                }
+            }
+        }
+        &mut self.layer
+    }
+
+    pub fn add_frame(&mut self,label:String,width:u32,height:u32,start_x:i32,start_y:i32) {
+        let mut layer = Layer::new(label, width, height);
+        layer.x = start_x;
+        layer.y = start_y;
+        layer.enable = false;
+        self.frame_no = self.layers.len();
+        self.layers.push(layer);
+    }
+
+    pub fn z_index(&self) -> i32 {
+        self.layers[0].z_index
+    }
+
+    pub fn set_z_index(&mut self,z_index:i32) {
+        self.layers[0].set_z_index(z_index);
+    }
+
+    pub fn set_enable(&mut self) {
+        self.enable = true;
+    }
+    pub fn set_disable(&mut self) {
+        self.enable = false;
+    }
+
+    pub fn enable(&self) -> bool {
+        self.enable
+    }
+}
+
+
 struct PackedLayers {
-    layers: HashMap<String,Layer>,
+    layers: HashMap<String,AnimationLayer>,
     sorted: Vec<String>,
 }
 
@@ -44,7 +198,7 @@ impl PackedLayers {
     }
 
     fn sort(&mut self) {
-        let mut vector:Vec<(&String,i32)> = self.layers.iter().map(|(k, v)| (k,v.z_index)).collect();
+        let mut vector:Vec<(&String,i32)> = self.layers.iter().map(|(k, v)| (k,v.z_index())).collect();
         vector.sort_by(|a, b| a.1.cmp(&b.1));
         let sorted:Vec<String> = vector.iter().map(|x| x.0.to_string()).collect();
         self.sorted = sorted;
@@ -72,8 +226,8 @@ impl PackedLayers {
             _ => {},
 
         };
-        let mut layer = Layer::new(label.clone(), width, height);
-        layer.z_index = self.layers.len() as i32;
+        let mut layer = AnimationLayer::new(label.clone(), width, height);
+        layer.set_z_index(self.layers.len() as i32);
         layer.x = x;
         layer.y = y;
         self.layers.insert(label.clone(),layer);
@@ -82,12 +236,84 @@ impl PackedLayers {
         Ok(())
     }
 
+    fn add_frame(&mut self,label:String,width :u32,height: u32,x: i32,y :i32) -> Result<(),Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.add_frame(label,width,height,x,y);
+            },
+            _ => {
+                return Err(Box::new(super::error::Error{message:"Layer is none".to_string()}))
+            },
+
+        };
+        Ok(())
+    }
+
+    fn set_frame_no(&mut self,label:String,no:usize) -> usize{
+        let layer = self.layers.get_mut(&label);
+        if let Some(layer) = layer {
+            layer.set_frame_no(no)
+        } else {
+            0
+        }
+    }
+
+    fn frame_last_no(&mut self,label:String) -> Option<usize>{
+        let layer = self.layers.get_mut(&label);
+        if let Some(layer) = layer {
+            if layer.layers.len() >= 1{
+                Some(layer.layers.len() - 1)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     fn get(&self,label:String) -> Option<&Layer> {
-        self.layers.get(&label)
+        let layer = self.layers.get(&label);
+        if let Some(frame) = layer {
+            Some(&frame.layers[0])
+        } else {
+            None
+        }
+    }
+
+    fn get_combined_layer(&mut self,label:String) -> Option<&mut Layer> {
+        let layer = self.layers.get_mut(&label);
+        if let Some(layer) = layer {
+            Some(layer.combined_layer())
+        } else {
+            None
+        }
     }
 
     fn get_mut(&mut self,label:String) -> Option<&mut Layer> {
-        self.layers.get_mut(&label)
+        let layer = self.layers.get_mut(&label);
+        if let Some(frame) = layer {
+            Some(&mut frame.layers[0])
+        } else {
+            None
+        }
+    }
+
+    fn get_frame(&mut self,label:String) -> Option<&Layer> {
+        let layer = self.layers.get_mut(&label);
+        if let Some(frame) = layer {
+            Some(frame.layer())
+        } else {
+            None
+        }
+    }
+
+    fn get_frame_mut(&mut self,label:String) -> Option<&mut Layer> {
+        let layer = self.layers.get_mut(&label);
+        if let Some(frame) = layer {
+            Some(frame.layer_mut())
+        } else {
+            None
+        }
     }
 
     fn sorted(&self) -> &Vec<String> {
@@ -98,15 +324,22 @@ impl PackedLayers {
         self.layers.len()
     }
 
+    fn truncate(&mut self,label:String) {
+        let layer = self.layers.get_mut(&label);
+        if let Some(frame) = layer {
+            frame.truncate();
+        }
+    }
+
     fn clear(&mut self) {
-        for key in &self.sorted {
-            let layer = self.layers.get_mut(key).unwrap();
+        for key in &self.sorted().clone() {
+            let layer = &mut self.get_mut(key.to_string()).unwrap();
             layer.clear();
         }
     }
 
     fn clear_layer(&mut self,label:String) -> Result<(),Error>  {
-        match self.layers.get_mut(&label) {
+        match self.get_mut(label) {
             Some(layer) => {
                 layer.clear();
                 Ok(())
@@ -164,6 +397,29 @@ impl PackedLayers {
         self.sort();
     }
 
+    fn set_next(&mut self,label:String) -> Result<usize,Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.next();
+                Ok(layer.frame_no)
+            },
+            _ => {
+                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            },
+        }       
+    }
+
+    fn wait(&mut self,label:String) -> Result<u64,Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                Ok(layer.wait())
+            },
+            _ => {
+                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            },
+        }       
+    }
+
 }
 
 pub struct Canvas {
@@ -197,6 +453,8 @@ impl Canvas {
         let background_color = 0;
         let fnverbose = default_verbose;
 
+        let layers = PackedLayers::new();
+
         Self {
             canvas:Layer::new("_".to_string(),width,height),
             color,
@@ -204,7 +462,7 @@ impl Canvas {
             use_canvas_alpha: false,
             canvas_alpha: 0xff,
             pen,
-            layers: PackedLayers::new(),
+            layers,
             current_layer: None,
             loop_count: None,
             frame_no: 0,
@@ -299,6 +557,23 @@ impl Canvas {
         self.pen.clone()
     }
 
+    pub fn set_current(&mut self,current:String) {
+        self.current_layer = Some(current);
+    }
+
+    pub fn current(&self) -> String {
+        if let Some(current) = &self.current_layer {
+            current.to_string()
+        } else {
+            "_".to_string()
+        }
+    }
+
+    pub fn add_frame(&mut self,label:String,width:u32,height:u32,x:i32,y:i32) -> Result<(),Error> {
+        self.layers.add_frame(label.clone(),width,height,x,y)?;
+        Ok(())
+    }
+
     pub fn add_layer(&mut self,label:String,width:u32,height:u32,x:i32,y:i32) -> Result<(),Error> {
         self.layers.add(label.clone(),width,height,x,y)?;
         Ok(())
@@ -321,8 +596,15 @@ impl Canvas {
         self.layers.get(label)
     }
 
+    pub fn frame(&mut self,label:String) -> Option<&Layer> {
+        self.layers.get_frame(label)
+    }
+
     pub fn layer_mut(&mut self,label:String) -> Option<&mut Layer> {
         self.layers.get_mut(label)
+    }
+    pub fn frame_mut(&mut self,label:String) -> Option<&mut Layer> {
+        self.layers.get_frame_mut(label)
     }
 
     pub fn set_enable(&mut self,label:String) -> Result<(),Error> {
@@ -340,11 +622,10 @@ impl Canvas {
     pub fn combine(&mut self) {
         let background_color = &self.background_color();
         let canvas = &mut self.canvas;
-
         fillrect(canvas,*background_color);
-        let sorted = self.layers.sorted();
+        let sorted = self.layers.sorted().clone();
         for label in sorted {
-            match self.layers.get(label.clone()) {
+            match self.layers.get_combined_layer(label.clone()) {
                 Some(layer) => {
                     let (x,y) = layer.pos();
                     if layer.enable() {
@@ -392,6 +673,14 @@ impl Canvas {
         } else {
             Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
         }
+    }
+
+    pub fn set_next(&mut self,label:String) -> Result<usize,Error> {
+        self.layers.set_next(label)  
+    }
+
+    pub fn wait(&mut self,label:String) -> Result<u64,Error> {
+        self.layers.wait(label)
     }
 }
 
@@ -444,16 +733,35 @@ impl DrawCallback for Canvas {
         if width <= 0 || height <= 0 {
             return Err(Box::new(ImgError::new_const(ImgErrorKind::SizeZero,"image size zero or minus".to_string())))
         }
-        if self.current_layer.is_none() {
-            if self.width() == 0 || self.height() == 0 {
-                let buffersize = width as usize * height as usize * 4;
-                self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
-            }
-            self.draw_width = width as u32;
-            self.draw_height = height as u32;
-        } else if let Some(option) = opt {
+        crate::log(&format!("{:?}",opt));
+
+        if let Some(option) = opt {
             self.loop_count = Some(option.loop_count);
             self.frame_no = 0;
+            if let Some(background) = &option.background {
+                let background_color = 
+                    (background.red as u32) << 16 | 
+                    (background.green as u32) << 8 | 
+                    (background.blue as u32);
+                self.background_color = background_color;
+            }
+        } else {
+            self.loop_count = Some(0);
+            self.frame_no = 0;
+        }
+
+        match &self.current_layer {
+            None => {
+                if self.width() == 0 || self.height() == 0 {
+                    let buffersize = width as usize * height as usize * 4;
+                    self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
+                }
+                self.draw_width = width as u32;
+                self.draw_height = height as u32;
+            },
+            Some(label) => {
+                self.layers.truncate(label.to_string());
+            }
         }
         Ok(None)
     }
@@ -467,8 +775,7 @@ impl DrawCallback for Canvas {
                 if self.frame_no == 0 {
                     layer = self.layer_mut(label.to_string()).unwrap();
                 } else {
-                    let l = format!("{}_{}",label,self.frame_no);
-                    layer = self.layer_mut(l.to_string()).unwrap();
+                    layer = self.frame_mut(label.to_string()).unwrap();
                 }
             },
             _ => {
@@ -512,8 +819,6 @@ impl DrawCallback for Canvas {
         let current_layer = &self.current_layer.clone();
         if let Some(label) = current_layer {
             if let Some(opt) = opt {
-                self.frame_no += 1;
-                let l = format!("{}_{}",label,self.frame_no);
                 let (width,height,start_x,start_y);
                 if let Some(rect) = opt.image_rect {
                     width = rect.width as u32;
@@ -529,15 +834,14 @@ impl DrawCallback for Canvas {
                 let await_time = opt.await_time;
                 let dispose_option = opt.dispose_option;
                 let blend = opt.blend;
-                self.add_layer(l.to_string(), width, height, start_x, start_y)?;
-                self.layer_mut(l.to_string()).unwrap().set_disable();
+                self.add_frame(label.to_string(), width, height, start_x, start_y)?;
                 let control = AnimationControl{
                     await_time,
                     dispose_option,
                     blend,
                 };
-                self.layer_mut(l.to_string()).unwrap().control = Some(control);
-             
+                self.frame_mut(label.to_string()).unwrap().control = Some(control);
+                self.frame_no = self.layers.frame_last_no(label.to_string()).unwrap_or(0);
                 Ok(Some(CallbackResponse::cont()))
             } else {
                 Ok(Some(CallbackResponse::abort()))

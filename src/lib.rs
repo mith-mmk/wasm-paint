@@ -153,7 +153,6 @@ fn _rand_u32(range: u32) -> u32 {
 #[wasm_bindgen]
 pub struct Universe {
     canvas:  Canvas,
-    current: String,
     on_worker: bool,
 //    input_buffer: Vec<u8>,
     append_canvas: Vec<Arc<RwLock<Canvas>>>,
@@ -183,9 +182,9 @@ impl Universe {
 
         canvas.set_pen(pen);
         let _ = canvas.add_layer("main".to_string(), width, height, 0, 0);
+        canvas.set_current("main".to_string());
         Universe {
             canvas,
-            current: "main".to_string(),
             on_worker: false,
 //            input_buffer: Vec::new(),
             append_canvas: Vec::new(),
@@ -212,7 +211,7 @@ impl Universe {
 
 /* Wrappers */
     fn layer_mut(&mut self) -> &mut Layer {
-        self.canvas.layer_mut(self.current.to_string()).unwrap()    
+        self.canvas.layer_mut(self.canvas.current()).unwrap()    
     }
     
     #[wasm_bindgen(js_name = setEnable)]
@@ -256,8 +255,8 @@ impl Universe {
 
     #[wasm_bindgen(js_name = setCurrentLayer)]
     pub fn set_current(&mut self,label:String) -> String{
-        let prev = &self.current.clone();
-        self.current = label;
+        let prev = &self.canvas.current();
+        self.canvas.set_current(label);
         prev.to_string()
     }
 
@@ -597,7 +596,7 @@ impl Universe {
 //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
         } else if canvas_out == 0 {
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
-            affine.conversion(input_canvas,self.canvas.layer_mut(self.current.to_string()).unwrap()
+            affine.conversion(input_canvas,self.canvas.layer_mut(self.canvas.current()).unwrap()
                 ,InterpolationAlgorithm::Bilinear);
         } else {
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
@@ -629,7 +628,7 @@ impl Universe {
         };
 
         let r = draw_image_fit_screen(self.layer_mut(), buffer,interlop,ImageAlign::Center);
-
+        log(&format!("{:?}",self.canvas.layers_len()));
         match r {
             Err(error) => {
                 if self.on_worker {
@@ -644,6 +643,16 @@ impl Universe {
                 }
                 self.combine();
             }
+        }
+    }
+
+    #[wasm_bindgen(js_name = nextFrame)]
+    pub fn next_frame(&mut self) -> f32 {
+        let r = self.canvas.set_next(self.canvas.current());
+        if r.is_ok() {
+            self.canvas.wait(self.canvas.current()).unwrap_or(0) as f32 / 1000.0
+        } else {
+            0.0
         }
     }
 
@@ -680,14 +689,13 @@ impl Universe {
             }
         } else {
             let worker = self.on_worker;
-            let canvas = self.layer_mut();
             if !worker {
                 let _ = flush_log();
-                canvas.set_verbose(write_log);
+                let _ = &self.canvas.set_verbose(write_log);
             }
             let mut option = DecodeOptions{
                 debug_flag: verbose,
-                drawer: canvas,
+                drawer: &mut self.canvas,
             };
         
             let r = image_loader(buffer, &mut option);
@@ -703,6 +711,7 @@ impl Universe {
                     if let Some(warning) = s {                        
                         log(&format!("{:?}",warning));
                     }
+                    log(&format!("{:?}",self.canvas.layers_len()));
                     self.combine();
                 }
             }
