@@ -46,6 +46,9 @@ Color model ABGR uint32LE
 
 2022/04/24 0.0.19 WML2 0.0.10で追加されたmetadata を追加
 
+2022/05/01 0.0.20 Animation を追加
+
+
 Todo
 - organize Functions
 - border
