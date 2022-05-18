@@ -25,6 +25,7 @@ use std::cmp::Ordering;
 use core::f32::consts::PI;
 use super::canvas::*;
 
+#[derive(Clone)]
 pub enum InterpolationAlgorithm {
     NearestNeighber,
     Bilinear,

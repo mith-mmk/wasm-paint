@@ -20,8 +20,9 @@ reader.onload = (event) => {
 //  start_draw();
   universe.jpegDecoder(buffer,0xf9); 
   console.timeEnd("decode");
+  start_draw();
 //  drawed = true;
-  universe.drawCanvas(width,height);
+//  universe.drawCanvas(width,height);
 
 //  img = new ImageData(buf, universe.width(), universe.height());
 //  ctx.putImageData(img, 0, 0);
@@ -70,13 +71,19 @@ init().then((wasm) => {
 
 function start_draw() {
   universe.drawCanvas(width,height);
-  setTimeout(function(){draw();},120/1000);
+  console.log(universe.isAnimation());
+  if (universe.isAnimation()) {
+    setTimeout(function(){draw();},120/1000);
+  }
 }
 
 
 function draw() {
     universe.drawCanvas(width,height);
     let wait = universe.nextFrame();
-    console.log(wait);
-    setTimeout(function(){draw();},wait*1000);
+    if (wait == 0) {wait = 1.0}
+    console.log(wait)
+    if (universe.isAnimation()) {
+      setTimeout(function(){draw();},wait*1000);
+    }
 }

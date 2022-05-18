@@ -160,6 +160,7 @@ pub struct Universe {
     ctx: Option<CanvasRenderingContext2d>,
     ctx2: Option<CanvasRenderingContext2d>,
     affine: Affine,
+    tmp_canvas: Option<(Canvas,Option<InterpolationAlgorithm>,ImageAlign)>,
 }
 
 #[wasm_bindgen]
@@ -192,6 +193,7 @@ impl Universe {
             ctx : None,
             ctx2: None,
             affine: Affine::new(),
+            tmp_canvas: None,
         }
     }
 
@@ -627,8 +629,7 @@ impl Universe {
             _ => { None },
         };
 
-        let r = draw_image_fit_screen(self.layer_mut(), buffer,interlop,ImageAlign::Center);
-        log(&format!("{:?}",self.canvas.layers_len()));
+        let r = draw_image_fit_screen(self.layer_mut(), buffer,interlop.clone(),ImageAlign::Center);
         match r {
             Err(error) => {
                 if self.on_worker {
@@ -637,10 +638,9 @@ impl Universe {
                     alert(&format!("{:?}",error));
                 }
             },
-            Ok(s) => {
-                if let Some(warning) = s {                        
-                    log(&format!("{:?}",warning));
-                }
+            Ok(image_buffer) => {
+                log(&format!("{:?}",image_buffer.metadata()));
+                self.tmp_canvas = Some((image_buffer,interlop,ImageAlign::Center));
                 self.combine();
             }
         }
@@ -827,6 +827,10 @@ impl Universe {
         self.canvas.combine();
     }
 
+    #[wasm_bindgen(js_name = isAnimation)]
+    pub fn is_animation(&self) -> bool {
+        self.canvas.is_animation()
+    }
 
     #[wasm_bindgen(js_name = drawCanvas2)]
     pub fn draw_canvas2(&mut self,width:u32,height:u32) -> Result<(),JsValue>{

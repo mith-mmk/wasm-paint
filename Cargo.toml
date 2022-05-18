@@ -2,8 +2,10 @@
 name = "paint"
 version = "0.0.20"
 authors = ["mith-mmk <47620686+mith-mmk@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
+keywords= ["wasm","paint","graphics"]
+rust-version = "1.60"
 
 [lib]
 crate-type = ["cdylib"] 

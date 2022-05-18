@@ -5,6 +5,7 @@
  */
 extern crate wml2;
 type Error = Box<dyn std::error::Error>;
+use wml2::metadata::Metadata;
 use crate::paint::draw::draw_over_screen;
 use crate::paint::clear::clear_layter;
 use wml2::metadata::DataMap;
@@ -437,6 +438,7 @@ pub struct Canvas {
     use_canvas_alpha: bool,
     canvas_alpha: u8,
     metadata: Option<HashMap<String,DataMap>>,
+    is_animation:bool,
 }
 
 pub(crate) fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error>{
@@ -445,32 +447,13 @@ pub(crate) fn default_verbose(_ :&str,_: Option<VerboseOptions>) -> Result<Optio
 
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
+        let mut this = Self::empty();
         if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
-            return Self::empty()
+            return this
         }
-        let pen = Pen::new(1, 1, vec![255]);
-        let color = 0xfffff;
-        let background_color = 0;
-        let fnverbose = default_verbose;
 
-        let layers = PackedLayers::new();
-
-        Self {
-            canvas:Layer::new("_".to_string(),width,height),
-            color,
-            background_color,
-            use_canvas_alpha: false,
-            canvas_alpha: 0xff,
-            pen,
-            layers,
-            current_layer: None,
-            loop_count: None,
-            frame_no: 0,
-            fnverbose,
-            draw_width: 0,
-            draw_height: 0,
-            metadata: None,
-        }
+        this.canvas = Layer::new("_".to_string(),width,height);
+        this
     }
 
     fn empty() -> Self {
@@ -489,34 +472,18 @@ impl Canvas {
             draw_width: 0,
             draw_height: 0,
             metadata: None,
+            is_animation:false,
         }
     }
 
     pub fn new_in(buffer: Vec<u8>,width: u32, height: u32) -> Self {
+        let mut this = Self::empty();
         if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
-            return Self::empty()
+            return this
         }
-        let pen = Pen::new(1, 1, vec![255]);
-        let color = 0xfffff;
-        let background_color = 0;
-        let fnverbose = default_verbose;
+        this.canvas = Layer::new_in("_".to_string(),buffer,0,0);
 
-        Self {
-            canvas:Layer::new_in("_".to_string(),buffer,0,0),
-            color,
-            background_color,
-            use_canvas_alpha: false,
-            canvas_alpha: 0xff,
-            layers: PackedLayers::new(),
-            current_layer: None,
-            frame_no: 0,
-            loop_count: None,
-            pen,
-            fnverbose,
-            draw_width: 0,
-            draw_height: 0,
-            metadata: None,
-        }
+        this
     }
 
     /// for WebAssembly
@@ -682,6 +649,15 @@ impl Canvas {
     pub fn wait(&mut self,label:String) -> Result<u64,Error> {
         self.layers.wait(label)
     }
+
+    pub fn is_animation(&self) -> bool {
+        self.is_animation
+    }
+
+    
+    pub fn metadata(&self) -> Option<&Metadata> {
+        self.metadata.as_ref()
+    }
 }
 
 impl Screen for Canvas {
@@ -724,7 +700,7 @@ impl Screen for Canvas {
         self.canvas_alpha = alpha;
         self.use_canvas_alpha = true;
     }
-    
+
 
 }
 
@@ -745,22 +721,35 @@ impl DrawCallback for Canvas {
                     (background.blue as u32);
                 self.background_color = background_color;
             }
+            self.is_animation = option.animation;
         } else {
             self.loop_count = Some(0);
             self.frame_no = 0;
+            self.is_animation = false;
         }
 
-        match &self.current_layer {
+        if self.width() == 0 || self.height() == 0 {
+            let buffersize = width as usize * height as usize * 4;
+            self.canvas.width = width as u32;
+            self.canvas.height = height as u32;
+            self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
+        }
+
+        match &self.current_layer.clone() {
             None => {
-                if self.width() == 0 || self.height() == 0 {
-                    let buffersize = width as usize * height as usize * 4;
-                    self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
-                }
+
                 self.draw_width = width as u32;
                 self.draw_height = height as u32;
             },
             Some(label) => {
                 self.layers.truncate(label.to_string());
+                let mut layer = self.layer_mut(label.to_string()).unwrap();
+                if layer.width == 0 || layer.height == 0 {
+                    layer.width = width as u32;
+                    layer.height = height as u32;
+                    let buffersize = width as usize * height as usize * 4;
+                    layer.buffer =  (0..buffersize).map(|_| 0).collect();
+                }
             }
         }
         Ok(None)

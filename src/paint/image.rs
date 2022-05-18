@@ -4,10 +4,10 @@
  */
 type Error = Box<dyn std::error::Error>;
 
+use crate::Canvas;
 use crate::Affine;
 use crate::InterpolationAlgorithm;
 use crate::Screen;
-use crate::Layer;
 
 
 pub enum ImageAlign {
@@ -38,18 +38,20 @@ pub fn draw_image(screen:&mut (dyn DrawCallback + Sync + Send),data: &[u8],verbo
   image_loader(data, &mut option)
 }
 
-pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<InterpolationAlgorithm>,align: ImageAlign) -> Result<Option<ImgWarnings>,Error> {
+pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<InterpolationAlgorithm>,align: ImageAlign) -> Result<Canvas,Error> {
 
     let interop =  if let Some(interop) = interop { interop } else {InterpolationAlgorithm::Bilinear};
 
-    let mut image_buffer = Layer::new("temp".to_string(), 0, 0);
+    let mut image_buffer = Canvas::new(0, 0);
+    image_buffer.add_layer("temp".to_string(), 0, 0, 0, 0)?;
+    image_buffer.set_current("temp".to_string());
   
     let mut option = DecodeOptions{
       debug_flag: 0,
       drawer: &mut image_buffer,
     };
   
-    let warnings = image_loader(data, &mut option)?;
+    let _ = image_loader(data, &mut option)?;
 
     let mut scale = 1.0;
     if screen.width() < image_buffer.width() {
@@ -59,8 +61,8 @@ pub fn draw_image_fit_screen (screen:&mut dyn Screen,data: &[u8],interop:Option<
       scale =  screen.height() as f32 / image_buffer.height() as f32;
     }
 
-    Affine::resize(&image_buffer,screen,scale,interop,align);
-    Ok(warnings)
+    Affine::resize(image_buffer.layer("temp".to_string()).unwrap(),screen,scale,interop,align);
+    Ok(image_buffer)
   }
   
   
