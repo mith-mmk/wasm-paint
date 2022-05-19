@@ -129,6 +129,12 @@ impl Screen for Layer {
         self.height.clone()
     }
 
+    fn reinit(&mut self,width: u32, height: u32) {
+        self.width = width;
+        self.height = height;
+        let buffersize = width as usize * height as usize * 4;
+        self.buffer = vec![0;buffersize];
+    }
 
     fn buffer(&self) -> &[u8] {
         &self.buffer

@@ -23,6 +23,7 @@ pub trait Screen {
     fn width(&self) -> u32;
     fn height(&self) -> u32;
 
+    fn reinit(&mut self,width:u32, height:u32);
     fn buffer(&self) -> &[u8];
     fn buffer_mut(&mut self) -> &mut [u8];
     fn clear(&mut self);
@@ -670,6 +671,12 @@ impl Screen for Canvas {
         self.canvas.height.clone()
     }
 
+    fn reinit(&mut self,width: u32, height: u32) {
+        self.canvas.width = width;
+        self.canvas.height = height;
+        let buffersize = width as usize * height as usize * 4;
+        self.canvas.buffer = vec![0;buffersize];
+    }
 
     fn buffer(&self) -> &[u8] {
         &self.canvas.buffer
