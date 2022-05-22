@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WASMサンプル</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" href="/css/default.css">
+</head>
+<header>
+  <script src="/js/default.js"></script>
+  <a name="header" class="dummy"></a>
+</header>
+
+<body>
+<main>
+  <div>
+    <div><p>枠内に画像をドラッグ＆ドロップしてください</p></div>
+     <div><canvas id="canvas" width="512" height="512" style="border: double gray 4px;"></canvas></div>
+     <div>出力</div>
+    <span>使うフィルタ</span>
+    <p><select id="filter_name">
+      <option value="sharpness">シャープネス</option>
+      <option value="blur">ぼかし</option>
+      <option value="shardow">シャドウ</option>
+      <option value="edges">エッジ検出</option>
+      <option value="median">メディアン</option>
+      <option value="grayscale">グレイスケール</option>
+    </select></p>  
+  <div><canvas id="canvas2" width="512" height="512" style="border: double gray 4px  4px 4px 4px;"></canvas></div>
+  </div>
+  <script type="module" src="./js/filter.js"></script>
+</main>
+<footer>
+
+</footer>
+</body>
+</html>

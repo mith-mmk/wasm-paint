@@ -1,4 +1,5 @@
-
+use crate::paint::grayscale::to_grayscale;
+use std::io::Error;
 use super::canvas::*;
 
 
@@ -42,7 +43,12 @@ fn yuv_to_rgb(y:f32,u:f32,v:f32) -> (u8,u8,u8) {
 }
 
 pub fn lum_filter(src:&dyn Screen,dest: &mut dyn Screen,matrix:&[[f32;3];3]) {
-    dest.reinit(src.width(), src.height());
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
+
     let mut coeff = 0.0;
     for u in 0..3 {
         for v in 0..3 {
@@ -54,17 +60,19 @@ pub fn lum_filter(src:&dyn Screen,dest: &mut dyn Screen,matrix:&[[f32;3];3]) {
 
     for y in 0..src.height() as usize{
         let offset = y * src.width() as usize * 4;
+        if y >= dest_height { break; }
         for x in 0..src.width() as usize {
+            if x >= dest_width { break; }
             let r = src_buffer[offset + x * 4];
             let g = src_buffer[offset + x * 4 + 1];
             let b = src_buffer[offset + x * 4 + 2];
             let a = src_buffer[offset + x * 4 + 3];
             let mut l = 0.0;
             for u in 0..3 {
-                let uu = (y  as i32 - u + 2).clamp(0,src.height() as i32) as usize
+                let uu = (y  as i32 - u + 2).clamp(0,src.height()as i32 -1) as usize
                          * src.width() as usize * 4;
                 for v in 0..3 {
-                    let vv = (y  as i32 - v + 2).clamp(0,src.height() as i32) as usize * 4;
+                    let vv = (x  as i32 - v + 2).clamp(0,src.width() as i32 -1) as usize * 4;
                     let r = src_buffer[uu + vv];
                     let g = src_buffer[uu + vv + 1];
                     let b = src_buffer[uu + vv + 2];
@@ -85,6 +93,85 @@ pub fn lum_filter(src:&dyn Screen,dest: &mut dyn Screen,matrix:&[[f32;3];3]) {
     }
 }
 
+pub fn grayscale(src:&dyn Screen,dest: &mut dyn Screen) {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
+
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+
+    for y in 0..src.height() as usize{
+        let offset = y * src.width() as usize * 4;
+        if y >= dest_height { break; }
+        for x in 0..src.width() as usize {
+            if x >= dest_width { break; }
+            let r = src_buffer[offset + x * 4];
+            let g = src_buffer[offset + x * 4 + 1];
+            let b = src_buffer[offset + x * 4 + 2];
+            let a = src_buffer[offset + x * 4 + 3];
+            let (l,_,_) = rgb_to_yuv(r, g, b);
+            let l = (l.round() as i16).clamp(0,255) as u8;
+
+            dest_buffer[offset + x * 4] = l;
+            dest_buffer[offset + x * 4 + 1] = l;
+            dest_buffer[offset + x * 4 + 2] = l;
+            dest_buffer[offset + x * 4 + 3] = a;
+
+        }
+    }
+}
+
+
+pub fn rgb_filter(src:&dyn Screen,dest: &mut dyn Screen,matrix:&[[f32;3];3]) {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
+
+    let mut coeff = 0.0;
+    for u in 0..3 {
+        for v in 0..3 {
+            coeff += matrix[v][u];
+        }
+    }
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+
+    for y in 0..src.height() as usize{
+        let offset = y * src.width() as usize * 4;
+        if y >= dest_height { break; }
+        for x in 0..src.width() as usize {
+            if x >= dest_width { break; }
+            let mut r = 0.0;
+            let mut g = 0.0;
+            let mut b = 0.0;
+            let a = src_buffer[offset + x * 4 + 3];
+            for u in 0..3 {
+                let uu = (y  as i32 - u + 2).clamp(0,src.height() as i32 -1) as usize
+                         * src.width() as usize * 4;
+                for v in 0..3 {
+                    let vv = (x  as i32 - v + 2).clamp(0,src.width() as i32 -1) as usize * 4;
+                    r += src_buffer[uu + vv] as f32 * matrix[v as usize][u as usize];
+                    g += src_buffer[uu + vv + 1] as f32 * matrix[v as usize][u as usize];
+                    b += src_buffer[uu + vv + 2] as f32 * matrix[v as usize][u as usize];
+                }
+            }
+            let r = ((r / coeff).round() as i32).clamp(0,255) as u8;
+            let g = ((g / coeff).round() as i32).clamp(0,255) as u8;
+            let b = ((b / coeff).round() as i32).clamp(0,255) as u8;
+
+            dest_buffer[offset + x * 4] = r;
+            dest_buffer[offset + x * 4 + 1] = g;
+            dest_buffer[offset + x * 4 + 2] = b;
+            dest_buffer[offset + x * 4 + 3] = a;
+        }
+    }
+}
+
 pub fn sharpness(src:&dyn Screen, dest:&mut dyn Screen) {
     let matrix = [
             [-1.0,-1.0,-1.0],
@@ -101,23 +188,29 @@ pub fn blur(src:&dyn Screen, dest:&mut dyn Screen) {
     lum_filter(src,dest,&matrix)
 }
 
+pub fn ranking(src:&dyn Screen,dest:&mut dyn Screen,rank:usize){
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
 
-pub fn medien(src:&dyn Screen,dest:&mut dyn Screen){
-    dest.reinit(src.width(), src.height());
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
 
     let src_buffer = src.buffer();
     let dest_buffer = dest.buffer_mut();
 
     for y in 0..src.height() as usize{
         let offset = y * src.width() as usize * 4;
+        if y >= dest_height { break; }
         for x in 0..src.width() as usize {
+            if x >= dest_width { break; }
             let a = src_buffer[offset + x * 4 + 3];
             let mut l = [(0.0,0,0,0);9];
             for u in 0..3 {
-                let uu = (y  as i32 - u + 2).clamp(0,src.height() as i32) as usize
+                let uu = (y  as i32 - u + 2).clamp(0,src.height() as i32 - 1) as usize
                          * src.width() as usize * 4;
                 for v in 0..3 {
-                    let vv = (y  as i32 - v + 2).clamp(0,src.height() as i32) as usize * 4;
+                    let vv = (x  as i32 - v + 2).clamp(0,src.width() as i32 - 1) as usize * 4;
                     let r = src_buffer[uu + vv];
                     let g = src_buffer[uu + vv + 1];
                     let b = src_buffer[uu + vv + 2];
@@ -127,13 +220,87 @@ pub fn medien(src:&dyn Screen,dest:&mut dyn Screen){
             }
             let mut l = l.to_vec();
             l.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-            let l = l[5];
+            let l = l[rank];
 
             dest_buffer[offset + x * 4] = l.1;
             dest_buffer[offset + x * 4 + 1] = l.2;
             dest_buffer[offset + x * 4 + 2] = l.3;
             dest_buffer[offset + x * 4 + 3] = a;
-
         }
     }
+}
+
+pub fn filter(src:&dyn Screen,dest:&mut dyn Screen,filter_name: &str) -> Result<(),Error>{
+    match filter_name {
+        "median" => {
+            ranking(src, dest,5)
+        },
+        "erode" => {
+            ranking(src, dest,0)
+        },
+        "dilate" => {
+            ranking(src, dest,8)
+        },
+        "sharpness" => {
+            sharpness(src, dest)
+        },
+        "blur" => {
+            blur(src, dest)
+        },
+        "average" => {
+            let matrix = [
+                [ 1.0, 1.0, 1.0],
+                [ 1.0, 1.0, 1.0],
+                [ 1.0, 1.0, 1.0],
+            ];
+            rgb_filter(src,dest,&matrix);
+        },
+
+        "smooth" => {
+            let matrix = [
+                [ 1.0, 1.0, 1.0],
+                [ 1.0, 4.0, 1.0],
+                [ 1.0, 1.0, 1.0],
+            ];
+            lum_filter(src,dest,&matrix);
+        },
+        "sharpen" => {
+            let matrix = [
+                [-1.0,-1.0,-1.0],
+                [-1.0,12.0,-1.0],
+                [-1.0,-1.0,-1.0],
+            ];
+            lum_filter(src,dest,&matrix);
+        },
+        "shardow" => {
+            let matrix = [
+                [ 1.0, 2.0, 1.0],
+                [ 0.0, 1.0, 0.0],
+                [-1.0,-2.0,-1.0],
+            ];
+            lum_filter(src,dest,&matrix);
+        },
+        "edges" => {
+            let matrix_a = [
+                [ 1.0, 2.0, 1.0],
+                [ 0.0, 0.0, 0.0],
+                [-1.0,-2.0,-1.0],
+            ];
+            let matrix_b = [
+                [ 1.0, 0.0,-1.0],
+                [ 2.0, 0.0,-2.0],
+                [ 1.0, 0.0,-1.0],
+            ];
+            let mut tmp = Canvas::new(src.width(),src.height());
+            lum_filter(src,&mut tmp,&matrix_a);
+            lum_filter(&tmp,dest,&matrix_b);
+        },
+        "grayscale" => {
+            to_grayscale(src, dest,0);
+        }
+        &_ =>{
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "Unknown filter"))
+        },
+    }
+    Ok(())    
 }

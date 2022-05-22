@@ -40,25 +40,31 @@ pub fn weight(t: usize) -> (f64,f64,f64) {
     }
 }
 
-pub fn to_grayscale(input: &mut dyn Screen, output: &mut dyn Screen, t: usize) {
-    let height = output.height();
-    let width = output.width();
-    let ibuf = &input.buffer_mut();
-    let buf = &mut output.buffer_mut();
-    let (wred, wgreen, wblue)  = weight(t);
-    for y in 0..height {
-        let offset = y * width * 4;
-        for x  in 0..width {
-            let pos = (offset + (x * 4)) as usize;
-            let blue = ibuf[pos + 2] as f64;
-            let green  = ibuf[pos + 1] as f64;
-            let red = ibuf[pos] as f64;
+pub fn to_grayscale(src: &dyn Screen, dest: &mut dyn Screen, t: usize) {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
 
-            let gray =  (wred * red + wgreen * green  + wblue * blue).round() as u8;
-            buf[pos] = gray;     // Red
-            buf[pos + 1] = gray; // Green
-            buf[pos + 2] = gray; // Blue
-            buf[pos + 3] = 0xff; // alpha
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+    let (wred, wgreen, wblue)  = weight(t);
+    for y in 0..src.height() as usize{
+        let offset = y * src.width() as usize * 4;
+        if y >= dest_height { break; }
+        for x in 0..src.width() as usize {
+            if x >= dest_width { break; }
+            let r = src_buffer[offset + x * 4] as f64;
+            let g = src_buffer[offset + x * 4 + 1] as f64;
+            let b = src_buffer[offset + x * 4 + 2] as f64;
+            let a = src_buffer[offset + x * 4 + 3];
+            let l =  ((wred * r + wgreen * g  + wblue * b).round() as i16).clamp(0,255) as u8;
+
+            dest_buffer[offset + x * 4] = l;
+            dest_buffer[offset + x * 4 + 1] = l;
+            dest_buffer[offset + x * 4 + 2] = l;
+            dest_buffer[offset + x * 4 + 3] = a;
         }
     }
 }

@@ -48,19 +48,15 @@ Color model ABGR uint32LE
 
 2022/05/01 0.0.20 Animation を追加
 
+2022/05/22 0.0.21 filterを追加
 
 Todo
 - organize Functions
 - border
 - polyline
-- layer(Multi canvas)
-  - add/remove
-  - copy
-  - z-index
 - timer interrupt 1/30s 1/60s 1/120s
 - triming
 - image saver
-- alpha blending
 - inclued Trait on Canvas
 - line width
 - line dash

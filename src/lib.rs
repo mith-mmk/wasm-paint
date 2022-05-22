@@ -3,6 +3,7 @@ pub mod paint;
 
 type Error = Box<dyn std::error::Error>;
 
+use crate::paint::filter::filter;
 use crate::paint::image::draw_image_fit_screen;
 use crate::paint::layer::Layer;
 use crate::paint::line::line_antialias;
@@ -502,6 +503,44 @@ impl Universe {
             let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             self.affine.conversion(input_canvas,output_canvas,algorithom);
+        }
+    }
+
+    #[wasm_bindgen(js_name = sharpness)]
+    pub fn sharpness(&mut self,canvas_in:usize,canvas_out:usize) {
+        let filter_name = "sharpness";
+        let res;
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            res = filter(&self.canvas,output_canvas,&filter_name);
+        } else if canvas_out == 0 {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            res = filter(input_canvas,&mut self.canvas,&filter_name);
+        } else {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            res = filter(input_canvas,output_canvas,&filter_name);
+        }
+        match res {
+            Err(err) => {
+                log(&format!("{:?}",err));
+            },
+            _ => {}
+        }
+    }
+
+    #[wasm_bindgen(js_name = filter)]
+    pub fn filter(&mut self,canvas_in:usize,canvas_out:usize,filter_name: String) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = filter(&self.canvas,output_canvas,&filter_name);
+        } else if canvas_out == 0 {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ = filter(input_canvas,&mut self.canvas,&filter_name);
+        } else {
+            let input_canvas = & *self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = filter(input_canvas,output_canvas,&filter_name);
         }
     }
 
