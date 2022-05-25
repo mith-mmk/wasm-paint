@@ -6,6 +6,7 @@
  * 
  *   Released under the MIT license
  */
+
 pub mod error;
 pub mod utils;
 pub mod pen;
@@ -24,3 +25,7 @@ pub mod affine;
 pub mod spline;
 pub mod draw;
 pub mod filter;
+
+pub fn test() {
+    let _ = canvas::Canvas::new(0, 0);
+}

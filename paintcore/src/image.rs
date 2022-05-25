@@ -9,7 +9,6 @@ use crate::affine::Affine;
 use crate::affine::InterpolationAlgorithm;
 use crate::canvas::Screen;
 
-
 pub enum ImageAlign {
   Default,
   Center,

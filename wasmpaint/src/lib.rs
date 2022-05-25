@@ -1,5 +1,6 @@
 mod utils;
 
+
 type Error = Box<dyn std::error::Error>;
 
 use web_sys::HtmlElement;
@@ -11,19 +12,7 @@ use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wml2::draw::*;
-use paint::canvas::*;
-use paint::affine::*;
-use paint::circle::*;
-use paint::clear::*;
-use paint::layer::*;
-use paint::draw::*;
-use paint::fill::*;
-use paint::grayscale::*;
-use paint::image::*;
-use paint::pen::*;
-use paint::spline::*;
-use paint::filter::*;
-
+use paintcore::test;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.

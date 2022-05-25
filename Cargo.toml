@@ -1,6 +1,6 @@
 [workspace]
 
 members = [
-    "paint",
-    "wasm-paint",
+    "wasmpaint",
+    "paintcore",
 ]

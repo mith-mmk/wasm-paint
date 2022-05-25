@@ -3,7 +3,7 @@
  * canvas.rs  Mith@mmk (C) 2022
  * update 2022/03/13
  */
-extern crate wml2;
+
 type Error = Box<dyn std::error::Error>;
 use wml2::metadata::Metadata;
 use crate::draw::draw_over_screen;
