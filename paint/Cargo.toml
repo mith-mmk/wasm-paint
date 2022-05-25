@@ -1,0 +1,22 @@
+[package]
+name = "paint"
+version = "0.0.22"
+authors = ["mith-mmk <47620686+mith-mmk@users.noreply.github.com>"]
+edition = "2021"
+license = "MIT"
+keywords= ["wasm","paint","graphics"]
+rust-version = "1.60"
+
+[lib]
+crate-type = ["cdylib"] 
+
+[features]
+
+[dependencies.wml2]
+git = "https://github.com/mith-mmk/wml2-on-rust"
+version = "0.0.11"
+#path = "../wml2/wml2"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
