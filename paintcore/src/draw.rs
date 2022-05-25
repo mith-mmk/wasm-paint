@@ -4,8 +4,8 @@
  * 
  */
 
-use super::canvas::*;
-use super::utils::calc_alphablend;
+use crate::canvas::*;
+use crate::utils::calc_alphablend;
 
 pub fn draw_over_screen(src:&dyn Screen,dest:&mut dyn Screen, dx: i32, dy: i32) {
     let width = src.width();

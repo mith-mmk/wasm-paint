@@ -4,7 +4,7 @@
  * 
  */
 
-use super::canvas::Screen;
+use crate::canvas::Screen;
 
 pub enum Weights {
     Jpeg,

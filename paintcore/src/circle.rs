@@ -5,9 +5,9 @@
  *  Update 2022/02/27
  */
 //use crate::log;
-use super::line::{line_with_alpha,line_antialias};
-use super::point::*;
-use super::canvas::Screen;
+use crate::line::{line_with_alpha,line_antialias};
+use crate::point::*;
+use crate::canvas::Screen;
 use core::f32::consts::PI;
 
 /*

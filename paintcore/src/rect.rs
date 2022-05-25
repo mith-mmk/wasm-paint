@@ -1,6 +1,6 @@
-//! draw a rect
-use super::utils::*;
-use super::canvas::*;
+//! draw a recty1
+use crate::utils::*;
+use crate::canvas::*;
 
 /// draw rect
 pub fn rect(screen: &mut dyn Screen,x0: i32,y0: i32,x1: i32,y1: i32, color: u32){ 

@@ -14,10 +14,10 @@ use wml2::draw::*;
 use wml2::error::ImgError;
 use wml2::error::ImgErrorKind;
 use std::collections::HashMap;
-use super::layer::Layer;
-use super::draw::*;
-use super::pen::Pen;
-use super::clear::fillrect;
+use crate::layer::Layer;
+use crate::draw::*;
+use crate::pen::Pen;
+use crate::clear::fillrect;
 
 pub trait Screen {
     fn width(&self) -> u32;
@@ -215,7 +215,7 @@ impl PackedLayers {
                 Ok(())
             },
             _ => {
-                return Err(Box::new(super::error::Error{message:"No exist Layer".to_string()}))
+                return Err(Box::new(crate::error::Error{message:"No exist Layer".to_string()}))
             },
         }
     }
@@ -223,7 +223,7 @@ impl PackedLayers {
     fn add(&mut self,label:String,width :u32,height: u32,x: i32,y :i32) -> Result<(),Error> {
         match self.layers.get(&label) {
             Some(..) => {
-                return Err(Box::new(super::error::Error{message:"Exist Layer name".to_string()}))
+                return Err(Box::new(crate::error::Error{message:"Exist Layer name".to_string()}))
             },
             _ => {},
 
@@ -244,7 +244,7 @@ impl PackedLayers {
                 layer.add_frame(label,width,height,x,y);
             },
             _ => {
-                return Err(Box::new(super::error::Error{message:"Layer is none".to_string()}))
+                return Err(Box::new(crate::error::Error{message:"Layer is none".to_string()}))
             },
 
         };
@@ -347,7 +347,7 @@ impl PackedLayers {
                 Ok(())
             },
             _ => {
-                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+                Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
             },
         }        
     }
@@ -359,7 +359,7 @@ impl PackedLayers {
                 Ok(())
             },
             _ => {
-                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+                Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
             },
         }        
     }
@@ -371,7 +371,7 @@ impl PackedLayers {
                 Ok(())
             },
             _ => {
-                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+                Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
             },
         }        
     }
@@ -382,7 +382,7 @@ impl PackedLayers {
                 Ok(layer.enable())
             },
             _ => {
-                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+                Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
             },
         }        
     }
@@ -406,7 +406,7 @@ impl PackedLayers {
                 Ok(layer.frame_no)
             },
             _ => {
-                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+                Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
             },
         }       
     }
@@ -417,7 +417,7 @@ impl PackedLayers {
                 Ok(layer.wait())
             },
             _ => {
-                Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+                Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
             },
         }       
     }
@@ -552,7 +552,7 @@ impl Canvas {
             layer.set_alpha(alpha);
             Ok(())
         }  else {
-            Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
         }
     }
 
@@ -639,7 +639,7 @@ impl Canvas {
         if let Some(layer) = self.layers.get_mut(label) {
             Ok(layer.alpha())
         } else {
-            Err(Box::new(super::error::Error{message:"No exist Layer name".to_string()}))
+            Err(Box::new(crate::error::Error{message:"No exist Layer name".to_string()}))
         }
     }
 

@@ -23,7 +23,7 @@ use core::cmp::max;
 use core::cmp::min;
 use std::cmp::Ordering;
 use core::f32::consts::PI;
-use super::canvas::*;
+use crate::canvas::*;
 
 #[derive(Clone)]
 pub enum InterpolationAlgorithm {

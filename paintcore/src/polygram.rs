@@ -4,8 +4,8 @@
  */
 
 use core::f32::consts::PI;
-use super::line::*;
-use super::canvas::Screen;
+use crate::line::*;
+use crate::canvas::Screen;
 
 
 /// A pentagram (五芒星) draw an inscribed pentagram in center position (ox,oy)'s radius r circle.

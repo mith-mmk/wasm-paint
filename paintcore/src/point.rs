@@ -4,8 +4,8 @@
  *  update 2022/02/28  internal point method change
  */
 
-use super::canvas::Screen;
-use super::utils::color_taple;
+use crate::canvas::Screen;
+use crate::utils::color_taple;
 
 fn _point (screen: &mut dyn Screen, x: i32, y: i32, red :u8, green :u8, blue :u8, alpha :u8, weight :f32) {
     if x < 0 || y < 0 || x >= screen.width() as i32 || y >= screen.height() as i32 || weight == 0.0 {

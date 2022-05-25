@@ -50,6 +50,8 @@ Color model ABGR uint32LE
 
 2022/05/22 0.0.21 filterを追加
 
+2022/05/25 0.0.22 paintcore分離
+
 Todo
 - organize Functions
 - border

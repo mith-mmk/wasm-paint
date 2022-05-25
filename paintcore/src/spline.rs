@@ -1,8 +1,8 @@
 //! spline module draws curve quadratic curve,bezier curve.
 
-use super::point::*;
-use super::line::*;
-use super::canvas::*;
+use crate::point::*;
+use crate::line::*;
+use crate::canvas::*;
 
 /// draw quadratic curve
 /// Parameter a changes half circle, ellipse, parabola or hyperbola

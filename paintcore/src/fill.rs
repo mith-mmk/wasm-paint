@@ -4,9 +4,9 @@
  * 
  */
 
-use super::utils::*;
-use super::line::*;
-use super::canvas::*;
+use crate::utils::*;
+use crate::line::*;
+use crate::canvas::*;
 
 pub struct ScanStack {
     pub sx :u32, 

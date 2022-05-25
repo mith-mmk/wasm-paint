@@ -1,4 +1,4 @@
-use super::canvas::*;
+use crate::canvas::*;
 use core::cmp::max;
 use core::cmp::min;
 

@@ -5,7 +5,7 @@ use wml2::error::*;
 use wml2::draw::*;
 use std::collections::HashMap;
 use crate::clear::fillrect_with_alpha;
-use super::canvas::*;
+use crate::canvas::*;
 
 pub struct AnimationControl {
     pub await_time: u64,
@@ -54,7 +54,7 @@ impl Layer {
             canvas_alpha: 0xff,
             enable: true,
             control: None,
-            fnverbose: super::canvas::default_verbose,
+            fnverbose: crate::canvas::default_verbose,
             metadata: None,
         }
     }
@@ -72,7 +72,7 @@ impl Layer {
             canvas_alpha: 0xff,
             enable: true,
             control: None,
-            fnverbose: super::canvas::default_verbose,
+            fnverbose: crate::canvas::default_verbose,
             metadata: None,
         }
     }

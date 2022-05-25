@@ -1,6 +1,6 @@
 use crate::grayscale::to_grayscale;
 use std::io::Error;
-use super::canvas::*;
+use crate::canvas::*;
 
 pub struct Kernel {
     pub width: usize,
@@ -257,7 +257,7 @@ pub fn ranking(src:&dyn Screen,dest:&mut dyn Screen,rank:usize){
 pub fn filter(src:&dyn Screen,dest:&mut dyn Screen,filter_name: &str) -> Result<(),Error>{
     match filter_name {
         "median" => {
-            ranking(src, dest,5)
+            ranking(src, dest,4)
         },
         "erode" => {
             ranking(src, dest,0)

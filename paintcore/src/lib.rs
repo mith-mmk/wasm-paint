@@ -1,31 +1,33 @@
-//! paint module some paint functions
-/*
- * paint module
- *   mith@mmk (c) 2022
- *   2022/02/22 0.0.3
- * 
- *   Released under the MIT license
- */
+pub fn test() {
 
-pub mod error;
+}
+
+pub mod canvas;
+pub mod clear;
+pub mod draw;
+pub mod layer;
 pub mod utils;
 pub mod pen;
-pub mod line;
-pub mod canvas;
-pub mod layer;
-pub mod clear;
 pub mod point;
-pub mod grayscale;
-pub mod rect;
-pub mod polygram;
-pub mod fill;
-pub mod circle;
-pub mod image;
+pub mod error;
 pub mod affine;
-pub mod spline;
-pub mod draw;
+pub mod circle;
+pub mod fill;
 pub mod filter;
+pub mod grayscale;
+pub mod image;
+pub mod line;
+pub mod polygram;
+pub mod rect;
+pub mod spline;
 
-pub fn test() {
-    let _ = canvas::Canvas::new(0, 0);
+pub mod prelude;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
+    }
 }

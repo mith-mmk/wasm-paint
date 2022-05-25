@@ -7,7 +7,7 @@
  */
 
 use crate::layer::Layer;
-use super::canvas::*;
+use crate::canvas::*;
 
 pub fn clear_canvas(canvas: &mut Canvas) {
     let background_color = canvas.background_color();

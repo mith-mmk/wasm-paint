@@ -7,10 +7,10 @@
  */
 
 use crate::point::point_antialias;
-use super::pen::*;
-use super::utils::color_taple;
-use super::canvas::*;
-use super::point::point_for_line;
+use crate::pen::*;
+use crate::utils::color_taple;
+use crate::canvas::*;
+use crate::point::point_for_line;
 
 /// line no antialias (Bresenham's line algorithm)
 /// color = RGB888 no include alpha mask
