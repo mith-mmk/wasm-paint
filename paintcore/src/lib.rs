@@ -20,6 +20,7 @@ pub mod line;
 pub mod polygram;
 pub mod rect;
 pub mod spline;
+pub mod path;
 
 pub mod prelude;
 

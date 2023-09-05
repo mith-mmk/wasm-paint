@@ -14,7 +14,7 @@ use crate::point::point_for_line;
 
 /// line no antialias (Bresenham's line algorithm)
 /// color = RGB888 no include alpha mask
-pub fn line ( screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
+pub fn line (screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32 , color: u32) {
     let (red, green, blue, _) = color_taple(color);
     let dx = (x0 - x1).abs();
     let dy = (y0 - y1).abs();

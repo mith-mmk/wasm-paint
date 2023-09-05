@@ -1,4 +1,4 @@
-import init,{Universe} from "../../pkg/paint.js";  // Universeは要インポート wasm.Universeでは動かない
+import init,{Universe} from "../../wasm-paint/pkg/paint.js"
 
 let universe;
 let img;

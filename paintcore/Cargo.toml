@@ -10,3 +10,7 @@ edition = "2021"
 [dependencies.wml2]
 git = "https://github.com/mith-mmk/wml2-on-rust"
 version = "0.0.11"
+
+[definitions.fontloader]
+git = "https://github.com/mith-mmk/FontReader"
+version = "0.0.1"

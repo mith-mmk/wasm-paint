@@ -12,7 +12,7 @@ use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wml2::draw::*;
-use paintcore::prelude::*;
+use paintcore::{prelude::*, path};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -415,6 +415,82 @@ impl Universe {
         bezier_curve_with_alpha(self.layer_mut(),p.to_vec(), color,0xff,true,Some(size));
     }
 
+    #[wasm_bindgen(js_name = drawPath)]
+    pub fn draw_path(&mut self,commands: String, color: u32) {
+        // space split
+        let mut commandline = commands.split(" ");
+        let mut commands = Vec::new();
+        loop {
+            let command = commandline.next();
+            if command.is_none() {
+                break;
+            }
+            let command = command.unwrap();
+            match command {
+                "M" => {
+                    let x = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let y = commandline.next().unwrap().parse::<f32>().unwrap();
+                    commands.push(path::Command::MoveTo(x,y));                   
+                }
+                "L" => {
+                    let x = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let y = commandline.next().unwrap().parse::<f32>().unwrap();
+                    commands.push(path::Command::Line(x,y));                   
+                }
+                "C" => {
+                    let cx1 = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let cy1 = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let cx2 = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let cy2 = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let ex = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let ey = commandline.next().unwrap().parse::<f32>().unwrap();
+                    commands.push(path::Command::CubicBezier((cx1,cy1),(cx2,cy2),(ex,ey)));
+                }
+                "Q" => {
+                    let cx = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let cy = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let ex = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let ey = commandline.next().unwrap().parse::<f32>().unwrap();
+                    commands.push(path::Command::Bezier((cx,cy),(ex,ey)));
+                }
+                "T" => {
+                    let ex = commandline.next().unwrap().parse::<f32>().unwrap();
+                    let ey = commandline.next().unwrap().parse::<f32>().unwrap();
+                    // last commands?
+                    let prev = commands.pop();
+                    let prev = match prev{
+                        Some(prev) => {
+                            commands.push(prev.clone());
+                            prev
+                        },
+                        _ => {
+                            continue;
+                        }
+                    };
+                    match prev {
+                        path::Command::Bezier((x1,y1),(x,y)) => {
+                            let cx = x + (x - x1);
+                            let cy = y + (y - y1);
+                            commands.push(path::Command::Bezier((cx,cy),(ex,ey)));
+                        },
+                        _ => {
+                            commands.push(path::Command::Line(ex,ey));
+                        }
+                    }
+                }
+                "Z" => {
+                    commands.push(path::Command::Close);
+                }
+                _ => {
+                    break;
+                }
+            }
+            path::draw(self.layer_mut(), &commands, color);
+        }
+
+    }
+
+
     #[wasm_bindgen(js_name = affineNew)]
     pub fn affine_new(&mut self) {
         self.affine = Affine::new();
@@ -527,6 +603,7 @@ impl Universe {
             let _ = filter(input_canvas,output_canvas,&filter_name);
         }
     }
+    
 
 
     #[wasm_bindgen(js_name = affineTest2)]

@@ -9,6 +9,8 @@ use wml2::metadata::Metadata;
 use crate::draw::draw_over_screen;
 use crate::clear::clear_layter;
 use crate::layer::AnimationControl;
+use crate::rect;
+use crate::spline;
 use wml2::metadata::DataMap;
 use wml2::draw::*;
 use wml2::error::ImgError;
@@ -18,6 +20,8 @@ use crate::layer::Layer;
 use crate::draw::*;
 use crate::pen::Pen;
 use crate::clear::fillrect;
+
+use super::line;
 
 pub trait Screen {
     fn width(&self) -> u32;
@@ -251,6 +255,7 @@ impl PackedLayers {
         Ok(())
     }
 
+    /// Sets the frame no of this [`PackedLayers`].
     fn set_frame_no(&mut self,label:String,no:usize) -> usize{
         let layer = self.layers.get_mut(&label);
         if let Some(layer) = layer {
@@ -659,6 +664,39 @@ impl Canvas {
     pub fn metadata(&self) -> Option<&Metadata> {
         self.metadata.as_ref()
     }
+
+    pub fn line(&mut self,x0: i32, y0:i32, x1:i32, y1:i32, color: u32) {
+        line::line(self, x0, y0, x1, y1, color)
+    }
+
+    pub fn line_antialias(&mut self,x0: f32, y0:f32, x1:f32, y1:f32, color: u32, size: f32) {
+        let alpha = match self.alpha() {
+            Some(alpha) => alpha,
+            _ => 0xff,
+        };
+        line::line_antialias(self, x0, y0, x1, y1, color,alpha,size)
+    }
+
+    pub fn rect(&mut self,x: i32, y:i32, width:i32, height:i32, color: u32) {
+        rect::rect(self, x, y, width, height, color)
+    }
+
+    pub fn bezier_curve_2(&mut self, x0:f32, y0:f32, x1:f32, y1:f32, x2:f32, y2:f32, color: u32) {
+        let mut p = Vec::new();
+        p.push((x0,y0));
+        p.push((x1,y1));
+        p.push((x2,y2));       
+        spline::bezier_curve_with_alpha(self,p,color,0xff,false,None)
+    }
+
+    pub fn bezier_curve_3(&mut self, x0:f32, y0:f32, x1:f32, y1: f32, x2:f32, y2:f32, x3:f32, y3:f32, color:u32) {
+        let mut p = Vec::new();
+        p.push((x0,y0));
+        p.push((x1,y1));
+        p.push((x2,y2));
+        p.push((x3,y3));
+        spline::bezier_curve_with_alpha(self,p,color,0xff,false,None)
+    }
 }
 
 impl Screen for Canvas {
@@ -749,7 +787,7 @@ impl DrawCallback for Canvas {
             },
             Some(label) => {
                 self.layers.truncate(label.to_string());
-                let mut layer = self.layer_mut(label.to_string()).unwrap();
+                let layer = self.layer_mut(label.to_string()).unwrap();
                 if layer.width == 0 || layer.height == 0 {
                     layer.width = width as u32;
                     layer.height = height as u32;

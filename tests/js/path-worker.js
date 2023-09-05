@@ -22,30 +22,15 @@ onmessage = function(ev) {
                 workerInit(data.width,data.height);
                 break;
             case 'run':
-                const p = Math.random() * 8 + 2;
-                const sx = Math.random() * universe.getWidth() - 1; 
-                const sy = Math.random() * universe.getHeight() - 1;
-                const r = Math.random() * 200 + 2;
-
-                universe.polygram(
-                    p,
-                    1,
-                    sx,
-                    sy,
-                    r,
-                    0 ,
-                    Math.random() * 0xffffff,
-                );
-                universe.fill (sx ,sy , Math.random() * 0xffffff );
+                if (universe == null) return;
+                universe.drawPath("M 100 100 Q 200 100 300 300 L 100 200 Z M 120 120 L 250 250 L 120 180 Z",0xff0000);
+                postMessage({message: 'run'});
                 break;
             case 'get':
                 if (universe == null) return;
                 universe.combine();
+                img = universe.getImageData(0);
                 postMessage({message: 'get', image:img});
-                break;
-            case 'clear':
-                if (universe == null) return;
-                universe.clear(0);
                 break;
             default:
                 break;

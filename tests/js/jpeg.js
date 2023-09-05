@@ -1,4 +1,4 @@
-import init,{Universe} from "../../pkg/paint.js"
+import init,{Universe} from "../../wasm-paint/pkg/paint.js"
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 let universe;
