@@ -3,8 +3,8 @@ import * as fps from './fps.js';
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-let width = 512;
-let height =512;
+let width = 1280;
+let height =1280;
 canvas.width = width;
 canvas.height = height;
 let img;
@@ -36,16 +36,23 @@ function workerInit() {
         draw();
       break;
       case 'run': // run loop
-        PixelWorker.postMessage({command: 'run'});
+      // sleep 1/60 sec
+      //
+        setTimeout(function(){
+          PixelWorker.postMessage({command: 'clear'});
+        },10);
         break;
       case 'get':
         img = data.image;
         ctx.putImageData(img, 0, 0);
         break;
-        case 'end':
+      case 'clear':
+        PixelWorker.postMessage({command: 'run'});
+        break;
+      case 'end':
 
           break;
-        default:
+      default:
         break;
     }
   }
