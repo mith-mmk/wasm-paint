@@ -1,3 +1,5 @@
+//! path::draw is a function that draws like at svg's path.
+//! (c) 2023 by Mith@mmk
 use crate::{line, prelude::Screen, spline};
 
 #[derive(Debug, Clone)]
