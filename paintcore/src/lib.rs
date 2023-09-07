@@ -1,26 +1,24 @@
-pub fn test() {
+pub fn test() {}
 
-}
-
+pub mod affine;
 pub mod canvas;
+pub mod circle;
 pub mod clear;
 pub mod draw;
-pub mod layer;
-pub mod utils;
-pub mod pen;
-pub mod point;
 pub mod error;
-pub mod affine;
-pub mod circle;
 pub mod fill;
 pub mod filter;
 pub mod grayscale;
 pub mod image;
+pub mod layer;
 pub mod line;
+pub mod path;
+pub mod pen;
+pub mod point;
 pub mod polygram;
 pub mod rect;
 pub mod spline;
-pub mod path;
+pub mod utils;
 
 pub mod prelude;
 
