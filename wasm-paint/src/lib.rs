@@ -272,7 +272,7 @@ impl Universe {
         if number == 0 {
             self.clear(0xcccccc);
         }
-        let number = (number as i32 - 1_i32) as u32;
+        let number = (number - 1_i32) as u32;
         self.append_canvas[number as usize]
             .as_ref()
             .write()
@@ -350,12 +350,12 @@ impl Universe {
 
     #[wasm_bindgen(js_name = getWidth)]
     pub fn width(&self) -> u32 {
-        self.canvas.width().clone()
+        self.canvas.width()
     }
 
     #[wasm_bindgen(js_name = getHeight)]
     pub fn height(&self) -> u32 {
-        self.canvas.height().clone()
+        self.canvas.height()
     }
 
     pub fn fill(&mut self, sx: i32, sy: i32, color: u32) {
@@ -500,7 +500,7 @@ impl Universe {
     #[wasm_bindgen(js_name = drawPath)]
     pub fn draw_path(&mut self, commands: String, color: u32) {
         // space split
-        let mut commandline = commands.split(" ");
+        let mut commandline = commands.split(' ');
         let mut commands = Vec::new();
         loop {
             let command = commandline.next();
@@ -625,14 +625,14 @@ impl Universe {
         let res;
         if canvas_in == 0 {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            res = filter(&self.canvas, output_canvas, &filter_name);
+            res = filter(&self.canvas, output_canvas, filter_name);
         } else if canvas_out == 0 {
             let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
-            res = filter(input_canvas, &mut self.canvas, &filter_name);
+            res = filter(input_canvas, &mut self.canvas, filter_name);
         } else {
             let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            res = filter(input_canvas, output_canvas, &filter_name);
+            res = filter(input_canvas, output_canvas, filter_name);
         }
         match res {
             Err(err) => {
@@ -981,7 +981,7 @@ impl Universe {
 
     #[wasm_bindgen(js_name = drawCanvas2)]
     pub fn draw_canvas2(&mut self, width: u32, height: u32) -> Result<(), JsValue> {
-        if self.append_canvas.len() == 0 {
+        if self.append_canvas.is_empty() {
             return Err(JsValue::FALSE);
         }
         if let Some(ctx) = &self.ctx2 {

@@ -28,7 +28,7 @@ pub fn line(screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32, color: 
     let mut y = y0;
 
     loop {
-        point_for_line(screen, x as i32, y as i32, red, green, blue, 0xff);
+        point_for_line(screen, x, y, red, green, blue, 0xff);
         if x == x1 && y == y1 {
             break;
         }
@@ -36,13 +36,13 @@ pub fn line(screen: &mut dyn Screen, x0: i32, y0: i32, x1: i32, y1: i32, color: 
         let err2 = err * 2;
 
         if err2 > -dy {
-            err = err - dy;
-            x = x + step_x;
+            err -= dy;
+            x += step_x;
         }
 
         if err2 < dx {
-            err = err + dx;
-            y = y + step_y;
+            err += dx;
+            y += step_y;
         }
     }
 }
@@ -70,7 +70,7 @@ pub fn line_with_alpha(
     let mut y = y0;
 
     loop {
-        point_for_line(screen, x as i32, y as i32, red, green, blue, alpha);
+        point_for_line(screen, x, y, red, green, blue, alpha);
         if x == x1 && y == y1 {
             break;
         }
@@ -78,13 +78,13 @@ pub fn line_with_alpha(
         let err2 = err * 2;
 
         if err2 > -dy {
-            err = err - dy;
-            x = x + step_x;
+            err -= dy;
+            x += step_x;
         }
 
         if err2 < dx {
-            err = err + dx;
-            y = y + step_y;
+            err += dx;
+            y += step_y;
         }
     }
 }
@@ -116,12 +116,10 @@ pub fn line_antialias(
         } else {
             -1.0
         }
+    } else if y0 < y1 {
+        dx / dy
     } else {
-        if y0 < y1 {
-            dx / dy
-        } else {
-            -dx / dy
-        }
+        -dx / dy
     };
     let step_y = if ddx <= ddy {
         if y0 < y1 {
@@ -129,15 +127,13 @@ pub fn line_antialias(
         } else {
             -1.0
         }
+    } else if x0 < x1 {
+        dy / dx
     } else {
-        if x0 < x1 {
-            dy / dx
-        } else {
-            -dy / dx
-        }
+        -dy / dx
     };
 
-    let step = if ddx > ddy { true } else { false };
+    let step = ddx > ddy;
 
     let (mut x, mx) = if x0 < x1 {
         let x = x0.ceil();
@@ -190,7 +186,7 @@ pub fn line_pen(canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32, color: 
     let mut y = y0;
 
     loop {
-        point_pen(canvas, x as i32, y as i32, color);
+        point_pen(canvas, x, y, color);
 
         if x == x1 && y == y1 {
             break;
@@ -199,13 +195,13 @@ pub fn line_pen(canvas: &mut Canvas, x0: i32, y0: i32, x1: i32, y1: i32, color: 
         let err2 = err * 2;
 
         if err2 > -dy {
-            err = err - dy;
-            x = x + step_x;
+            err -= dy;
+            x += step_x;
         }
 
         if err2 < dx {
-            err = err + dx;
-            y = y + step_y;
+            err += dx;
+            y += step_y;
         }
     }
 }
@@ -230,7 +226,7 @@ pub fn line_with_pen(
     let mut y = y0;
 
     loop {
-        point_with_pen(screen, x as i32, y as i32, color, pen);
+        point_with_pen(screen, x, y, color, pen);
 
         if x == x1 && y == y1 {
             break;
@@ -239,13 +235,13 @@ pub fn line_with_pen(
         let err2 = err * 2;
 
         if err2 > -dy {
-            err = err - dy;
-            x = x + step_x;
+            err -= dy;
+            x += step_x;
         }
 
         if err2 < dx {
-            err = err + dx;
-            y = y + step_y;
+            err += dx;
+            y += step_y;
         }
     }
 }

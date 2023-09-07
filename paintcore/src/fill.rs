@@ -30,7 +30,7 @@ fn scan_line(
     let mut x = lx;
     while x <= rx {
         while x <= rx && pick(screan, x, y) != base_color {
-            x = x + 1;
+            x += 1;
         }
 
         if pick(screan, x, y) != base_color {
@@ -38,7 +38,7 @@ fn scan_line(
         }
 
         while x <= rx && pick(screan, x, y) == base_color {
-            x = x + 1;
+            x += 1;
         }
 
         stacks.push(ScanStack::new(x - 1, y));
@@ -79,7 +79,7 @@ pub fn fill_with_alpha(screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u
             if pick(screan, lx - 1, ly) != base_color {
                 break;
             }
-            lx = lx - 1;
+            lx -= 1;
         }
 
         // right scan
@@ -90,7 +90,7 @@ pub fn fill_with_alpha(screan: &mut dyn Screen, sx: i32, sy: i32, paint_color: u
             if pick(screan, rx + 1, ly) != base_color {
                 break;
             }
-            rx = rx + 1;
+            rx += 1;
         }
 
         // draw line

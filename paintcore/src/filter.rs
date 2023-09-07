@@ -14,7 +14,7 @@ impl Kernel {
         Self {
             width: 3,
             height: 3,
-            matrix: matrix,
+            matrix,
         }
     }
 }
@@ -35,8 +35,8 @@ fn rgb_to_y(r: u8, g: u8, b: u8) -> f32 {
     let r = r as f32;
     let g = g as f32;
     let b = b as f32;
-    let y = 0.29900 * r + 0.58700 * g + 0.11400 * b;
-    y
+    
+    0.29900 * r + 0.58700 * g + 0.11400 * b
 }
 
 #[inline]
@@ -101,7 +101,7 @@ pub fn lum_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) {
                     let g = src_buffer[uu + vv + 1];
                     let b = src_buffer[uu + vv + 2];
                     let ln = rgb_to_y(r, g, b);
-                    l += ln * matrix[v as usize][u as usize];
+                    l += ln * matrix[v][u];
                 }
             }
             let l = l / coeff;
@@ -189,9 +189,9 @@ pub fn rgb_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) {
                 for v in 0..kernel.width {
                     let vv =
                         (x as i32 + v as i32 - v0).clamp(0, src.width() as i32 - 1) as usize * 4;
-                    r += src_buffer[uu + vv] as f32 * matrix[v as usize][u as usize];
-                    g += src_buffer[uu + vv + 1] as f32 * matrix[v as usize][u as usize];
-                    b += src_buffer[uu + vv + 2] as f32 * matrix[v as usize][u as usize];
+                    r += src_buffer[uu + vv] as f32 * matrix[v][u];
+                    g += src_buffer[uu + vv + 1] as f32 * matrix[v][u];
+                    b += src_buffer[uu + vv + 2] as f32 * matrix[v][u];
                 }
             }
             let r = ((r / coeff).round() as i32).clamp(0, 255) as u8;

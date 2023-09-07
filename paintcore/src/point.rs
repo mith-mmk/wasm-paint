@@ -61,17 +61,17 @@ pub(crate) fn point_for_line(screen: &mut dyn Screen, x: i32, y: i32, r: u8, g: 
 
 pub fn point(screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
     let (red, green, blue, _) = color_taple(color);
-    _point(screen, x as i32, y as i32, red, green, blue, 0xff, 1.0);
+    _point(screen, x, y, red, green, blue, 0xff, 1.0);
 }
 
 pub fn point_with_alpha(screen: &mut dyn Screen, x: i32, y: i32, color: u32, alpha: u8) {
     let (red, green, blue, _) = color_taple(color);
-    _point(screen, x as i32, y as i32, red, green, blue, alpha, 1.0);
+    _point(screen, x, y, red, green, blue, alpha, 1.0);
 }
 
 pub fn point_with_weight(screen: &mut dyn Screen, x: i32, y: i32, color: u32, weight: f32) {
     let (red, green, blue, _) = color_taple(color);
-    _point(screen, x as i32, y as i32, red, green, blue, 0xff, weight);
+    _point(screen, x, y, red, green, blue, 0xff, weight);
 }
 
 pub fn point_with_weight_from_alpha(
@@ -84,8 +84,8 @@ pub fn point_with_weight_from_alpha(
     let (red, green, blue, _) = color_taple(color);
     _point(
         screen,
-        x as i32,
-        y as i32,
+        x,
+        y,
         red,
         green,
         blue,

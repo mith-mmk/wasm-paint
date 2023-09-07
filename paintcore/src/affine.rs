@@ -44,7 +44,7 @@ impl Affine {
         Self { affine }
     }
 
-    fn matrix(self: &mut Self, f: &[[f32; 3]; 3]) {
+    fn matrix(&mut self, f: &[[f32; 3]; 3]) {
         let affin = self.affine;
         let mut result: [[f32; 3]; 3] = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]];
         for i in 0..3 {
@@ -57,66 +57,66 @@ impl Affine {
     }
 
     /// transration image (x,y) position
-    pub fn translation(self: &mut Self, x: f32, y: f32) {
+    pub fn translation(&mut self, x: f32, y: f32) {
         self.matrix(&[[1.0, 0.0, x], [0.0, 1.0, y], [0.0, 0.0, 1.0]]);
     }
 
     /// reverse image right-left
-    pub fn invert_x(self: &mut Self) {
+    pub fn invert_x(&mut self) {
         self.matrix(&[[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     }
 
     /// reverse image up-down
-    pub fn invert_y(self: &mut Self) {
+    pub fn invert_y(&mut self) {
         self.matrix(&[[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]);
     }
 
     /// reverse image right-left and up-down
-    pub fn invert_xy(self: &mut Self) {
+    pub fn invert_xy(&mut self) {
         self.matrix(&[[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]);
     }
 
     /// change scale x X x Y
-    pub fn scale(self: &mut Self, x: f32, y: f32) {
+    pub fn scale(&mut self, x: f32, y: f32) {
         self.matrix(&[[x, 0.0, 0.0], [0.0, y, 0.0], [0.0, 0.0, 1.0]]);
     }
 
     /// rotate by dgree
-    pub fn rotate_by_dgree(self: &mut Self, theta: f32) {
+    pub fn rotate_by_dgree(&mut self, theta: f32) {
         let theta = PI * theta / 180.0;
         self.rotate(theta);
     }
 
     /// rotate by radian
-    pub fn rotate(self: &mut Self, theta: f32) {
+    pub fn rotate(&mut self, theta: f32) {
         let c = theta.cos();
         let s = theta.sin();
         self.matrix(&[[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]);
     }
 
     /// skew
-    pub fn skew_x(self: &mut Self, theta: f32) {
+    pub fn skew_x(&mut self, theta: f32) {
         let s = theta.tan();
         self.matrix(&[[1.0, 0.0, 0.0], [s, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     }
 
-    pub fn skew_y(self: &mut Self, theta: f32) {
+    pub fn skew_y(&mut self, theta: f32) {
         let s = theta.tan();
         self.matrix(&[[1.0, s, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     }
 
-    pub fn skew_x_by_degree(self: &mut Self, theta: f32) {
+    pub fn skew_x_by_degree(&mut self, theta: f32) {
         let theta = PI * theta / 180.0;
         self.skew_x(theta);
     }
 
-    pub fn skew_y_by_degree(self: &mut Self, theta: f32) {
+    pub fn skew_y_by_degree(&mut self, theta: f32) {
         let theta = PI * theta / 180.0;
         self.skew_y(theta);
     }
 
     /// shear
-    pub fn shear(self: &mut Self, x: f32, y: f32) {
+    pub fn shear(&mut self, x: f32, y: f32) {
         self.matrix(&[[1.0, y, 0.0], [x, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     }
 
@@ -126,7 +126,7 @@ impl Affine {
     }
 
     /// conversion no implement interpolations
-    pub fn _conversion(self: &mut Self, input_screen: &dyn Screen, output_screen: &mut dyn Screen) {
+    pub fn _conversion(&mut self, input_screen: &dyn Screen, output_screen: &mut dyn Screen) {
         let min_x = 0;
         let max_x = output_screen.width() as i32;
         let min_y = 0;
@@ -182,7 +182,7 @@ impl Affine {
 
     /// conversion implement interpolations
     pub fn conversion(
-        self: &mut Self,
+        &mut self,
         input_screen: &dyn Screen,
         output_screen: &mut dyn Screen,
         algorithm: InterpolationAlgorithm,
@@ -198,20 +198,20 @@ impl Affine {
         self.conversion_with_area(
             input_screen,
             output_screen,
-            start_x as f32,
+            start_x,
             start_y,
             input_screen.width() as f32,
             input_screen.height() as f32,
             out_start_x,
             out_start_y,
-            out_width as i32,
-            out_height as i32,
+            out_width,
+            out_height,
             algorithm,
         );
     }
 
     pub fn conversion_with_area_center(
-        self: &mut Self,
+        &mut self,
         input_screen: &dyn Screen,
         output_screen: &mut dyn Screen,
         start_x: f32,
@@ -388,14 +388,12 @@ impl Affine {
                 // (x0,y0) - (x1,y1) &  (x2,y2) - (x3,y3)
                 let (mut sx, mut ex) = if xy0.1 == xy1.1 {
                     (min(xy0.0, xy1.0), max(xy0.0, xy1.0) + 1)
+                } else if xy2.1 == xy3.1 {
+                    (min(xy2.0, xy3.0), max(xy2.0, xy3.0) + 1)
                 } else {
-                    if xy2.1 == xy3.1 {
-                        (min(xy2.0, xy3.0), max(xy2.0, xy3.0) + 1)
-                    } else {
-                        let x0 = (d0 * (y - xy0.1) as f32) as i32 + xy0.0 as i32;
-                        let x1 = (d1 * (y - xy2.1) as f32) as i32 + xy2.0 as i32;
-                        (min(x0, x1), max(x0, x1) + 1)
-                    }
+                    let x0 = (d0 * (y - xy0.1) as f32) as i32 + xy0.0;
+                    let x1 = (d1 * (y - xy2.1) as f32) as i32 + xy2.0;
+                    (min(x0, x1), max(x0, x1) + 1)
                 };
                 let output_base_line = *output_screen_width as usize * 4 * y as usize;
                 if sx < out_start_x {
@@ -598,7 +596,7 @@ impl Affine {
     }
 
     pub fn conversion_with_area(
-        self: &mut Self,
+        &mut self,
         input_screen: &dyn Screen,
         output_screen: &mut dyn Screen,
         start_x: f32,
@@ -617,14 +615,14 @@ impl Affine {
         self.conversion_with_area_center(
             input_screen,
             output_screen,
-            start_x as f32,
+            start_x,
             start_y,
             width,
             height,
             out_start_x,
             out_start_y,
-            out_width as i32,
-            out_height as i32,
+            out_width,
+            out_height,
             ox,
             oy,
             algorithm,
@@ -718,7 +716,7 @@ impl Affine {
                     if yy >= input_screen.height() as usize {
                         yy = input_screen.height() as usize - 1;
                     }
-                    let input_base_line = input_screen.width() as usize * 4 * yy as usize;
+                    let input_base_line = input_screen.width() as usize * 4 * yy;
                     let err_y = if yy_ == 0 {
                         err_y0
                     } else if yy_ == dy - 1 {

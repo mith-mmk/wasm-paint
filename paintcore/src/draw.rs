@@ -11,8 +11,8 @@ pub fn draw_over_screen(src: &dyn Screen, dest: &mut dyn Screen, dx: i32, dy: i3
     let width = src.width();
     let height = src.height();
 
-    let dest_width = dest.width().clone();
-    let dest_height = dest.height().clone();
+    let dest_width = dest.width();
+    let dest_height = dest.height();
     if dx + (width as i32) < 0 {
         return;
     }
@@ -44,10 +44,10 @@ pub fn draw_over_screen(src: &dyn Screen, dest: &mut dyn Screen, dx: i32, dy: i3
 
     for y in sy..ey {
         let dest_offset = (y * dest_width * 4) as usize;
-        let src_offset = ((y as i32 - dy) as u32 * width as u32 * 4) as usize;
+        let src_offset = ((y as i32 - dy) as u32 * width * 4) as usize;
         for x in sx..ex {
-            let dest_pos = (dest_offset + x as usize * 4) as usize;
-            let src_pos = (src_offset + (x as i32 - dx) as usize * 4) as usize;
+            let dest_pos = dest_offset + x as usize * 4;
+            let src_pos = src_offset + (x as i32 - dx) as usize * 4;
 
             destbuf[dest_pos] = srcbuf[src_pos];
             destbuf[dest_pos + 1] = srcbuf[src_pos + 1];
@@ -61,8 +61,8 @@ pub fn draw_over_screen_with_alpha(src: &dyn Screen, dest: &mut dyn Screen, dx: 
     let width = src.width();
     let height = src.height();
 
-    let dest_width = dest.width().clone();
-    let dest_height = dest.height().clone();
+    let dest_width = dest.width();
+    let dest_height = dest.height();
     if dx + (width as i32) < 0 {
         return;
     }
@@ -99,10 +99,10 @@ pub fn draw_over_screen_with_alpha(src: &dyn Screen, dest: &mut dyn Screen, dx: 
 
     for y in sy..ey {
         let dest_offset = (y * dest_width * 4) as usize;
-        let src_offset = ((y as i32 - dy) as u32 * width as u32 * 4) as usize;
+        let src_offset = ((y as i32 - dy) as u32 * width * 4) as usize;
         for x in sx..ex {
-            let dest_pos = (dest_offset + x as usize * 4) as usize;
-            let src_pos = (src_offset + (x as i32 - dx) as usize * 4) as usize;
+            let dest_pos = dest_offset + x as usize * 4;
+            let src_pos = src_offset + (x as i32 - dx) as usize * 4;
             let alpha = (srcbuf[src_pos + 3] as f32 / 255.0) * global_alpha;
             if alpha == 0.0 {
                 continue;

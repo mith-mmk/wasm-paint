@@ -18,25 +18,25 @@ pub enum Weights {
 
 pub fn get_weight(weight: Weights) -> (f64, f64, f64) {
     match weight {
-        Weights::Jpeg => return (0.299_f64, 0.587_f64, 0.114_f64),
-        Weights::Bt601 => return (0.299_f64, 0.587_f64, 0.114_f64),
-        Weights::Bt709 => return (0.2126_f64, 0.7152_f64, 0.0722_f64),
-        Weights::Average => return (0.3333333_f64, 0.3333334_f64, 0.3333333_f64),
-        Weights::RedOnly => return (1.0_f64, 0.0_f64, 0.0_f64),
-        Weights::GreenOnly => return (0.0_f64, 1.0_f64, 0.0_f64),
-        Weights::BlueOnly => return (0.0_f64, 0.0_f64, 1.0_f64),
+        Weights::Jpeg => (0.299_f64, 0.587_f64, 0.114_f64),
+        Weights::Bt601 => (0.299_f64, 0.587_f64, 0.114_f64),
+        Weights::Bt709 => (0.2126_f64, 0.7152_f64, 0.0722_f64),
+        Weights::Average => (0.3333333_f64, 0.3333334_f64, 0.3333333_f64),
+        Weights::RedOnly => (1.0_f64, 0.0_f64, 0.0_f64),
+        Weights::GreenOnly => (0.0_f64, 1.0_f64, 0.0_f64),
+        Weights::BlueOnly => (0.0_f64, 0.0_f64, 1.0_f64),
     }
 }
 
 pub fn weight(t: usize) -> (f64, f64, f64) {
     match t {
-        0 => return get_weight(Weights::Bt601),
-        1 => return get_weight(Weights::Bt709),
-        2 => return get_weight(Weights::Average),
-        3 => return get_weight(Weights::RedOnly),
-        4 => return get_weight(Weights::GreenOnly),
-        5 => return get_weight(Weights::BlueOnly),
-        _ => return get_weight(Weights::Jpeg),
+        0 => get_weight(Weights::Bt601),
+        1 => get_weight(Weights::Bt709),
+        2 => get_weight(Weights::Average),
+        3 => get_weight(Weights::RedOnly),
+        4 => get_weight(Weights::GreenOnly),
+        5 => get_weight(Weights::BlueOnly),
+        _ => get_weight(Weights::Jpeg),
     }
 }
 

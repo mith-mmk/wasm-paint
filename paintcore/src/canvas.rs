@@ -55,7 +55,7 @@ impl AnimationLayer {
         Self {
             x: 0,
             y: 0,
-            layer: layer,
+            layer,
             layers,
             frame_no: 0,
             enable: true,
@@ -223,7 +223,7 @@ impl PackedLayers {
                 Ok(())
             }
             _ => {
-                return Err(Box::new(crate::error::Error {
+                Err(Box::new(crate::error::Error {
                     message: "No exist Layer".to_string(),
                 }))
             }
@@ -283,7 +283,7 @@ impl PackedLayers {
     fn frame_last_no(&mut self, label: String) -> Option<usize> {
         let layer = self.layers.get_mut(&label);
         if let Some(layer) = layer {
-            if layer.layers.len() >= 1 {
+            if !layer.layers.is_empty() {
                 Some(layer.layers.len() - 1)
             } else {
                 None
@@ -531,7 +531,7 @@ impl Canvas {
     }
 
     pub fn color(&self) -> u32 {
-        self.color.clone()
+        self.color
     }
 
     pub fn set_color(&mut self, color: u32) {
@@ -647,7 +647,7 @@ impl Canvas {
     }
 
     pub fn delete_layer(&mut self, label: String) {
-        if let Some(..) = self.layers.get_mut(label.clone()) {
+        if self.layers.get_mut(label.clone()).is_some() {
             self.layers.remove(label);
         }
     }
@@ -665,11 +665,7 @@ impl Canvas {
     }
 
     pub fn pos(&mut self, label: String) -> Option<(i32, i32)> {
-        if let Some(layer) = self.layers.get_mut(label) {
-            Some(layer.pos())
-        } else {
-            None
-        }
+        self.layers.get_mut(label).map(|layer| layer.pos())
     }
 
     pub fn get_layer_alpha(&mut self, label: String) -> Result<Option<u8>, Error> {
@@ -754,11 +750,11 @@ impl Canvas {
 
 impl Screen for Canvas {
     fn width(&self) -> u32 {
-        self.canvas.width.clone()
+        self.canvas.width
     }
 
     fn height(&self) -> u32 {
-        self.canvas.height.clone()
+        self.canvas.height
     }
 
     fn reinit(&mut self, width: u32, height: u32) {
@@ -830,7 +826,7 @@ impl DrawCallback for Canvas {
         }
 
         if self.width() == 0 || self.height() == 0 {
-            let buffersize = width as usize * height as usize * 4;
+            let buffersize = width * height * 4;
             self.canvas.width = width as u32;
             self.canvas.height = height as u32;
             self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
@@ -847,7 +843,7 @@ impl DrawCallback for Canvas {
                 if layer.width == 0 || layer.height == 0 {
                     layer.width = width as u32;
                     layer.height = height as u32;
-                    let buffersize = width as usize * height as usize * 4;
+                    let buffersize = width * height * 4;
                     layer.buffer = (0..buffersize).map(|_| 0).collect();
                 }
             }
@@ -966,7 +962,7 @@ impl DrawCallback for Canvas {
         str: &str,
         _: Option<VerboseOptions>,
     ) -> Result<Option<CallbackResponse>, Error> {
-        return (self.fnverbose)(str, None);
+        (self.fnverbose)(str, None)
     }
 
     fn set_metadata(
@@ -982,6 +978,6 @@ impl DrawCallback for Canvas {
         };
         hashmap.insert(key.to_string(), value);
 
-        return Ok(None);
+        Ok(None)
     }
 }

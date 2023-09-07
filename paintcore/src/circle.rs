@@ -96,7 +96,7 @@ pub fn arc_with_alpha(
     let a: i64 = (ry as i64).pow(2);
     let b: i64 = (rx as i64).pow(2);
     let r: i64 = rx as i64 * ry as i64;
-    let d: i64 = ry as i64 * r as i64; /* issue rx , ry 10の20乗を越えるとoverflowする可能性 */
+    let d: i64 = ry as i64 * r; /* issue rx , ry 10の20乗を越えるとoverflowする可能性 */
 
     let mut x: i32 = rx;
     let mut y: i32 = 0;
@@ -137,15 +137,15 @@ pub fn arc_with_alpha(
         }
         // next
         if err1 >= 0 {
-            x = x - 1;
-            err1 = err1 - 4 * a * x as i64;
+            x -= 1;
+            err1 -= 4 * a * x as i64;
             err2 = err2 - 4 * a * x as i64 - 2 * a;
         }
 
         if err2 < 0 {
-            y = y + 1;
+            y += 1;
             err1 = err1 + 4 * b * y as i64 + 2 * b;
-            err2 = err2 + 4 * b * y as i64;
+            err2 += 4 * b * y as i64;
         }
     }
 }
@@ -182,7 +182,7 @@ pub fn arc_antialias(
     let a: f64 = (ry as f64).powi(2);
     let b: f64 = (rx as f64).powi(2);
     let r: f64 = rx as f64 * ry as f64;
-    let d: f64 = ry as f64 * r as f64; /* issue rx , ry 10の20乗を越えるとoverflowする可能性 */
+    let d: f64 = ry as f64 * r; /* issue rx , ry 10の20乗を越えるとoverflowする可能性 */
 
     let mut x = rx;
     let mut y = 0.0;
@@ -192,7 +192,7 @@ pub fn arc_antialias(
 
     while x >= -1.0 {
         // 0<= θ < PI/2
-        let mut theta = (x as f32 / rx as f32).asin(); // calc θ
+        let mut theta = (x / rx).asin(); // calc θ
         let mut thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
@@ -201,21 +201,21 @@ pub fn arc_antialias(
             point_antialias(screen, ox + x, oy - y, color, alpha, size);
         }
         // PI/2 <= θ < PI  この象限はPI -> PI/2 で描画するので反転する
-        theta = PI - (x as f32 / rx as f32).asin();
+        theta = PI - (x / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
             point_antialias(screen, ox + x, oy + y, color, alpha, size);
         }
         // PI <= θ < 3PI/2
-        theta = PI * 1.0 + (x as f32 / rx as f32).asin();
+        theta = PI * 1.0 + (x / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
             point_antialias(screen, ox - x, oy + y, color, alpha, size);
         }
         // 3PI/2 <= θ < 2PI  この象限は2PI -> 3PI/2 で描画するので反転する
-        theta = PI * 2.0 - (x as f32 / rx as f32).asin();
+        theta = PI * 2.0 - (x / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
@@ -223,15 +223,15 @@ pub fn arc_antialias(
         }
         // next
         if err1 >= 0.0 {
-            x = x - 0.5;
-            err1 = err1 - 4.0 * a * x as f64;
+            x -= 0.5;
+            err1 -= 4.0 * a * x as f64;
             err2 = err2 - 4.0 * a * x as f64 - 2.0 * a;
         }
 
         if err2 < 0.0 {
-            y = y + 0.5;
+            y += 0.5;
             err1 = err1 + 4.0 * b * y as f64 + 2.0 * b;
-            err2 = err2 + 4.0 * b * y as f64;
+            err2 += 4.0 * b * y as f64;
         }
     }
 }
@@ -285,7 +285,7 @@ pub fn arc_tilde_with_alpha(
     let a: i64 = (ry as i64).pow(2);
     let b: i64 = (rx as i64).pow(2);
     let r: i64 = rx as i64 * ry as i64;
-    let d: i64 = ry as i64 * r as i64;
+    let d: i64 = ry as i64 * r;
 
     let mut x: i32 = rx.ceil() as i32;
     let mut y: i32 = 0;
@@ -300,9 +300,9 @@ pub fn arc_tilde_with_alpha(
     let tsin: f32 = tilde.sin();
     let tcos: f32 = tilde.cos();
 
-    while x >= 0 as i32 {
+    while x >= 0_i32 {
         // 0<= θ < PI/2
-        let mut theta = (x as f32 / rx as f32).asin(); // calc θ
+        let mut theta = (x as f32 / rx).asin(); // calc θ
         let mut thetam = theta - 2.0 * PI;
 
         let mut i = 0;
@@ -345,14 +345,14 @@ pub fn arc_tilde_with_alpha(
             //            line_antialias(screen, (ox + bx[i]) as f32, (oy + by[i]) as f32 ,(ox + xx) as f32,(oy + yy) as f32, color,0xff,None);
             bx[i] = xx;
             by[i] = yy;
-            i = i + 1;
+            i += 1;
         } else {
             bx[i] = i32::MIN;
-            i = i + 1;
+            i += 1;
         }
 
         // PI/2 <= θ < PI
-        theta = PI - (x as f32 / rx as f32).asin();
+        theta = PI - (x as f32 / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
@@ -390,14 +390,14 @@ pub fn arc_tilde_with_alpha(
 
             bx[i] = xx;
             by[i] = yy;
-            i = i + 1;
+            i += 1;
         } else {
             bx[i] = i32::MIN;
-            i = i + 1;
+            i += 1;
         }
 
         // PI <= θ < 3PI/2
-        theta = PI * 1.0 + (x as f32 / rx as f32).asin();
+        theta = PI * 1.0 + (x as f32 / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
@@ -435,13 +435,13 @@ pub fn arc_tilde_with_alpha(
 
             bx[i] = xx;
             by[i] = yy;
-            i = i + 1;
+            i += 1;
         } else {
             bx[i] = i32::MIN;
-            i = i + 1;
+            i += 1;
         }
         // 3PI/2 <= θ < 2PI
-        theta = PI * 2.0 - (x as f32 / rx as f32).asin();
+        theta = PI * 2.0 - (x as f32 / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
@@ -484,15 +484,15 @@ pub fn arc_tilde_with_alpha(
         }
         // next
         if err1 >= 0 {
-            x = x - 1;
-            err1 = err1 - 4 * a * x as i64;
+            x -= 1;
+            err1 -= 4 * a * x as i64;
             err2 = err2 - 4 * a * x as i64 - 2 * a;
         }
 
         if err2 < 0 {
-            y = y + 1;
+            y += 1;
             err1 = err1 + 4 * b * y as i64 + 2 * b;
-            err2 = err2 + 4 * b * y as i64;
+            err2 += 4 * b * y as i64;
         }
     }
 }
@@ -530,9 +530,9 @@ pub fn arc_tilde_antialias(
     let a: f64 = (ry as f64).powi(2);
     let b: f64 = (rx as f64).powi(2);
     let r: f64 = rx as f64 * ry as f64;
-    let d: f64 = ry as f64 * r as f64;
+    let d: f64 = ry as f64 * r;
 
-    let mut x: f32 = rx as f32;
+    let mut x: f32 = rx;
     let mut y: f32 = 0.0;
 
     let mut err1: f64 = -2.0 * d + a + 2.0 * b;
@@ -576,14 +576,14 @@ pub fn arc_tilde_antialias(
 
             bx[i] = xx;
             by[i] = yy;
-            i = i + 1;
+            i += 1;
         } else {
             bx[i] = f32::MIN;
-            i = i + 1;
+            i += 1;
         }
 
         // PI/2 <= θ < PI
-        theta = PI - (x as f32 / rx as f32).asin();
+        theta = PI - (x / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
@@ -609,10 +609,10 @@ pub fn arc_tilde_antialias(
 
             bx[i] = xx;
             by[i] = yy;
-            i = i + 1;
+            i += 1;
         } else {
             bx[i] = f32::MIN;
-            i = i + 1;
+            i += 1;
         }
 
         // PI <= θ < 3PI/2
@@ -620,8 +620,8 @@ pub fn arc_tilde_antialias(
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            let xx = -x as f32 * tcos - y as f32 * tsin;
-            let yy = -x as f32 * tsin + y as f32 * tcos;
+            let xx = -x * tcos - y * tsin;
+            let yy = -x * tsin + y * tcos;
 
             if bx[i] == f32::MIN {
                 bx[i] = xx;
@@ -642,19 +642,19 @@ pub fn arc_tilde_antialias(
 
             bx[i] = xx;
             by[i] = yy;
-            i = i + 1;
+            i += 1;
         } else {
             bx[i] = f32::MIN;
-            i = i + 1;
+            i += 1;
         }
 
         // 3PI/2 <= θ < 2PI
-        theta = PI * 2.0 - (x as f32 / rx as f32).asin();
+        theta = PI * 2.0 - (x / rx).asin();
         thetam = theta - 2.0 * PI;
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
-            let xx = -x as f32 * tcos + y as f32 * tsin;
-            let yy = -x as f32 * tsin - y as f32 * tcos;
+            let xx = -x * tcos + y * tsin;
+            let yy = -x * tsin - y * tcos;
 
             if bx[i] == f32::MIN {
                 bx[i] = xx;
@@ -681,15 +681,15 @@ pub fn arc_tilde_antialias(
 
         // next
         if err1 >= 0.0 {
-            x = x - 0.5;
-            err1 = err1 - 4.0 * a * x as f64;
+            x -= 0.5;
+            err1 -= 4.0 * a * x as f64;
             err2 = err2 - 4.0 * a * x as f64 - 2.0 * a;
         }
 
         if err2 < 0.0 {
-            y = y + 0.5;
+            y += 0.5;
             err1 = err1 + 4.0 * b * y as f64 + 2.0 * b;
-            err2 = err2 + 4.0 * b * y as f64;
+            err2 += 4.0 * b * y as f64;
         }
     }
 }
@@ -772,8 +772,8 @@ pub fn ellipse_antialias(
             screen,
             ox,
             oy,
-            rx as f32,
-            ry as f32,
+            rx,
+            ry,
             0.0 * PI,
             2.0 * PI,
             tilde,

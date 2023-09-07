@@ -156,7 +156,7 @@ pub fn polygram_with_alpha(
     }
 
     for i in 0..p as usize {
-        let s = i as usize;
+        let s = i;
         let e = (i + q as usize) % p as usize;
         if is_antialias {
             line_antialias(

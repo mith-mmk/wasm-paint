@@ -22,7 +22,7 @@ pub fn quadratic_curve_with_alpha(
     size: Option<f32>,
 ) {
     let s = if let Some(_s) = size { _s } else { 1.0 };
-    if p.len() == 0 {
+    if p.is_empty() {
         return;
     }
     if p.len() == 1 {
@@ -128,7 +128,7 @@ pub fn bezier_curve_with_alpha(
 ) {
     let s = if let Some(_s) = size { _s } else { 1.0 };
     let n = p.len() - 1;
-    if p.len() < 1 {
+    if p.is_empty() {
         return;
     }
 
@@ -141,7 +141,7 @@ pub fn bezier_curve_with_alpha(
 
     let mut pp = (p[0].0, p[0].1);
     for ti in 0..dt as usize + 1 {
-        let t = ti as f32 / dt as f32;
+        let t = ti as f32 / dt;
         let mut bx = 0.0;
         let mut by = 0.0;
 

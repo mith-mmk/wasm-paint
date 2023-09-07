@@ -47,8 +47,8 @@ impl Layer {
             buffer,
             x: 0,
             y: 0,
-            width: width,
-            height: height,
+            width,
+            height,
             z_index: 0,
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
@@ -65,8 +65,8 @@ impl Layer {
             buffer,
             x: 0,
             y: 0,
-            width: width,
-            height: height,
+            width,
+            height,
             z_index: 0,
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
@@ -94,7 +94,7 @@ impl Layer {
     }
 
     pub fn z_index(&mut self) -> i32 {
-        self.z_index.clone()
+        self.z_index
     }
 
     pub fn set_pos(&mut self, x: i32, y: i32) {
@@ -103,7 +103,7 @@ impl Layer {
     }
 
     pub fn pos(&self) -> (i32, i32) {
-        (self.x.clone(), self.y.clone())
+        (self.x, self.y)
     }
 
     pub fn move_pos(&mut self, dx: i32, dy: i32) {
@@ -125,11 +125,11 @@ impl Layer {
 
 impl Screen for Layer {
     fn width(&self) -> u32 {
-        self.width.clone()
+        self.width
     }
 
     fn height(&self) -> u32 {
-        self.height.clone()
+        self.height
     }
 
     fn reinit(&mut self, width: u32, height: u32) {
@@ -183,7 +183,7 @@ impl DrawCallback for Layer {
             )));
         }
         if self.width() == 0 || self.height() == 0 {
-            let buffersize = width as usize * height as usize * 4;
+            let buffersize = width * height * 4;
             self.width = width as u32;
             self.height = height as u32;
             self.buffer = (0..buffersize).map(|_| 0).collect();
@@ -254,7 +254,7 @@ impl DrawCallback for Layer {
         str: &str,
         _: Option<VerboseOptions>,
     ) -> Result<Option<CallbackResponse>, Error> {
-        return (self.fnverbose)(str, None);
+        (self.fnverbose)(str, None)
     }
 
     fn set_metadata(
@@ -270,6 +270,6 @@ impl DrawCallback for Layer {
         };
         hashmap.insert(key.to_string(), value);
 
-        return Ok(None);
+        Ok(None)
     }
 }
