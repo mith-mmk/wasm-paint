@@ -22,6 +22,13 @@ function filter() {
   drawer();
 }
 
+function filters() {
+  //const filters = ///
+  universe.clearSelectCanvas(1);
+  //universe.filters(0,1,filters);
+  drawer();
+}
+
 const reader = new FileReader();
 reader.onloadend = (event) => {
   let buffer = new Uint8Array(reader.result);

@@ -216,6 +216,34 @@ pub fn blur(src: &dyn Screen, dest: &mut dyn Screen) {
     lum_filter(src, dest, &Kernel::new(matrix))
 }
 
+pub fn copy_to(src: &dyn Screen, dest: &mut dyn Screen) {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
+
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+
+    for y in 0..src.height() as usize {
+        let offset = y * src.width() as usize * 4;
+        if y >= dest_height {
+            break;
+        }
+        for x in 0..src.width() as usize {
+            if x >= dest_width {
+                break;
+            }
+            dest_buffer[offset + x * 4] = src_buffer[offset + x * 4];
+            dest_buffer[offset + x * 4 + 1] = src_buffer[offset + x * 4 + 1];
+            dest_buffer[offset + x * 4 + 2] = src_buffer[offset + x * 4 + 2];
+            dest_buffer[offset + x * 4 + 3] = src_buffer[offset + x * 4 + 3];
+        }
+    }
+}
+
 pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) {
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
@@ -265,6 +293,7 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) {
 
 pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
     match filter_name {
+        "copy" => copy_to(src, dest),
         "median" => ranking(src, dest, 4),
         "erode" => ranking(src, dest, 0),
         "dilate" => ranking(src, dest, 8),
@@ -287,6 +316,13 @@ pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Res
             let matrix = [[1.0, 2.0, 1.0], [0.0, 1.0, 0.0], [-1.0, -2.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
+        "canny" => {
+            let matrix_a = [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]];
+            let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
+            let mut tmp = Canvas::new(src.width(), src.height());
+            lum_filter(src, &mut tmp, &Kernel::new(matrix_a));
+            lum_filter(&tmp, dest, &Kernel::new(matrix_b));
+        }
         "edges" => {
             let matrix_a = [[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]];
             let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
@@ -294,12 +330,24 @@ pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Res
             lum_filter(src, &mut tmp, &Kernel::new(matrix_a));
             lum_filter(&tmp, dest, &Kernel::new(matrix_b));
         }
-        "edgeX" => {
+        "edgeX" => { // Sobel X
             let matrix = [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "edgeY" => {
+        "edgeY" => { // Sobel Y
             let matrix = [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
+        "gaussian" => {
+            let matrix = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
+        "laplacian" => {
+            let matrix = [[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
+        "laplacian8" => {
+            let matrix = [[1.0, 1.0, 1.0], [1.0, -8.0, 1.0], [1.0, 1.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
         "emboss" => {
@@ -334,3 +382,25 @@ Edge (Laplacian)	[[0,1,0],[1,-4,1],[0,1,0]]	方向性を持たない輪郭検出
 Emboss	[[-2,-1,0],[-1,1,1],[0,1,2]]	浮き出し効果
 Outline	[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]	輪郭のみ抽出
  */
+
+ pub fn filters(src: &dyn Screen, dest: &mut dyn Screen, filter_names: Vec<String>) -> Result<(), Error> {
+    let mut intermediate_src = Canvas::new(src.width(), src.height());
+    let mut intermediate_dest = Canvas::new(src.width(), src.height());
+    copy_to(src, &mut intermediate_src);
+
+    for (i, filter_name) in filter_names.iter().enumerate() {
+        if i % 2 == 0 {
+            filter(&intermediate_src, &mut intermediate_dest, filter_name)?;
+        } else {
+            filter(&intermediate_dest, &mut intermediate_src, filter_name)?;
+        }
+    }
+
+    if filter_names.len() % 2 == 0 {
+        copy_to(&intermediate_src, dest);
+    } else {
+        copy_to(&intermediate_dest, dest);
+    }
+
+    Ok(())
+}

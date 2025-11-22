@@ -657,6 +657,22 @@ impl Universe {
         }
     }
 
+    #[wasm_bindgen(js_name = filters)]
+    pub fn filters(&mut self, canvas_in: usize, canvas_out: usize, filter_names: Vec<String>) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = filters(&self.canvas, output_canvas, filter_names);
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ = filters(input_canvas, &mut self.canvas, filter_names);
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = filters(input_canvas, output_canvas, filter_names);
+        }
+    }
+
+
     #[wasm_bindgen(js_name = affineTest2)]
     pub fn affine_test2(
         &mut self,
