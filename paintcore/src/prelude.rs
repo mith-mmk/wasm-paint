@@ -1,6 +1,5 @@
 pub use crate::affine::*;
 pub use crate::canvas::*;
-pub use crate::canvas::*;
 pub use crate::circle::*;
 pub use crate::clear::*;
 pub use crate::draw::*;
