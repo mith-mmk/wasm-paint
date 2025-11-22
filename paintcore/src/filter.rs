@@ -294,6 +294,22 @@ pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Res
             lum_filter(src, &mut tmp, &Kernel::new(matrix_a));
             lum_filter(&tmp, dest, &Kernel::new(matrix_b));
         }
+        "edgeX" => {
+            let matrix = [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
+        "edgeY" => {
+            let matrix = [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
+        "emboss" => {
+            let matrix = [[-2.0, -1.0, 0.0], [-1.0, 1.0, 1.0], [0.0, 1.0, 2.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
+        "outline" => {
+            let matrix = [[-1.0, -1.0, -1.0], [-1.0, 8.0, -1.0], [-1.0, -1.0, -1.0]];
+            lum_filter(src, dest, &Kernel::new(matrix));
+        }
         "grayscale" => {
             to_grayscale(src, dest, 0);
         }
@@ -306,3 +322,15 @@ pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Res
     }
     Ok(())
 }
+/*
+
+平均 (Box blur)	[[1,1,1],[1,1,1],[1,1,1]] / 9	均等平滑化
+Gaussian (σ≈1)	[[1,2,1],[2,4,2],[1,2,1]] / 16	ノイズ除去＋自然なぼかし
+Sharpen	[[0,-1,0],[-1,5,-1],[0,-1,0]]	輪郭強調
+強Sharpen	[[-1,-1,-1],[-1,9,-1],[-1,-1,-1]]	より強めのシャープ
+Edge (Sobel X)	[[-1,0,1],[-2,0,2],[-1,0,1]]	垂直エッジ検出
+Edge (Sobel Y)	[[-1,-2,-1],[0,0,0],[1,2,1]]	水平エッジ検出
+Edge (Laplacian)	[[0,1,0],[1,-4,1],[0,1,0]]	方向性を持たない輪郭検出
+Emboss	[[-2,-1,0],[-1,1,1],[0,1,2]]	浮き出し効果
+Outline	[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]	輪郭のみ抽出
+ */
