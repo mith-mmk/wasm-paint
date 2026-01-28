@@ -244,6 +244,46 @@ pub fn copy_to(src: &dyn Screen, dest: &mut dyn Screen) {
     }
 }
 
+pub fn combine(src1 : &dyn Screen, src2: &dyn Screen, dest: &mut dyn Screen) {
+    // √(src1^2 + src2^2) arctan (src2/src1)
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src1.width(), src1.height());
+    }
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
+    let src1_buffer = src1.buffer();
+    let src2_buffer = src2.buffer();
+    let dest_buffer = dest.buffer_mut();
+    for y in 0..src1.height() as usize {
+        let offset = y * src1.width() as usize * 4;
+        if y >= dest_height {
+            break;
+        }
+        for x in 0..src1.width() as usize {
+            if x >= dest_width {
+                break;
+            }
+            let r1 = src1_buffer[offset + x * 4] as f32;
+            let g1 = src1_buffer[offset + x * 4 + 1] as f32;
+            let b1 = src1_buffer[offset + x * 4 + 2] as f32;
+
+            let r2 = src2_buffer[offset + x * 4] as f32;
+            let g2 = src2_buffer[offset + x * 4 + 1] as f32;
+            let b2 = src2_buffer[offset + x * 4 + 2] as f32;
+
+            let r = ((r1 * r1 + r2 * r2).sqrt().round() as i32).clamp(0, 255) as u8;
+            let g = ((g1 * g1 + g2 * g2).sqrt().round() as i32).clamp(0, 255) as u8;
+            let b = ((b1 * b1 + b2 * b2).sqrt().round() as i32).clamp(0, 255) as u8;
+            let a = src1_buffer[offset + x * 4 + 3];
+
+            dest_buffer[offset + x * 4] = r;
+            dest_buffer[offset + x * 4 + 1] = g;
+            dest_buffer[offset + x * 4 + 2] = b;
+            dest_buffer[offset + x * 4 + 3] = a;
+        }
+    }
+}
+
 pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) {
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
@@ -292,6 +332,7 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) {
 }
 
 pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
+
     match filter_name {
         "copy" => copy_to(src, dest),
         "median" => ranking(src, dest, 4),
@@ -326,9 +367,17 @@ pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Res
         "edges" => {
             let matrix_a = [[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]];
             let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
-            let mut tmp = Canvas::new(src.width(), src.height());
-            lum_filter(src, &mut tmp, &Kernel::new(matrix_a));
-            lum_filter(&tmp, dest, &Kernel::new(matrix_b));
+            // ガウシアン
+            let mut tmp_gaussian = Canvas::new(src.width(), src.height());
+            lum_filter(src, &mut tmp_gaussian, &Kernel::new([[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]]));
+            let mut tmp_a = Canvas::new(src.width(), src.height());
+            let mut tmp_b = Canvas::new(src.width(), src.height());
+            // SobelX
+            lum_filter(&tmp_gaussian, &mut tmp_a, &Kernel::new(matrix_a));
+            // SobelY
+            lum_filter(&tmp_gaussian, &mut tmp_b, &Kernel::new(matrix_b));    
+            // combine
+            combine(&tmp_a, &tmp_b, dest);
         }
         "edgeX" => { // Sobel X
             let matrix = [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]];
