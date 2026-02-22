@@ -2,6 +2,59 @@ use crate::canvas::*;
 use crate::grayscale::to_grayscale;
 use std::io::Error;
 
+enum FilterType {
+    Copy,
+    Median,
+    Erode,
+    Dilate,
+    Sharpness,
+    Blur,
+    Average,
+    Smooth,
+    Sharpen,
+    Shadow,
+    Canny,
+    Edges,
+    EdgeX,
+    EdgeY,
+    Gaussian,
+    Laplacian,
+    Laplacian8,
+    Emboss,
+    Outline,
+    Grayscale,
+    Unknown,
+}
+
+impl From<&str> for FilterType {
+    fn from(s: &str) -> Self {
+        match s {
+            "copy" => FilterType::Copy,
+            "median" => FilterType::Median,
+            "erode" => FilterType::Erode,
+            "dilate" => FilterType::Dilate,
+            "sharpness" => FilterType::Sharpness,
+            "blur" => FilterType::Blur,
+            "average" => FilterType::Average,
+            "smooth" => FilterType::Smooth,
+            "sharpen" => FilterType::Sharpen,
+            "shadow" => FilterType::Shadow,
+            "canny" => FilterType::Canny,
+            "edges" => FilterType::Edges,
+            "edgeX" => FilterType::EdgeX,
+            "edgeY" => FilterType::EdgeY,
+            "gaussian" => FilterType::Gaussian,
+            "laplacian" => FilterType::Laplacian,
+            "laplacian8" => FilterType::Laplacian8,
+            "emboss" => FilterType::Emboss,
+            "outline" => FilterType::Outline,
+            "grayscale" => FilterType::Grayscale,
+            _ => FilterType::Unknown,
+        }
+    }
+}
+
+
 pub struct Kernel {
     pub width: usize,
     pub height: usize,
@@ -331,40 +384,46 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) {
     }
 }
 
-pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
 
-    match filter_name {
-        "copy" => copy_to(src, dest),
-        "median" => ranking(src, dest, 4),
-        "erode" => ranking(src, dest, 0),
-        "dilate" => ranking(src, dest, 8),
-        "sharpness" => sharpness(src, dest),
-        "blur" => blur(src, dest),
-        "average" => {
+pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
+    let filter_type = FilterType::from(filter_name);
+    _filter(src, dest, filter_type)    
+}
+
+
+fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType) -> Result<(), Error> {
+    match filter_type {
+        FilterType::Copy => copy_to(src, dest),
+        FilterType::Median => ranking(src, dest, 4),
+        FilterType::Erode => ranking(src, dest, 0),
+        FilterType::Dilate => ranking(src, dest, 8),
+        FilterType::Sharpness => sharpness(src, dest),
+        FilterType::Blur => blur(src, dest),
+        FilterType::Average => {
             let matrix = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
             rgb_filter(src, dest, &Kernel::new(matrix));
         }
 
-        "smooth" => {
+        FilterType::Smooth => {
             let matrix = [[1.0, 1.0, 1.0], [1.0, 4.0, 1.0], [1.0, 1.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "sharpen" => {
+        FilterType::Sharpen => {
             let matrix = [[-1.0, -1.0, -1.0], [-1.0, 12.0, -1.0], [-1.0, -1.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "shardow" => {
+        FilterType::Shadow => {
             let matrix = [[1.0, 2.0, 1.0], [0.0, 1.0, 0.0], [-1.0, -2.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "canny" => {
+        FilterType::Canny => {
             let matrix_a = [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]];
             let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
             let mut tmp = Canvas::new(src.width(), src.height());
             lum_filter(src, &mut tmp, &Kernel::new(matrix_a));
-            lum_filter(&tmp, dest, &Kernel::new(matrix_b));
+            lum_filter(&tmp as &dyn Screen, dest, &Kernel::new(matrix_b));
         }
-        "edges" => {
+        FilterType::Edges => {
             let matrix_a = [[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]];
             let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
             // ガウシアン
@@ -373,44 +432,44 @@ pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Res
             let mut tmp_a = Canvas::new(src.width(), src.height());
             let mut tmp_b = Canvas::new(src.width(), src.height());
             // SobelX
-            lum_filter(&tmp_gaussian, &mut tmp_a, &Kernel::new(matrix_a));
+            lum_filter(&tmp_gaussian as &dyn Screen, &mut tmp_a, &Kernel::new(matrix_a));
             // SobelY
-            lum_filter(&tmp_gaussian, &mut tmp_b, &Kernel::new(matrix_b));    
+            lum_filter(&tmp_gaussian as &dyn Screen, &mut tmp_b, &Kernel::new(matrix_b));    
             // combine
-            combine(&tmp_a, &tmp_b, dest);
+            combine(&tmp_a as &dyn Screen, &tmp_b as &dyn Screen, dest);
         }
-        "edgeX" => { // Sobel X
+        FilterType::EdgeX => { // Sobel X
             let matrix = [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "edgeY" => { // Sobel Y
+        FilterType::EdgeY => { // Sobel Y
             let matrix = [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "gaussian" => {
+        FilterType::Gaussian => {
             let matrix = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "laplacian" => {
+        FilterType::Laplacian => {
             let matrix = [[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "laplacian8" => {
+        FilterType::Laplacian8 => {
             let matrix = [[1.0, 1.0, 1.0], [1.0, -8.0, 1.0], [1.0, 1.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "emboss" => {
+        FilterType::Emboss => {
             let matrix = [[-2.0, -1.0, 0.0], [-1.0, 1.0, 1.0], [0.0, 1.0, 2.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "outline" => {
+        FilterType::Outline => {
             let matrix = [[-1.0, -1.0, -1.0], [-1.0, 8.0, -1.0], [-1.0, -1.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        "grayscale" => {
+        FilterType::Grayscale => {
             to_grayscale(src, dest, 0);
         }
-        &_ => {
+        FilterType::Unknown => {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Unknown filter",
