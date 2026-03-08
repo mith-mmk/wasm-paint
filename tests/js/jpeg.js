@@ -39,15 +39,27 @@ canvas.addEventListener('drop', (ev) => {
     ev.preventDefault();
     canvas.style.border = '';
     const files = ev.dataTransfer.files; 
-    if (!files[0].type.match(/image\/*/)) {
-      return;
-    }
+    console.log(files[0]);
+    //if (!files[0].type.match(/image\/*/)) {
+    //  return;
+    //}
     if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
 
     console.log("load start");
     console.time("reader");
     reader.readAsArrayBuffer(files[0]);
   }, false);
+
+const loadFile = document.getElementById('upload');
+loadFile.addEventListener('change', (ev) =>{
+  const files = loadFile.files;
+  if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
+  const file = files[0];
+  console.log("load start");
+  console.time("reader");
+  reader.readAsArrayBuffer(files[0]);
+});
+
 
 init().then((wasm) => {
     universe = new Universe(width,height);

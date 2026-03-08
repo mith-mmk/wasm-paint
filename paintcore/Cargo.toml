@@ -7,9 +7,8 @@ edition = "2021"
 [lib]
 
 
-[dependencies.wml2]
-git = "https://github.com/mith-mmk/wml2-on-rust"
-version = "0.0.11"
+[dependencies]
+wml2.workspace = true
 
 [definitions.fontloader]
 git = "https://github.com/mith-mmk/FontReader"
