@@ -33,8 +33,6 @@ const reader = new FileReader();
 reader.onloadend = (event) => {
   let buffer = new Uint8Array(reader.result);
   universe.clear(0x000000);
-  universe.image
-
   universe.imageLoader(buffer,1); 
   universe.drawCanvas(width,height);
   filter();
@@ -48,18 +46,44 @@ canvas.addEventListener('dragover', (ev) => {
   }, false);
 
 canvas.addEventListener('drop', (ev) => {
-    ev.stopPropagation();
-    ev.preventDefault();
-    canvas.style.border = '';
-    const files = ev.dataTransfer.files; 
-    if (!files[0].type.match(/image\/*/)) {
-      return;
-    }
-    if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
+  ev.stopPropagation();
+  ev.preventDefault();
+  canvas.style.border = '';
+  const files = ev.dataTransfer.files; 
+  if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
 
-    console.log("load start");
+  console.log("load start");
+  reader.readAsArrayBuffer(files[0]);
+}, false);
+
+const loadFile = document.getElementById('upload');
+loadFile.addEventListener('change', (ev) =>{
+  const files = loadFile.files;
+  if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
+  console.log("load start");
+  console.time("reader");
     reader.readAsArrayBuffer(files[0]);
-  }, false);
+});
+
+
+const save = document.getElementById('saver');
+save.addEventListener('click', (ev) => {
+  const data = universe.imageEncoderSelectCanvas(1, 0);
+  if (!(data instanceof Uint8Array) || data.length <= 1) {
+    alert('保存データの作成に失敗しました');
+    return;
+  }
+
+  const blob = new Blob([data], { type: 'image/jpeg' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'filter-output.jpg';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+});
 
 init().then((wasm) => {
     universe = new Universe(width,height);

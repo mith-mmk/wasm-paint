@@ -54,7 +54,6 @@ const loadFile = document.getElementById('upload');
 loadFile.addEventListener('change', (ev) =>{
   const files = loadFile.files;
   if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
-  const file = files[0];
   console.log("load start");
   console.time("reader");
   reader.readAsArrayBuffer(files[0]);

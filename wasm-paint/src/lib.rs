@@ -803,6 +803,7 @@ impl Universe {
         }
     }
 
+
     #[wasm_bindgen(js_name = nextFrame)]
     pub fn next_frame(&mut self) -> f32 {
         let r = self.canvas.set_next(self.canvas.current());
@@ -817,6 +818,14 @@ impl Universe {
     pub fn image_decoder(&mut self, buffer: &[u8], verbose: usize) {
         self.image_decoder_select_canvas(buffer, verbose, 0);
     }
+
+
+    #[wasm_bindgen(js_name = imageEncoder)]
+    pub fn image_encoder(&mut self, verbose: usize) -> Vec<u8> {
+        self.image_encoder_select_canvas(0, verbose)
+    }
+
+
 
     #[wasm_bindgen(js_name = jpegDecoder)]
     pub fn jpeg_decoder(&mut self, buffer: &[u8], verbose: usize) {
@@ -875,6 +884,56 @@ impl Universe {
             }
         }
     }
+
+    #[wasm_bindgen(js_name = imageEncoderSelectCanvas)]
+    pub fn image_encoder_select_canvas(&mut self, number: usize, verbose: usize) -> Vec<u8> {
+        if number > self.append_canvas.len() {
+            return vec![0];
+        }
+
+        let worker = self.on_worker;
+        if !worker {
+            let _ = flush_log();
+            let _ = &self.canvas.set_verbose(write_log);
+        }
+
+        if number == 0 {
+            self.canvas.combine();
+            let width = self.canvas.width() as usize;
+            let height = self.canvas.height() as usize;
+            let mut image = ImageBuffer::from_buffer(width, height, self.canvas.buffer().to_vec());
+            let mut option = EncodeOptions {
+                debug_flag: verbose,
+                drawer: &mut image,
+                options: None,
+            };
+            match image_encoder(&mut option, wml2::util::ImageFormat::Jpeg) {
+                Ok(buffer) => buffer,
+                Err(error) => {
+                    log(&format!("{:?}", error));
+                    vec![0]
+                }
+            }
+        } else {
+            let canvas = self.append_canvas[number - 1].write().unwrap();
+            let width = canvas.width() as usize;
+            let height = canvas.height() as usize;
+            let mut image = ImageBuffer::from_buffer(width, height, canvas.buffer().to_vec());
+            let mut option = EncodeOptions {
+                debug_flag: verbose,
+                drawer: &mut image,
+                options: None,
+            };
+            match image_encoder(&mut option, wml2::util::ImageFormat::Jpeg) {
+                Ok(buffer) => buffer,
+                Err(error) => {
+                    log(&format!("{:?}", error));
+                    vec![0]
+                }
+            }
+        }
+    }
+
 
     /// Javascript bindCanvas() is bind rust canvas and Web Canvas.
     /// This function cannnot run on web worker.
