@@ -63,7 +63,7 @@ impl AnimationLayer {
     }
 
     pub fn set_frame_no(&mut self, no: usize) -> usize {
-        if self.layers.len() >= no {
+        if no >= self.layers.len() {
             self.frame_no = 0;
         } else {
             self.frame_no = no;
@@ -130,6 +130,10 @@ impl AnimationLayer {
         let layers = &mut self.layers;
         if layers.len() == 1 {
             return &mut layers[0];
+        }
+
+        if self.layer.width() != layers[0].width() || self.layer.height() != layers[0].height() {
+            self.layer.reinit(layers[0].width(), layers[0].height());
         }
 
         clear_layter(&mut self.layer);
@@ -277,6 +281,18 @@ impl PackedLayers {
             layer.set_frame_no(no)
         } else {
             0
+        }
+    }
+
+    fn reset(&mut self, label: String) -> Result<(), Error> {
+        match self.layers.get_mut(&label) {
+            Some(layer) => {
+                layer.reset();
+                Ok(())
+            }
+            _ => Err(Box::new(crate::error::Error {
+                message: "No exist Layer name".to_string(),
+            })),
         }
     }
 
@@ -809,6 +825,13 @@ impl DrawCallback for Canvas {
             )));
         }
 
+        if self.width() == 0 || self.height() == 0 {
+            let buffersize = width * height * 4;
+            self.canvas.width = width as u32;
+            self.canvas.height = height as u32;
+            self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
+        }
+
         if let Some(option) = opt {
             self.loop_count = Some(option.loop_count);
             self.frame_no = 0;
@@ -823,13 +846,6 @@ impl DrawCallback for Canvas {
             self.loop_count = Some(0);
             self.frame_no = 0;
             self.is_animation = false;
-        }
-
-        if self.width() == 0 || self.height() == 0 {
-            let buffersize = width * height * 4;
-            self.canvas.width = width as u32;
-            self.canvas.height = height as u32;
-            self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
         }
 
         match &self.current_layer.clone() {
@@ -918,6 +934,9 @@ impl DrawCallback for Canvas {
         _: Option<TerminateOptions>,
     ) -> Result<Option<CallbackResponse>, Error> {
         self.frame_no = 0;
+        if let Some(label) = &self.current_layer {
+            self.layers.reset(label.to_string())?;
+        }
         Ok(None)
     }
 
@@ -979,5 +998,106 @@ impl DrawCallback for Canvas {
         hashmap.insert(key.to_string(), value);
 
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wml2::draw::{image_loader, DecodeOptions};
+
+    const BIRD_WINGS_GIF: &[u8] =
+        include_bytes!("../../tests/sample/anination.gif");
+
+    fn new_main_canvas(width: u32, height: u32) -> Canvas {
+        let mut canvas = Canvas::new(width, height);
+        canvas.add_layer("main".to_string(), width, height, 0, 0).unwrap();
+        canvas.set_current("main".to_string());
+        canvas
+    }
+
+    fn decode_into(canvas: &mut Canvas) {
+        let mut options = DecodeOptions {
+            debug_flag: 0,
+            drawer: canvas,
+        };
+        image_loader(BIRD_WINGS_GIF, &mut options).unwrap();
+        canvas.combine();
+    }
+
+    fn has_non_uniform_pixels(buffer: &[u8]) -> bool {
+        let mut pixels = buffer.chunks_exact(4);
+        let Some(first) = pixels.next() else {
+            return false;
+        };
+        pixels.any(|pixel| pixel != first)
+    }
+
+    #[test]
+    fn terminate_resets_animation_to_first_frame() {
+        let mut canvas = Canvas::new(2, 2);
+        canvas.add_layer("main".to_string(), 2, 2, 0, 0).unwrap();
+        canvas.set_current("main".to_string());
+        canvas.add_frame("main".to_string(), 2, 2, 0, 0).unwrap();
+
+        {
+            let layer = canvas.layers.layers.get_mut("main").unwrap();
+            layer.set_frame_no(1);
+            layer.layers[0].set_disable();
+            layer.layers[1].set_enable();
+        }
+
+        canvas.terminate(None).unwrap();
+
+        let layer = canvas.layers.layers.get_mut("main").unwrap();
+        assert_eq!(layer.frame_no, 0);
+        assert!(layer.layers[0].enable());
+        assert!(!layer.layers[1].enable());
+    }
+
+    #[test]
+    fn zero_size_gif_decode_populates_canvas_and_visible_pixels() {
+        let mut canvas = new_main_canvas(0, 0);
+
+        decode_into(&mut canvas);
+
+        assert!(canvas.is_animation());
+        assert!(canvas.width() > 0);
+        assert!(canvas.height() > 0);
+        assert!(has_non_uniform_pixels(canvas.buffer()));
+    }
+
+    #[test]
+    fn zero_size_and_fixed_size_gif_start_match() {
+        let mut zero = new_main_canvas(0, 0);
+
+        decode_into(&mut zero);
+
+        let mut fixed = new_main_canvas(zero.width(), zero.height());
+        decode_into(&mut fixed);
+
+        assert_eq!(zero.width(), fixed.width());
+        assert_eq!(zero.height(), fixed.height());
+        assert_eq!(zero.buffer(), fixed.buffer());
+    }
+
+    #[test]
+    fn zero_size_gif_next_frame_changes_composited_pixels() {
+        let mut canvas = new_main_canvas(0, 0);
+
+        decode_into(&mut canvas);
+        let first = canvas.buffer().to_vec();
+        let mut changed = false;
+
+        for _ in 0..8 {
+            canvas.set_next("main".to_string()).unwrap();
+            canvas.combine();
+            if canvas.buffer() != first {
+                changed = true;
+                break;
+            }
+        }
+
+        assert!(changed);
     }
 }

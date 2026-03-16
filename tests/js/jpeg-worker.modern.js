@@ -135,15 +135,12 @@ async function decodeAndRender(buffer) {
   const startedAt = performance.now();
 
   universe = new Universe(0, 0);
-  const result = universe.imageDecoder(buffer, 0);
+  universe.imageDecoder(buffer, 0);
   imageWidth = universe.getWidth();
   imageHeight = universe.getHeight();
 
-  console.log(result);
-
-  updateQuad();
-  uploadTexture(readPixels());
-  render();
+  syncFrameToTexture();
+  start_draw();
 
   self.postMessage({
     type: 'decoded',
@@ -199,6 +196,15 @@ function resizeSurface(width, height, devicePixelRatio) {
   surfaceHeight = height;
   canvas.width = Math.max(1, Math.floor(width * devicePixelRatio));
   canvas.height = Math.max(1, Math.floor(height * devicePixelRatio));
+}
+
+function syncFrameToTexture() {
+  universe.combine();
+  imageWidth = universe.getWidth();
+  imageHeight = universe.getHeight();
+  updateQuad();
+  uploadTexture(readPixels());
+  render();
 }
 
 function setupGl() {
@@ -342,4 +348,20 @@ function compileShader(gl, type, source) {
   }
 
   return shader;
+}
+
+function start_draw() {
+  if (universe.isAnimation()) {
+    setTimeout(function(){draw();},120/1000);
+  }
+}
+
+
+function draw() {
+  let wait = universe.nextFrame();
+  syncFrameToTexture();
+  if (wait <= 10) {wait = 0.1}
+  if (universe.isAnimation()) {
+    setTimeout(function(){draw();},wait*1000);
+  }
 }

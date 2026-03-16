@@ -819,6 +819,7 @@ impl Universe {
     #[wasm_bindgen(js_name = imageDecoder)]
     pub fn image_decoder(&mut self, buffer: &[u8], verbose: usize) {
         self.image_decoder_select_canvas(buffer, verbose, 0);
+        self.combine();
     }
 
 
@@ -885,6 +886,7 @@ impl Universe {
                 }
             }
         }
+
     }
 
     #[wasm_bindgen(js_name = imageEncoderSelectCanvas)]
@@ -1100,5 +1102,4 @@ impl Universe {
         }
     }
 }
-
 
