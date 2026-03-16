@@ -1,6 +1,6 @@
 self.postMessage({ type: 'test' });
 
-import init, {UniverseFast} from '../../wasm-paint/pkg/paint.js';
+import init, {Universe} from '../../wasm-paint/pkg/paint.js';
 
 let wasmReadyPromise = null;
 let universe = null;
@@ -38,8 +38,8 @@ self.onmessage = async (event) => {
       case 'clear':
         ensureUniverse();
         universe.clear();
-        imageWidth = universe.width();
-        imageHeight = universe.height();
+        imageWidth = universe.getWidth();
+        imageHeight = universe.getHeight();
         uploadTexture(readPixels());
         render();
         self.postMessage({ type: 'cleared' });
@@ -98,12 +98,12 @@ async function initialize(offscreenCanvas, width, height, devicePixelRatio) {
   await ensureWasmReady();
   setupGl();
 
-  universe = new UniverseFast(Math.max(1, width), Math.max(1, height));
+  universe = new Universe(Math.max(1, width), Math.max(1, height));
   if(!universe) {
     throw new Error('Undefine UniverseFast');
   }
-  imageWidth = universe.width();
-  imageHeight = universe.height();
+  imageWidth = universe.getWidth();
+  imageHeight = universe.getHeight();
 
   resizeSurface(width, height, devicePixelRatio);
   uploadTexture(readPixels());
@@ -127,14 +127,13 @@ async function decodeAndRender(buffer) {
   ensureUniverse();
 
   const startedAt = performance.now();
-  const ok = universe.decode(buffer);
+  universe.clear();
+  const result = universe.imageLoader(buffer, 2);
 
-  if (!ok) {
-    throw new Error('image decode failed');
-  }
+  console.log(result)
 
-  imageWidth = universe.width();
-  imageHeight = universe.height();
+  imageWidth = universe.getWidth();
+  imageHeight = universe.getHeight();
 
   uploadTexture(readPixels());
   render();
@@ -149,9 +148,10 @@ async function decodeAndRender(buffer) {
 
 function readPixels() {
   ensureUniverse();
-
-  const ptr = universe.ptr();
-  const len = universe.len();
+  const ptr = universe.getBuffer();
+  const width = universe.getWidth();
+  const height = universe.getHeight();
+  const len = width * height * 4;
   return new Uint8Array(wasm.memory.buffer, ptr, len);
 }
 
