@@ -12,6 +12,8 @@ use web_sys::CanvasRenderingContext2d;
 use web_sys::HtmlElement;
 use web_sys::ImageData;
 use wml2::draw::*;
+pub mod wasm_fast;
+pub use wasm_fast::UniverseFast;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -1098,3 +1100,5 @@ impl Universe {
         }
     }
 }
+
+

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WASM サンプル</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #111;
+      color: #eee;
+    }
+    main {
+      padding: 16px;
+    }
+    canvas {
+      width: min(1024px, calc(100vw - 32px));
+      height: min(768px, calc(100vh - 140px));
+      border: 1px solid #666;
+      background: #000;
+      display: block;
+    }
+    #wasm_verbose {
+      margin-top: 12px;
+      min-height: 1.5em;
+      color: #9fd3ff;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>JPEG Decoder</h1>
+    <p>枠内に画像をドラッグ＆ドロップしてください。</p>
+    <canvas id="canvas" width="1024" height="768"></canvas>
+    <div id="wasm_verbose">initializing...</div>
+  </main>
+  <script type="module" src="./js/jpeg.modern.js"></script>
+</body>
+</html>

@@ -1,11 +1,33 @@
+import init, * as wasm from  "../../wasm-paint/pkg/paint.js"
+
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+let universe;
+let width = 1024;
+let height =1024;
+let drawed = true;
+canvas.width = width;
+canvas.height = height;
+const reader = new FileReader();
 
-const width = canvas.width;
-const height = canvas.height;
-const PixelWorker = new Worker('js/jpeg-worker.js', { type: 'module' })
+reader.onload = (event) => {
+  console.timeEnd("reader");
+  console.time("buffer");
+  let buffer = new Uint8Array(reader.result);
+  universe.clear(0x000000);
+  console.timeEnd("buffer");
 
+  console.time("decode");
+//  start_draw();
+  universe.jpegDecoder(buffer,0xf9); 
+  console.timeEnd("decode");
+  start_draw();
+//  drawed = true;
+//  universe.drawCanvas(width,height);
 
+//  img = new ImageData(buf, universe.width(), universe.height());
+//  ctx.putImageData(img, 0, 0);
+};
 // Drag and Drop
 canvas.addEventListener('dragover', (ev) => {
     ev.stopPropagation();
@@ -18,73 +40,63 @@ canvas.addEventListener('drop', (ev) => {
     ev.preventDefault();
     canvas.style.border = '';
     const files = ev.dataTransfer.files; 
-    if (!files[0].type.match(/image\/*/)) {
-      return;
-    }
+    console.log(files[0]);
+    //if (!files[0].type.match(/image\/*/)) {
+    //  return;
+    //}
     if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
 
-    PixelWorker.postMessage({command: 'loadFile',url: files[0]});
-
+    console.log("load start");
+    console.time("reader");
+    reader.readAsArrayBuffer(files[0]);
   }, false);
 
+const loadFile = document.getElementById('upload');
+loadFile.addEventListener('change', (ev) =>{
+  const files = loadFile.files;
+  if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
+  console.log("load start");
+  console.time("reader");
+  reader.readAsArrayBuffer(files[0]);
+});
 
-if (window.Worker) {
-  workerInit();  
-} else {
-  alert("Worker is not support.")
+
+init().then((wasm) => {
+    console.log(wasm);
+    universe = new UniverseFast(width,height);
+    universe.bindCanvas("canvas");
+    universe.clear(0x000000);
+    universe.drawCanvas(width,height);
+    
+    fetch('./sample/sample01.jpg')
+      .then(res => res.blob())
+      .then(blob => blob.arrayBuffer())
+      .then(arraybuffer => {
+        let buffer = new Uint8Array(arraybuffer);      
+        universe.jpegDecoder(buffer,0xf9);
+        start_draw();
+//        universe.drawCanvas(width,height);
+      });
+
+});
+
+
+
+function start_draw() {
+  universe.drawCanvas(width,height);
+  console.log(universe.isAnimation());
+  if (universe.isAnimation()) {
+    setTimeout(function(){draw();},120/1000);
+  }
 }
 
 
-
-
-function workerInit() {
-  let img;
-  PixelWorker.postMessage({command: 'init',width: width,height: height});
-
-  PixelWorker.onmessage = (ev) => {
-    const data = ev.data;
-    if(data.message == null)return;
-    switch (data.message) {
-      case 'init':
-        img = data.image;
-        PixelWorker.postMessage({command: 'loadUrl',url: '../sample/sample01.jpg'});
-      break;
-      case 'loadstart':
-        start_draw();
-      break;
-      case 'loadend':
-        PixelWorker.postMessage({command: 'get'});
-        end_draw();
-      break;
-      case 'get':
-        img = data.image;
-        if (img != null) ctx.putImageData(img, 0, 0);
-        break;
-      default:
-        break;
+function draw() {
+    universe.drawCanvas(width,height);
+    let wait = universe.nextFrame();
+    if (wait <= 10) {wait = 0.1}
+    console.log(wait)
+    if (universe.isAnimation()) {
+      setTimeout(function(){draw();},wait*1000);
     }
-  }
-
-  let drawed = true;
-  function start_draw() {
-    drawed = false;
-    setTimeout(function(){draw();},1000/120);
-  }
-
-  function end_draw() {
-    drawed = true;
-  }
-  
-  let count = 1; 
-
-  function draw() {
-    if(img == null) return;
-    ctx.putImageData(img, 0, 0);
-    if(!drawed) {
-      setTimeout(function(){draw();},1000 / 120);
-
-    } else {
-      count = 1;
-    }
-  }
 }
