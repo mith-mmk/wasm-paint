@@ -92,9 +92,9 @@ function start_draw() {
 function draw() {
     universe.drawCanvas(width,height);
     let wait = universe.nextFrame();
-    if (wait <= 10) {wait = 0.1}
+    if (wait <= 10) {wait = 100}
     console.log(wait)
     if (universe.isAnimation()) {
-      setTimeout(function(){draw();},wait*1000);
+      setTimeout(function(){draw();},wait);
     }
 }
