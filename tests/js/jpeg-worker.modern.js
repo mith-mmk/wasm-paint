@@ -1,6 +1,6 @@
 self.postMessage({ type: 'test' });
 
-import init, {Universe} from '../../wasm-paint/pkg/paint.js';
+import init, { Universe } from '../../wasm-paint/pkg/paint.js';
 
 let wasmReadyPromise = null;
 let universe = null;
@@ -14,7 +14,7 @@ let surfaceHeight = 0;
 let imageWidth = 0;
 let imageHeight = 0;
 let wasm;
-
+let quadBuffer = null;
 
 self.onmessage = async (event) => {
   const data = event.data;
@@ -23,15 +23,22 @@ self.onmessage = async (event) => {
     switch (data.type) {
       case 'test':
         break;
+
       case 'init':
-        console.log("canvas", data.canvas);
+        console.log('canvas', data.canvas);
         wasm = await init();
-        await initialize(data.canvas, data.width, data.height, data.devicePixelRatio ?? 1);
+        await initialize(
+          data.canvas,
+          data.width,
+          data.height,
+          data.devicePixelRatio ?? 1
+        );
         self.postMessage({ type: 'ready' });
         break;
 
       case 'resize':
         resizeSurface(data.width, data.height, data.devicePixelRatio ?? 1);
+        updateQuad();
         render();
         break;
 
@@ -40,6 +47,7 @@ self.onmessage = async (event) => {
         universe.clear();
         imageWidth = universe.getWidth();
         imageHeight = universe.getHeight();
+        updateQuad();
         uploadTexture(readPixels());
         render();
         self.postMessage({ type: 'cleared' });
@@ -99,13 +107,11 @@ async function initialize(offscreenCanvas, width, height, devicePixelRatio) {
   setupGl();
 
   universe = new Universe(Math.max(1, width), Math.max(1, height));
-  if(!universe) {
-    throw new Error('Undefine UniverseFast');
-  }
   imageWidth = universe.getWidth();
   imageHeight = universe.getHeight();
 
   resizeSurface(width, height, devicePixelRatio);
+  updateQuad();
   uploadTexture(readPixels());
   render();
 }
@@ -119,7 +125,7 @@ async function ensureWasmReady() {
 
 function ensureUniverse() {
   if (!universe) {
-    throw new Error('UniverseFast is not initialized');
+    throw new Error('Universe is not initialized');
   }
 }
 
@@ -127,14 +133,15 @@ async function decodeAndRender(buffer) {
   ensureUniverse();
 
   const startedAt = performance.now();
-  universe.clear();
-  const result = universe.imageLoader(buffer, 2);
 
-  console.log(result)
-
+  universe = new Universe(0, 0);
+  const result = universe.imageDecoder(buffer, 0);
   imageWidth = universe.getWidth();
   imageHeight = universe.getHeight();
 
+  console.log(result);
+
+  updateQuad();
   uploadTexture(readPixels());
   render();
 
@@ -144,6 +151,38 @@ async function decodeAndRender(buffer) {
     height: imageHeight,
     decodeMs: performance.now() - startedAt,
   });
+}
+
+function updateQuad() {
+  if (!gl || !quadBuffer || !canvas) {
+    return;
+  }
+
+  const safeImageWidth = Math.max(1, imageWidth);
+  const safeImageHeight = Math.max(1, imageHeight);
+  const safeCanvasWidth = Math.max(1, canvas.width);
+  const safeCanvasHeight = Math.max(1, canvas.height);
+
+  const scale = Math.min(
+    safeCanvasWidth / safeImageWidth,
+    safeCanvasHeight / safeImageHeight
+  );
+
+  const sx = (safeImageWidth * scale) / safeCanvasWidth;
+  const sy = (safeImageHeight * scale) / safeCanvasHeight;
+
+  const vertices = new Float32Array([
+    -sx, -sy,
+     sx, -sy,
+    -sx,  sy,
+
+    -sx,  sy,
+     sx, -sy,
+     sx,  sy,
+  ]);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
 }
 
 function readPixels() {
@@ -165,16 +204,15 @@ function resizeSurface(width, height, devicePixelRatio) {
 function setupGl() {
   const vertexSource = `#version 300 es
     precision mediump float;
-    const vec2 positions[3] = vec2[3](
-      vec2(-1.0, -1.0),
-      vec2( 3.0, -1.0),
-      vec2(-1.0,  3.0)
-    );
+    in vec2 aPos;
     out vec2 vUv;
+
     void main() {
-      vec2 position = positions[gl_VertexID];
-      vUv = position * 0.5 + 0.5;
-      gl_Position = vec4(position, 0.0, 1.0);
+      gl_Position = vec4(aPos, 0.0, 1.0);
+      vUv = vec2(
+        (aPos.x + 1.0) * 0.5,
+        (aPos.y + 1.0) * 0.5
+      );
     }
   `;
 
@@ -183,6 +221,7 @@ function setupGl() {
     uniform sampler2D uTexture;
     in vec2 vUv;
     out vec4 outColor;
+
     void main() {
       outColor = texture(uTexture, vec2(vUv.x, 1.0 - vUv.y));
     }
@@ -191,8 +230,10 @@ function setupGl() {
   program = createProgram(gl, vertexSource, fragmentSource);
   vao = gl.createVertexArray();
   texture = gl.createTexture();
+  quadBuffer = gl.createBuffer();
 
   gl.bindVertexArray(vao);
+
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -203,6 +244,39 @@ function setupGl() {
   gl.useProgram(program);
   const uniformLocation = gl.getUniformLocation(program, 'uTexture');
   gl.uniform1i(uniformLocation, 0);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+      -1, -1,
+       1, -1,
+      -1,  1,
+
+      -1,  1,
+       1, -1,
+       1,  1,
+    ]),
+    gl.DYNAMIC_DRAW
+  );
+
+  const loc = gl.getAttribLocation(program, 'aPos');
+  if (loc < 0) {
+    throw new Error('attribute aPos not found');
+  }
+
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(
+    loc,
+    2,
+    gl.FLOAT,
+    false,
+    0,
+    0
+  );
+
+  gl.bindVertexArray(null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
 
 function uploadTexture(pixels) {
@@ -218,21 +292,20 @@ function uploadTexture(pixels) {
     0,
     gl.RGBA,
     gl.UNSIGNED_BYTE,
-    pixels,
+    pixels
   );
 }
 
 function render() {
-  if (!gl || !program || !vao || !texture) {
-    return;
-  }
-
   gl.viewport(0, 0, canvas.width, canvas.height);
+
   gl.clearColor(0, 0, 0, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
+
   gl.useProgram(program);
   gl.bindVertexArray(vao);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.bindVertexArray(null);
 }
 
 function createProgram(gl, vertexSource, fragmentSource) {
