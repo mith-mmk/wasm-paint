@@ -81,6 +81,18 @@ canvas.addEventListener('drop', (event) => {
   worker.postMessage({ type: 'decode-file', file });
 });
 
+const loadFile = document.getElementById('upload');
+loadFile.addEventListener('change', (ev) =>{
+  const files = loadFile.files;
+  if (files.length > 1) return alert('Illigal Operation.Multi Files Select.');
+  console.log("load start");
+  console.time("reader");
+  const file = files?.[0];
+  worker.postMessage({ type: 'decode-file', file });
+});
+
+
+
 function setStatus(message) {
   verbose.textContent = message;
 }
