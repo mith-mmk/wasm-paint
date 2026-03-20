@@ -1,17 +1,5 @@
 //! Affine trasration
 //!
-//! usage
-//!
-//! ```
-//! paint::paint::affine;
-//!
-//! let affine = Affine::new();
-//! let affine.translation(20,20); //  x +20 ,y +20
-//! let affine.invertXY(); // reverse up-down and right-left
-//! let affine.scale(3.0,3.0); // image scale x 3.0
-//! affineconversion(input_screen,output_screen,InterpolationAlgorithm::Bilinear);  // conversion with Bilinear algorithm
-//! ```
-//!
 /*
  * affine.rs  Mith@mmk (C) 2022
  * create 2022/03/13

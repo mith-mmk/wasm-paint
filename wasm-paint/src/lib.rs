@@ -4,16 +4,15 @@ type Error = Box<dyn std::error::Error>;
 
 use paintcore::{path, prelude::*};
 use std::sync::{Arc, RwLock};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 use web_sys::HtmlElement;
 use web_sys::ImageData;
 use wml2::draw::*;
-pub mod wasm_fast;
-pub use wasm_fast::UniverseFast;
+
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -214,11 +213,7 @@ impl Universe {
     pub fn layer_alpha(&mut self, label: String) -> u8 {
         let r = self.canvas.get_layer_alpha(label);
         if let Ok(alpha) = r {
-            if let Some(alpha) = alpha {
-                alpha
-            } else {
-                0xff
-            }
+            if let Some(alpha) = alpha { alpha } else { 0xff }
         } else {
             0
         }
@@ -232,11 +227,7 @@ impl Universe {
     #[wasm_bindgen(js_name = getEnable)]
     pub fn enable(&self, label: String) -> bool {
         let r = self.canvas.enable(label);
-        if let Ok(enable) = r {
-            enable
-        } else {
-            false
-        }
+        if let Ok(enable) = r { enable } else { false }
     }
 
     #[wasm_bindgen(js_name = setCurrentLayer)]
@@ -327,16 +318,16 @@ impl Universe {
 
     #[wasm_bindgen(js_name = getBuffer)]
     pub fn output_buffer(&mut self) -> *const u8 {
-        self.canvas.canvas()
+        self.canvas.as_ptr()
     }
 
     #[wasm_bindgen(js_name = getBufferSelectCanvas)]
     pub fn buffer_with_number(&mut self, number: usize) -> *const u8 {
         if number == 0 {
-            return self.canvas.canvas();
+            return self.canvas.as_ptr()
         };
         let canvas = &*self.append_canvas[number - 1].write().unwrap();
-        canvas.canvas()
+        canvas.as_ptr()
     }
 
     #[wasm_bindgen(js_name = addLayer)]
@@ -674,7 +665,6 @@ impl Universe {
         }
     }
 
-
     #[wasm_bindgen(js_name = affineTest2)]
     pub fn affine_test2(
         &mut self,
@@ -805,7 +795,6 @@ impl Universe {
         }
     }
 
-
     #[wasm_bindgen(js_name = nextFrame)]
     pub fn next_frame(&mut self) -> f32 {
         let r = self.canvas.set_next(self.canvas.current());
@@ -822,13 +811,10 @@ impl Universe {
         self.combine();
     }
 
-
     #[wasm_bindgen(js_name = imageEncoder)]
     pub fn image_encoder(&mut self, verbose: usize) -> Vec<u8> {
         self.image_encoder_select_canvas(0, verbose)
     }
-
-
 
     #[wasm_bindgen(js_name = jpegDecoder)]
     pub fn jpeg_decoder(&mut self, buffer: &[u8], verbose: usize) {
@@ -886,7 +872,6 @@ impl Universe {
                 }
             }
         }
-
     }
 
     #[wasm_bindgen(js_name = imageEncoderSelectCanvas)]
@@ -937,7 +922,6 @@ impl Universe {
             }
         }
     }
-
 
     /// Javascript bindCanvas() is bind rust canvas and Web Canvas.
     /// This function cannnot run on web worker.
@@ -1102,4 +1086,3 @@ impl Universe {
         }
     }
 }
-

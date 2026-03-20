@@ -54,7 +54,6 @@ impl From<&str> for FilterType {
     }
 }
 
-
 pub struct Kernel {
     pub width: usize,
     pub height: usize,
@@ -88,7 +87,7 @@ fn rgb_to_y(r: u8, g: u8, b: u8) -> f32 {
     let r = r as f32;
     let g = g as f32;
     let b = b as f32;
-    
+
     0.29900 * r + 0.58700 * g + 0.11400 * b
 }
 
@@ -297,7 +296,7 @@ pub fn copy_to(src: &dyn Screen, dest: &mut dyn Screen) {
     }
 }
 
-pub fn combine(src1 : &dyn Screen, src2: &dyn Screen, dest: &mut dyn Screen) {
+pub fn combine(src1: &dyn Screen, src2: &dyn Screen, dest: &mut dyn Screen) {
     // √(src1^2 + src2^2) arctan (src2/src1)
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src1.width(), src1.height());
@@ -384,12 +383,10 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) {
     }
 }
 
-
 pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
     let filter_type = FilterType::from(filter_name);
-    _filter(src, dest, filter_type)    
+    _filter(src, dest, filter_type)
 }
-
 
 fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType) -> Result<(), Error> {
     match filter_type {
@@ -428,21 +425,35 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType) -> 
             let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
             // ガウシアン
             let mut tmp_gaussian = Canvas::new(src.width(), src.height());
-            lum_filter(src, &mut tmp_gaussian, &Kernel::new([[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]]));
+            lum_filter(
+                src,
+                &mut tmp_gaussian,
+                &Kernel::new([[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]]),
+            );
             let mut tmp_a = Canvas::new(src.width(), src.height());
             let mut tmp_b = Canvas::new(src.width(), src.height());
             // SobelX
-            lum_filter(&tmp_gaussian as &dyn Screen, &mut tmp_a, &Kernel::new(matrix_a));
+            lum_filter(
+                &tmp_gaussian as &dyn Screen,
+                &mut tmp_a,
+                &Kernel::new(matrix_a),
+            );
             // SobelY
-            lum_filter(&tmp_gaussian as &dyn Screen, &mut tmp_b, &Kernel::new(matrix_b));    
+            lum_filter(
+                &tmp_gaussian as &dyn Screen,
+                &mut tmp_b,
+                &Kernel::new(matrix_b),
+            );
             // combine
             combine(&tmp_a as &dyn Screen, &tmp_b as &dyn Screen, dest);
         }
-        FilterType::EdgeX => { // Sobel X
+        FilterType::EdgeX => {
+            // Sobel X
             let matrix = [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
-        FilterType::EdgeY => { // Sobel Y
+        FilterType::EdgeY => {
+            // Sobel Y
             let matrix = [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix));
         }
@@ -491,7 +502,11 @@ Emboss	[[-2,-1,0],[-1,1,1],[0,1,2]]	浮き出し効果
 Outline	[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]	輪郭のみ抽出
  */
 
- pub fn filters(src: &dyn Screen, dest: &mut dyn Screen, filter_names: Vec<String>) -> Result<(), Error> {
+pub fn filters(
+    src: &dyn Screen,
+    dest: &mut dyn Screen,
+    filter_names: Vec<String>,
+) -> Result<(), Error> {
     let mut intermediate_src = Canvas::new(src.width(), src.height());
     let mut intermediate_dest = Canvas::new(src.width(), src.height());
     copy_to(src, &mut intermediate_src);

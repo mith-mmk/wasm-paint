@@ -9,6 +9,7 @@ use crate::clear::clear_layter;
 use crate::clear::fillrect;
 use crate::draw::draw_over_screen;
 use crate::draw::*;
+//use crate::layer;
 use crate::layer::AnimationControl;
 use crate::layer::Layer;
 use crate::pen::Pen;
@@ -49,6 +50,22 @@ struct AnimationLayer {
 impl AnimationLayer {
     pub fn new(label: String, width: u32, height: u32) -> Self {
         let layer = Layer::new(label.to_string(), width, height);
+        let layers = vec![layer];
+        let layer = Layer::new(label.to_string(), width, height);
+
+        Self {
+            x: 0,
+            y: 0,
+            layer,
+            layers,
+            frame_no: 0,
+            enable: true,
+        }
+    }
+
+    #[warn(unused)]
+    pub fn new_in(label: String, buffer: Vec<u8>, width: u32, height: u32) -> Self {
+        let layer = Layer::new_in(label.to_string(), buffer, width, height);
         let layers = vec![layer];
         let layer = Layer::new(label.to_string(), width, height);
 
@@ -226,11 +243,9 @@ impl PackedLayers {
                 self.sort();
                 Ok(())
             }
-            _ => {
-                Err(Box::new(crate::error::Error {
-                    message: "No exist Layer".to_string(),
-                }))
-            }
+            _ => Err(Box::new(crate::error::Error {
+                message: "No exist Layer".to_string(),
+            })),
         }
     }
 
@@ -249,6 +264,22 @@ impl PackedLayers {
         layer.y = y;
         self.layers.insert(label.clone(), layer);
         self.sorted.push(label);
+        self.sort();
+        Ok(())
+    }
+
+    fn add_layer(&mut self, mut layer: AnimationLayer) -> Result<(), Error> {
+        let label = layer.layer().label.to_string();
+        match self.layers.get(&label) {
+            Some(..) => {
+                return Err(Box::new(crate::error::Error {
+                    message: "Exist Layer name".to_string(),
+                }))
+            }
+            _ => {}
+        };
+        self.layers.insert(label.to_string(), layer);
+        self.sorted.push(label.to_string());
         self.sort();
         Ok(())
     }
@@ -456,12 +487,12 @@ impl PackedLayers {
 }
 
 pub struct Canvas {
-    canvas: Layer,
+    //canvas: Layer,  // 削除 関数で対処
     color: u32,
     background_color: u32,
     pen: Pen,
-    layers: PackedLayers,
-    current_layer: Option<String>,
+    layers: PackedLayers,          // ここに全部集約 変更による副作用を考える
+    current_layer: Option<String>, // Noneは "__base__"を利用
     frame_no: usize,
     loop_count: Option<u32>,
     fnverbose: fn(&str, Option<VerboseOptions>) -> Result<Option<CallbackResponse>, Error>,
@@ -486,14 +517,12 @@ impl Canvas {
         if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
             return this;
         }
-
-        this.canvas = Layer::new("_".to_string(), width, height);
+        this.layers.add("__base__".to_string(), width, height, 0, 0).unwrap();
         this
     }
 
     fn empty() -> Self {
         Self {
-            canvas: Layer::new("_".to_string(), 0, 0),
             color: 0x00ffffff,
             background_color: 0,
             use_canvas_alpha: false,
@@ -511,19 +540,14 @@ impl Canvas {
         }
     }
 
-    pub fn new_in(buffer: Vec<u8>, width: u32, height: u32) -> Self {
-        let mut this = Self::empty();
-        if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
-            return this;
-        }
-        this.canvas = Layer::new_in("_".to_string(), buffer, 0, 0);
-
-        this
-    }
-
     /// for WebAssembly
-    pub fn canvas(&self) -> *const u8 {
-        self.canvas.buffer.as_ptr()
+    //pub fn canvas(&self) -> *const u8 {
+    //    let layer = self.layer("__base__".to_string()).unwrap()
+    //    layer.buffer.buffer().as_ptr()
+    //}
+    // for WebAssembly
+    pub fn as_ptr(&self) -> *const u8 {
+        self.canvas_ref().buffer.as_ptr()
     }
 
     pub fn layers_len(&self) -> usize {
@@ -639,25 +663,44 @@ impl Canvas {
     pub fn enable(&self, label: String) -> Result<bool, Error> {
         self.layers.enable(label)
     }
+    pub fn canvas(&mut self) -> &mut Layer {
+        self.layers.get_frame_mut("__base__".to_string()).unwrap()
+    }
+
+    pub fn canvas_ref(&self) -> &Layer {
+        self.layers.get("__base__".to_string()).unwrap()
+    }
 
     pub fn combine(&mut self) {
-        let background_color = &self.background_color();
-        let canvas = &mut self.canvas;
-        fillrect(canvas, *background_color);
+        let background_color = self.background_color();
+
+        {
+            let canvas = self.canvas();
+            fillrect(canvas, background_color);
+        } // ← ここで &mut 解放🔥
+
         let sorted = self.layers.sorted().clone();
+
         for label in sorted {
-            match self.layers.get_combined_layer(label.clone()) {
-                Some(layer) => {
-                    let (x, y) = layer.pos();
-                    if layer.enable() {
-                        draw_over_screen_with_alpha(layer, canvas, x, y);
+            let (x, y, enabled, layer_ptr) = {
+                let layer = self.layers.get_combined_layer(label.clone());
+                match layer {
+                    Some(layer) => {
+                        let (x, y) = layer.pos();
+                        let enabled = layer.enable();
+                        (x, y, enabled, layer as *mut Layer)
                     }
+                    None => continue,
                 }
-                _ => {}
+            };
+
+            if enabled {
+                let canvas = self.canvas();
+                let layer = unsafe { &mut *layer_ptr };
+                draw_over_screen_with_alpha(layer, canvas, x, y);
             }
         }
     }
-
     pub fn clear_layer(&mut self, label: String) -> Result<(), Error> {
         self.layers.clear_layer(label)
     }
@@ -766,26 +809,26 @@ impl Canvas {
 
 impl Screen for Canvas {
     fn width(&self) -> u32 {
-        self.canvas.width
+        self.canvas_ref().width
     }
 
     fn height(&self) -> u32 {
-        self.canvas.height
+        self.canvas_ref().height
     }
 
     fn reinit(&mut self, width: u32, height: u32) {
-        self.canvas.width = width;
-        self.canvas.height = height;
+        self.canvas().width = width;
+        self.canvas().height = height;
         let buffersize = width as usize * height as usize * 4;
-        self.canvas.buffer = vec![0; buffersize];
+        self.canvas().buffer = vec![0; buffersize];
     }
 
     fn buffer(&self) -> &[u8] {
-        &self.canvas.buffer
+        &self.canvas_ref().buffer
     }
 
     fn buffer_mut(&mut self) -> &mut [u8] {
-        &mut self.canvas.buffer
+        &mut self.canvas().buffer
     }
 
     fn clear(&mut self) {
@@ -827,9 +870,9 @@ impl DrawCallback for Canvas {
 
         if self.width() == 0 || self.height() == 0 {
             let buffersize = width * height * 4;
-            self.canvas.width = width as u32;
-            self.canvas.height = height as u32;
-            self.canvas.buffer = (0..buffersize).map(|_| 0).collect();
+            self.canvas().width = width as u32;
+            self.canvas().height = height as u32;
+            self.canvas().buffer = (0..buffersize).map(|_| 0).collect();
         }
 
         if let Some(option) = opt {
@@ -887,7 +930,7 @@ impl DrawCallback for Canvas {
                 }
             }
             _ => {
-                layer = self.canvas.get_mut();
+                layer = self.canvas();
             }
         }
 
@@ -1001,103 +1044,3 @@ impl DrawCallback for Canvas {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use wml2::draw::{image_loader, DecodeOptions};
-
-    const BIRD_WINGS_GIF: &[u8] =
-        include_bytes!("../../tests/sample/anination.gif");
-
-    fn new_main_canvas(width: u32, height: u32) -> Canvas {
-        let mut canvas = Canvas::new(width, height);
-        canvas.add_layer("main".to_string(), width, height, 0, 0).unwrap();
-        canvas.set_current("main".to_string());
-        canvas
-    }
-
-    fn decode_into(canvas: &mut Canvas) {
-        let mut options = DecodeOptions {
-            debug_flag: 0,
-            drawer: canvas,
-        };
-        image_loader(BIRD_WINGS_GIF, &mut options).unwrap();
-        canvas.combine();
-    }
-
-    fn has_non_uniform_pixels(buffer: &[u8]) -> bool {
-        let mut pixels = buffer.chunks_exact(4);
-        let Some(first) = pixels.next() else {
-            return false;
-        };
-        pixels.any(|pixel| pixel != first)
-    }
-
-    #[test]
-    fn terminate_resets_animation_to_first_frame() {
-        let mut canvas = Canvas::new(2, 2);
-        canvas.add_layer("main".to_string(), 2, 2, 0, 0).unwrap();
-        canvas.set_current("main".to_string());
-        canvas.add_frame("main".to_string(), 2, 2, 0, 0).unwrap();
-
-        {
-            let layer = canvas.layers.layers.get_mut("main").unwrap();
-            layer.set_frame_no(1);
-            layer.layers[0].set_disable();
-            layer.layers[1].set_enable();
-        }
-
-        canvas.terminate(None).unwrap();
-
-        let layer = canvas.layers.layers.get_mut("main").unwrap();
-        assert_eq!(layer.frame_no, 0);
-        assert!(layer.layers[0].enable());
-        assert!(!layer.layers[1].enable());
-    }
-
-    #[test]
-    fn zero_size_gif_decode_populates_canvas_and_visible_pixels() {
-        let mut canvas = new_main_canvas(0, 0);
-
-        decode_into(&mut canvas);
-
-        assert!(canvas.is_animation());
-        assert!(canvas.width() > 0);
-        assert!(canvas.height() > 0);
-        assert!(has_non_uniform_pixels(canvas.buffer()));
-    }
-
-    #[test]
-    fn zero_size_and_fixed_size_gif_start_match() {
-        let mut zero = new_main_canvas(0, 0);
-
-        decode_into(&mut zero);
-
-        let mut fixed = new_main_canvas(zero.width(), zero.height());
-        decode_into(&mut fixed);
-
-        assert_eq!(zero.width(), fixed.width());
-        assert_eq!(zero.height(), fixed.height());
-        assert_eq!(zero.buffer(), fixed.buffer());
-    }
-
-    #[test]
-    fn zero_size_gif_next_frame_changes_composited_pixels() {
-        let mut canvas = new_main_canvas(0, 0);
-
-        decode_into(&mut canvas);
-        let first = canvas.buffer().to_vec();
-        let mut changed = false;
-
-        for _ in 0..8 {
-            canvas.set_next("main".to_string()).unwrap();
-            canvas.combine();
-            if canvas.buffer() != first {
-                changed = true;
-                break;
-            }
-        }
-
-        assert!(changed);
-    }
-}

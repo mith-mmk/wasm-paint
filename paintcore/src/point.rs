@@ -82,16 +82,7 @@ pub fn point_with_weight_from_alpha(
     alpha: u8,
 ) {
     let (red, green, blue, _) = color_taple(color);
-    _point(
-        screen,
-        x,
-        y,
-        red,
-        green,
-        blue,
-        0xff,
-        alpha as f32 / 255.0,
-    );
+    _point(screen, x, y, red, green, blue, 0xff, alpha as f32 / 255.0);
 }
 
 pub fn point_antialias(screen: &mut dyn Screen, x: f32, y: f32, color: u32, alpha: u8, size: f32) {
