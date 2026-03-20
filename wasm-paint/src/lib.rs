@@ -13,7 +13,6 @@ use web_sys::HtmlElement;
 use web_sys::ImageData;
 use wml2::draw::*;
 
-
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
@@ -324,7 +323,7 @@ impl Universe {
     #[wasm_bindgen(js_name = getBufferSelectCanvas)]
     pub fn buffer_with_number(&mut self, number: usize) -> *const u8 {
         if number == 0 {
-            return self.canvas.as_ptr()
+            return self.canvas.as_ptr();
         };
         let canvas = &*self.append_canvas[number - 1].write().unwrap();
         canvas.as_ptr()

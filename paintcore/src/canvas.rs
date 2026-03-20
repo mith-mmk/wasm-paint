@@ -542,7 +542,6 @@ impl Canvas {
         }
     }
 
-
     pub fn as_ptr(&self) -> *const u8 {
         self.canvas_ref().buffer.as_ptr()
     }
@@ -684,7 +683,8 @@ impl Canvas {
         }
 
         if !base_buffer.is_empty() {
-            let base_layer = Layer::new_in("__base__".to_string(), base_buffer, base_width, base_height);
+            let base_layer =
+                Layer::new_in("__base__".to_string(), base_buffer, base_width, base_height);
             let canvas = self.canvas();
             draw_over_screen_with_alpha(&base_layer, canvas, 0, 0);
         }
@@ -1153,20 +1153,14 @@ mod tests {
                 0,
                 2,
                 1,
-                &[
-                    0xff, 0x00, 0x00, 0xff,
-                    0x00, 0xff, 0x00, 0xff,
-                ],
+                &[0xff, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff],
                 None,
             )
             .unwrap();
         canvas.combine();
         assert_eq!(
             &canvas.buffer()[0..8],
-            &[
-                0xff, 0x00, 0x00, 0xff,
-                0x00, 0xff, 0x00, 0xff,
-            ]
+            &[0xff, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff,]
         );
 
         canvas.clear_layer("main".to_string()).unwrap();

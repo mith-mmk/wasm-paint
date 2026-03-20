@@ -69,12 +69,6 @@ pub fn draw_image_fit_screen(
         scale = screen.height() as f32 / image_buffer.height() as f32;
     }
 
-    Affine::resize(
-        image_buffer.canvas_ref(),
-        screen,
-        scale,
-        interop,
-        align,
-    );
+    Affine::resize(image_buffer.canvas_ref(), screen, scale, interop, align);
     Ok(image_buffer)
 }
