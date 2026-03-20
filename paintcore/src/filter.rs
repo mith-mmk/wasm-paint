@@ -1,7 +1,7 @@
 use crate::canvas::*;
 use crate::grayscale::to_grayscale;
 use crate::layer::Layer;
-use std::io::{Error, ErrorKind};
+use std::{collections::HashMap, io::{Error, ErrorKind}};
 
 #[derive(Clone)]
 enum FilterType {
@@ -65,7 +65,7 @@ pub struct Kernel {
     pub width: usize,
     pub height: usize,
     pub matrix: Vec<Vec<f32>>,
-    pub nomarized: bool,
+    pub already_nomarized: bool,
 }
 
 impl Kernel {
@@ -87,13 +87,35 @@ impl Kernel {
         ];
         Self::from(3, 3, matrix, false)
     }
-    pub fn from(width: usize, height: usize, matrix: Vec<Vec<f32>>, nomarized: bool) -> Self {
+    pub fn from(width: usize, height: usize, matrix: Vec<Vec<f32>>,already_nomarized: bool) -> Self {
         Self {
             width,
             height,
             matrix,
-            nomarized,
+            already_nomarized,
         }
+    }
+
+    pub fn gaussian_kernel(size: usize, sigma: f32) -> Result<Self,Error> {
+        if size % 2 == 0 {
+            return Err(Error::new(ErrorKind::Other,"not support even kernel size"))
+        }
+        let mut matrix = vec![vec![0.0;size];size];
+        let k = (size /2) as i32;
+        let mut sum = 0.0;
+        for y in -k..=k {
+            for x in -k..=k {
+                let v = (-((x*x +y*y) as f32) / (2.0 * sigma * sigma)).exp();
+                matrix[(y + k) as usize][(x + k ) as usize] = v;
+                sum += v;
+            }
+        }
+        for y in 0..size {
+            for x in 0..size {
+               matrix[y][x] /= sum;
+            }
+        }
+        Ok(Kernel::from(size, size, matrix, true))
     }
 }
 
@@ -145,7 +167,7 @@ pub fn lum_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> R
     let matrix = &kernel.matrix;
     let u0 = (kernel.height / 2) as i32;
     let v0 = (kernel.width / 2) as i32;
-    let coeff = if kernel.nomarized {
+    let coeff = if kernel.already_nomarized {
         1.0
     } else {
         let mut coeff = 0.0;
@@ -210,7 +232,7 @@ pub fn edge_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> 
     let matrix = &kernel.matrix;
     let u0 = (kernel.height / 2) as i32;
     let v0 = (kernel.width / 2) as i32;
-    let coeff = if kernel.nomarized {
+    let coeff = if kernel.already_nomarized {
         1.0
     } else {
         let mut coeff = 0.0;
@@ -305,7 +327,7 @@ pub fn rgb_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> R
     let matrix = &kernel.matrix;
     let u0 = (kernel.height / 2) as i32;
     let v0 = (kernel.width / 2) as i32;
-    let coeff = if kernel.nomarized {
+    let coeff = if kernel.already_nomarized {
         1.0
     } else {
         let mut coeff = 0.0;
@@ -543,12 +565,12 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(
 }
 
 #[derive(Clone)]
-pub struct Grad {
+struct Grad {
     pub mag: f32,
     pub dir: u8, // 0,1,2,3 → 0°,45°,90°,135°
 }
 
-pub fn calc_grad(gx: Vec<f32>, gy: Vec<f32>, w: usize, h: usize) -> Vec<Grad> {
+fn calc_grad(gx: Vec<f32>, gy: Vec<f32>, w: usize, h: usize) -> Vec<Grad> {
     let mut out = vec![Grad { mag: 0.0, dir: 0 }; w as usize * h as usize];
 
 
@@ -581,7 +603,7 @@ pub fn calc_grad(gx: Vec<f32>, gy: Vec<f32>, w: usize, h: usize) -> Vec<Grad> {
     out
 }
 
-pub fn double_threshold(src: &[f32], low: f32, high: f32) -> Vec<u8> {
+fn double_threshold(src: &[f32], low: f32, high: f32) -> Vec<u8> {
     let mut out = vec![0u8; src.len()];
 
     for i in 0..src.len() {
@@ -596,7 +618,7 @@ pub fn double_threshold(src: &[f32], low: f32, high: f32) -> Vec<u8> {
     out
 }
 
-pub fn non_max_suppression(grad: &[Grad], w: usize, h: usize) -> Vec<f32> {
+fn non_max_suppression(grad: &[Grad], w: usize, h: usize) -> Vec<f32> {
     let mut out = vec![0.0; w * h];
 
     for y in 1..h - 1 {
@@ -620,7 +642,7 @@ pub fn non_max_suppression(grad: &[Grad], w: usize, h: usize) -> Vec<f32> {
     out
 }
 
-pub fn hysteresis(src: &mut [u8], w: usize, h: usize) {
+fn hysteresis(src: &mut [u8], w: usize, h: usize) {
     let mut stack = Vec::new();
 
     for i in 0..src.len() {
@@ -715,7 +737,7 @@ pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
     lum_filter(
         src,
         &mut tmp_gaussian,
-        &Kernel::new([[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]]),
+        &Kernel::gaussian_kernel(3, 1.0).unwrap()
     )?;
     let (gx, gy) = edge_filter_f32(src);
     let grad = calc_grad(gx, gy, src_width, src_height);
@@ -741,10 +763,15 @@ pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
 
 pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
     let filter_type = FilterType::from(filter_name);
-    _filter(src, dest, filter_type)
+    _filter(src, dest, filter_type,None)
 }
 
-fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType) -> Result<(), Error> {
+pub fn filter_with_option(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str, options:Option<HashMap<&str, f32>>) -> Result<(), Error> {
+    let filter_type = FilterType::from(filter_name);
+    _filter(src, dest, filter_type, options)
+}
+
+fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, options:Option<HashMap<&str, f32>>) -> Result<(), Error> {
     let result = match filter_type {
         FilterType::Copy => copy_to(src, dest),
         FilterType::Median => ranking(src, dest, 5),
@@ -783,7 +810,7 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType) -> 
             lum_filter(
                 src,
                 &mut tmp_gaussian,
-                &Kernel::new([[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]]),
+                &Kernel::gaussian_kernel(3, 1.0).unwrap()
             )?;
             let mut tmp_a = Layer::tmp(src.width(), src.height());
             let mut tmp_b = Layer::tmp(src.width(), src.height());
@@ -813,8 +840,23 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType) -> 
             edge_filter(src, dest, &Kernel::new_already_normalized(matrix))
         }
         FilterType::Gaussian => {
-            let matrix = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
-            lum_filter(src, dest, &Kernel::new(matrix))
+            let kernel = if let Some(options) = options {
+                let sigma: f32 = if let Some(sigma) = options.get("sigma") {
+                    sigma.clone()
+                } else {
+                    1.0
+                };
+                let size = if let Some(size) = options.get("size") {
+                    size.clone() as usize
+                } else {
+                    3
+                };
+                Kernel::gaussian_kernel(size, sigma)?
+            } else {
+               let matrix = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
+               Kernel::new(matrix)
+            };
+            lum_filter(src, dest, &kernel)
         }
         FilterType::Laplacian => {
             let matrix = [[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]];
@@ -888,4 +930,24 @@ pub fn filters(
     }
 
     Ok(())
+}
+
+#[test]
+fn gaussian_test() {
+    let kernel = Kernel::gaussian_kernel(3, 1.0).unwrap();
+
+    let mut sum = 0.0;
+    for row in &kernel.matrix {
+        for v in row {
+            sum += *v;
+        }
+    }
+
+    println!("sum = {}", sum);
+
+    // 中心
+    println!("center = {}", kernel.matrix[1][1]);
+
+    // 角
+    println!("corner = {}", kernel.matrix[0][0]);
 }
