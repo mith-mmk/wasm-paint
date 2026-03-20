@@ -59,6 +59,9 @@ impl Layer {
         }
     }
 
+    pub fn tmp(width: u32, height: u32) -> Self {
+        Self::new("_".to_string(), width, height)
+    }
     pub fn new_in(label: String, buffer: Vec<u8>, width: u32, height: u32) -> Self {
         Self {
             label,
