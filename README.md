@@ -52,6 +52,8 @@ Color model ABGR uint32LE
 
 2022/05/25 0.0.22 paintcore分離
 
+2026/03/20 0.0.24 Canvasの実装の変更(破壊的変更)、filterの実装拡張
+
 Todo
 - organize Functions
 - border
