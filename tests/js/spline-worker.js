@@ -48,7 +48,6 @@ onmessage = function(ev) {
             case 'run':
                 if (universe == null) return;                
                 universe.clearLayer("main");
-
                 universe.setPos("komono",x,y);
                 universe.setLayerAlpha("komono",128);
                 count -= 8;

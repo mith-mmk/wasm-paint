@@ -69,6 +69,13 @@ impl Kernel {
             matrix,
         }
     }
+    pub fn from(width: usize, height: usize, matrix: Vec<Vec<f32>>) -> Self{
+        Self {
+            width,
+            height,
+            matrix
+        }
+    }
 }
 
 #[inline]

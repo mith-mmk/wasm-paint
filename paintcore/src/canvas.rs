@@ -514,10 +514,12 @@ pub(crate) fn default_verbose(
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         let mut this = Self::empty();
-        if width == 0 || width >= 0x8000000 || height == 0 || height >= 0x8000000 {
+        if width >= 0x8000000 || height >= 0x8000000 {
             return this;
         }
-        this.layers.add("__base__".to_string(), width, height, 0, 0).unwrap();
+        this.layers
+            .add("__base__".to_string(), width, height, 0, 0)
+            .unwrap();
         this
     }
 
@@ -540,12 +542,7 @@ impl Canvas {
         }
     }
 
-    /// for WebAssembly
-    //pub fn canvas(&self) -> *const u8 {
-    //    let layer = self.layer("__base__".to_string()).unwrap()
-    //    layer.buffer.buffer().as_ptr()
-    //}
-    // for WebAssembly
+
     pub fn as_ptr(&self) -> *const u8 {
         self.canvas_ref().buffer.as_ptr()
     }
@@ -594,7 +591,7 @@ impl Canvas {
         if let Some(current) = &self.current_layer {
             current.to_string()
         } else {
-            "_".to_string()
+            "__base__".to_string()
         }
     }
 
@@ -673,15 +670,31 @@ impl Canvas {
 
     pub fn combine(&mut self) {
         let background_color = self.background_color();
+        let preserve_base = self.current_layer.is_none();
+        let (base_width, base_height, base_buffer) = if preserve_base {
+            let canvas = self.canvas_ref();
+            (canvas.width(), canvas.height(), canvas.buffer().to_vec())
+        } else {
+            (0, 0, Vec::new())
+        };
 
         {
             let canvas = self.canvas();
             fillrect(canvas, background_color);
-        } // ← ここで &mut 解放🔥
+        }
+
+        if !base_buffer.is_empty() {
+            let base_layer = Layer::new_in("__base__".to_string(), base_buffer, base_width, base_height);
+            let canvas = self.canvas();
+            draw_over_screen_with_alpha(&base_layer, canvas, 0, 0);
+        }
 
         let sorted = self.layers.sorted().clone();
 
         for label in sorted {
+            if label == "__base__" {
+                continue;
+            }
             let (x, y, enabled, layer_ptr) = {
                 let layer = self.layers.get_combined_layer(label.clone());
                 match layer {
@@ -1044,3 +1057,146 @@ impl DrawCallback for Canvas {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wml2::draw::{DrawCallback, InitOptions, NextBlend, NextDispose, NextOption, NextOptions};
+
+    fn rgba(r: u8, g: u8, b: u8, a: u8) -> [u8; 4] {
+        [r, g, b, a]
+    }
+
+    #[test]
+    fn canvas_new_zero_keeps_base_layer_and_initializes_on_draw() {
+        let mut canvas = Canvas::new(0, 0);
+
+        assert_eq!(canvas.width(), 0);
+        assert_eq!(canvas.height(), 0);
+        assert!(canvas.layer("__base__".to_string()).is_some());
+
+        canvas.init(1, 1, None).unwrap();
+        canvas
+            .draw(0, 0, 1, 1, &rgba(0x12, 0x34, 0x56, 0xff), None)
+            .unwrap();
+
+        assert_eq!(canvas.width(), 1);
+        assert_eq!(canvas.height(), 1);
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0x12, 0x34, 0x56, 0xff));
+    }
+
+    #[test]
+    fn combine_preserves_pixels_drawn_directly_to_base_canvas() {
+        let mut canvas = Canvas::new(0, 0);
+
+        canvas.init(1, 1, None).unwrap();
+        canvas
+            .draw(0, 0, 1, 1, &rgba(0xaa, 0x44, 0x11, 0xff), None)
+            .unwrap();
+
+        canvas.combine();
+
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0xaa, 0x44, 0x11, 0xff));
+    }
+
+    #[test]
+    fn animated_layer_switches_visible_frame_after_next() {
+        let mut canvas = Canvas::new(0, 0);
+        canvas.add_layer("main".to_string(), 0, 0, 0, 0).unwrap();
+        canvas.set_current("main".to_string());
+
+        canvas
+            .init(
+                1,
+                1,
+                Some(InitOptions {
+                    loop_count: 0,
+                    background: None,
+                    animation: true,
+                }),
+            )
+            .unwrap();
+        canvas
+            .draw(0, 0, 1, 1, &rgba(0xff, 0x00, 0x00, 0xff), None)
+            .unwrap();
+        canvas
+            .next(Some(NextOptions {
+                flag: NextOption::Next,
+                await_time: 25,
+                image_rect: None,
+                dispose_option: Some(NextDispose::None),
+                blend: Some(NextBlend::Override),
+            }))
+            .unwrap();
+        canvas
+            .draw(0, 0, 1, 1, &rgba(0x00, 0xff, 0x00, 0xff), None)
+            .unwrap();
+        canvas.terminate(None).unwrap();
+
+        canvas.combine();
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0xff, 0x00, 0x00, 0xff));
+
+        canvas.set_next("main".to_string()).unwrap();
+        assert_eq!(canvas.wait("main".to_string()).unwrap(), 25);
+        canvas.combine();
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0x00, 0xff, 0x00, 0xff));
+    }
+
+    #[test]
+    fn clear_layer_removes_previous_frame_contents_from_composite() {
+        let mut canvas = Canvas::new(2, 1);
+        canvas.add_layer("main".to_string(), 2, 1, 0, 0).unwrap();
+        canvas.set_current("main".to_string());
+
+        canvas
+            .draw(
+                0,
+                0,
+                2,
+                1,
+                &[
+                    0xff, 0x00, 0x00, 0xff,
+                    0x00, 0xff, 0x00, 0xff,
+                ],
+                None,
+            )
+            .unwrap();
+        canvas.combine();
+        assert_eq!(
+            &canvas.buffer()[0..8],
+            &[
+                0xff, 0x00, 0x00, 0xff,
+                0x00, 0xff, 0x00, 0xff,
+            ]
+        );
+
+        canvas.clear_layer("main".to_string()).unwrap();
+        canvas.combine();
+        assert_eq!(&canvas.buffer()[0..8], &[0, 0, 0, 255, 0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn set_current_layer_draws_to_selected_layer_only() {
+        let mut canvas = Canvas::new(1, 1);
+        canvas.add_layer("main".to_string(), 1, 1, 0, 0).unwrap();
+        canvas.add_layer("overlay".to_string(), 1, 1, 0, 0).unwrap();
+
+        canvas.set_current("main".to_string());
+        canvas
+            .draw(0, 0, 1, 1, &rgba(0x11, 0x22, 0x33, 0xff), None)
+            .unwrap();
+
+        canvas.set_current("overlay".to_string());
+        canvas
+            .draw(0, 0, 1, 1, &rgba(0xaa, 0xbb, 0xcc, 0x80), None)
+            .unwrap();
+
+        assert_eq!(
+            &canvas.layer("main".to_string()).unwrap().buffer()[0..4],
+            &rgba(0x11, 0x22, 0x33, 0xff)
+        );
+        assert_eq!(
+            &canvas.layer("overlay".to_string()).unwrap().buffer()[0..4],
+            &rgba(0xaa, 0xbb, 0xcc, 0x80)
+        );
+    }
+}

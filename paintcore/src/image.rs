@@ -53,8 +53,6 @@ pub fn draw_image_fit_screen(
     };
 
     let mut image_buffer = Canvas::new(0, 0);
-    image_buffer.add_layer("temp".to_string(), 0, 0, 0, 0)?;
-    image_buffer.set_current("temp".to_string());
 
     let mut option = DecodeOptions {
         debug_flag: 0,
@@ -72,7 +70,7 @@ pub fn draw_image_fit_screen(
     }
 
     Affine::resize(
-        image_buffer.layer("temp".to_string()).unwrap(),
+        image_buffer.canvas_ref(),
         screen,
         scale,
         interop,

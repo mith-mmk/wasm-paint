@@ -134,7 +134,7 @@ async function decodeAndRender(buffer) {
 
   const startedAt = performance.now();
 
-  universe = new Universe(0, 0);
+  //universe = new Universe(0, 0);
   universe.imageDecoder(buffer, 0);
   imageWidth = universe.getWidth();
   imageHeight = universe.getHeight();
