@@ -115,6 +115,13 @@ impl Kernel {
         }
         Ok(Kernel::from(size, size, matrix, true))
     }
+
+    pub fn avarage_kernel(size: usize) -> Result<Self,Error> {
+        check_kernel_size(size)?;
+        let matrix = vec![vec![1.0;size];size];
+        Ok(Kernel::from(size, size, matrix, false))
+    }
+
 }
 
 #[inline]
@@ -163,6 +170,7 @@ fn yuv_to_rgb(y: f32, u: f32, v: f32) -> (u8, u8, u8) {
 
     (r, g, b)
 }
+
 
 pub fn lum_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> Result<(), Error> {
     if dest.width() == 0 || dest.height() == 0 {
@@ -854,12 +862,12 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
             lum_filter(src, dest, &Kernel::new(matrix))
         }
         FilterType::Blur => {
+            // bilateral/ average/gaussian/ medien
             let matrix = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
         }
         FilterType::Average => {
-            let matrix = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
-            rgb_filter(src, dest, &Kernel::new(matrix))
+            rgb_filter(src, dest, &Kernel::avarage_kernel(size)?)
         }
         FilterType::Smooth => {
             let matrix = [[1.0, 1.0, 1.0], [1.0, 4.0, 1.0], [1.0, 1.0, 1.0]];
@@ -882,7 +890,7 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
             lum_filter(
                 src,
                 &mut tmp_gaussian,
-                &Kernel::gaussian_kernel(3, 1.0).unwrap()
+                &Kernel::gaussian_kernel(3, 1.0)?
             )?;
             let mut tmp_a = Layer::tmp(src.width(), src.height());
             let mut tmp_b = Layer::tmp(src.width(), src.height());
