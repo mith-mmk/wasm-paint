@@ -465,78 +465,121 @@ pub fn combine(src1: &dyn Screen, src2: &dyn Screen, dest: &mut dyn Screen) -> R
     Ok(())
 }
 
-pub fn ranking_with_size(
-    src: &dyn Screen,
-    dest: &mut dyn Screen,
-    rank: usize,
-    size: usize,
-) -> Result<(), Error> {
-    check_kernel_size(size)?;
-    let size = size as i32;
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
-
-    let src_buffer = src.buffer();
-    let dest_buffer = dest.buffer_mut();
-
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let a = src_buffer[offset + x * 4 + 3];
-            let mut l = vec![(0.0, 0, 0, 0); (size * size) as usize];
-            for u in 0..size {
-                let uu = (y as i32 + u - 1).clamp(0, src.height() as i32 - 1) as usize
-                    * src.width() as usize
-                    * 4;
-                for v in 0..size {
-                    let vv = (x as i32 + v - 1).clamp(0, src.width() as i32 - 1) as usize * 4;
-                    let r = src_buffer[uu + vv];
-                    let g = src_buffer[uu + vv + 1];
-                    let b = src_buffer[uu + vv + 2];
-                    let ln = rgb_to_y(r, g, b);
-                    l[u as usize * 3 + v as usize] = (ln, r, g, b);
-                }
-            }
-            let mut l = l.to_vec();
-            l.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-            let l = l[rank];
-
-            dest_buffer[offset + x * 4] = l.1;
-            dest_buffer[offset + x * 4 + 1] = l.2;
-            dest_buffer[offset + x * 4 + 2] = l.3;
-            dest_buffer[offset + x * 4 + 3] = a;
-        }
-    }
-    Ok(())
-}
-
 pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(), Error> {
-    ranking_with_size(src, dest, rank, 3)
+    ranking_with_size(src, dest, 3, Ranking::Ranking(rank))
 }
 
 pub fn median(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
     check_kernel_size(size)?;
-    let rank = ( size * size / 2) as usize;
-    ranking_with_size(src, dest, rank, size)
+    let rank = size * size /2;
+    ranking_with_size(src, dest, size, Ranking::Ranking(rank))
 }
 
+#[inline]
+fn select_pixel<F>(
+    src_buffer: &[u8],
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+    size: i32,
+    mut f: F,
+) -> (u8, u8, u8)
+where
+    F: FnMut((f32, u8, u8, u8), (f32, u8, u8, u8)) -> (f32, u8, u8, u8),
+{
+    let mut best = (0.0, 0, 0, 0);
+    let mut first = true;
 
-pub fn erode(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
+    for u in 0..size {
+        let yy = (y as i32 + u - size / 2)
+            .clamp(0, height as i32 - 1) as usize;
+
+        for v in 0..size {
+            let xx = (x as i32 + v - size / 2)
+                .clamp(0, width as i32 - 1) as usize;
+
+            let idx = (yy * width + xx) * 4;
+            let r = src_buffer[idx];
+            let g = src_buffer[idx + 1];
+            let b = src_buffer[idx + 2];
+            let ln = rgb_to_y(r, g, b);
+
+            let cur = (ln, r, g, b);
+
+            if first {
+                best = cur;
+                first = false;
+            } else {
+                best = f(best, cur);
+            }
+        }
+    }
+
+    (best.1, best.2, best.3)
+}
+
+#[inline]
+fn select_ranking_pixel(
+    src_buffer: &[u8],
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+    size: i32,
+    rank: usize,
+) -> (u8, u8, u8) {
+    let mut pixels = Vec::with_capacity((size * size) as usize);
+
+    for u in 0..size {
+        let yy = (y as i32 + u - size / 2)
+            .clamp(0, height as i32 - 1) as usize;
+
+        for v in 0..size {
+            let xx = (x as i32 + v - size / 2)
+                .clamp(0, width as i32 - 1) as usize;
+
+            let idx = (yy * width + xx) * 4;
+            let r = src_buffer[idx];
+            let g = src_buffer[idx + 1];
+            let b = src_buffer[idx + 2];
+            let ln = rgb_to_y(r, g, b);
+
+            pixels.push((ln, r, g, b));
+        }
+    }
+
+    pixels.select_nth_unstable_by(rank, |a, b| a.0.total_cmp(&b.0));
+    let best = pixels[rank];
+
+    (best.1, best.2, best.3)
+}
+
+enum Ranking{
+    Erode ,
+    Dilates,
+    Ranking(usize) ,
+}
+
+#[inline]
+fn min_pixel(a: (f32,u8,u8,u8), b: (f32,u8,u8,u8)) -> (f32,u8,u8,u8) {
+    if a.0 < b.0 { a } else { b }
+}
+
+#[inline]
+fn max_pixel(a: (f32,u8,u8,u8), b: (f32,u8,u8,u8)) -> (f32,u8,u8,u8) {
+    if a.0 > b.0 { a } else { b }
+}
+
+fn ranking_with_size(src: &dyn Screen, dest: &mut dyn Screen, size: usize, scan_type: Ranking) -> Result<(), Error> {
     check_kernel_size(size)?;
     let size = size as i32;
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
     }
+
+    let src_height = src.height() as usize;
+    let src_width = src.width() as usize;
 
     let dest_height = dest.height() as usize;
     let dest_width = dest.width() as usize;
@@ -544,94 +587,43 @@ pub fn erode(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(),
     let src_buffer = src.buffer();
     let dest_buffer = dest.buffer_mut();
 
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
+    for y in 0..src_height {
+        let offset = y * src_width * 4;
         if y >= dest_height {
             break;
         }
-        for x in 0..src.width() as usize {
+        for x in 0..src_width {
             if x >= dest_width {
                 break;
             }
             let a = src_buffer[offset + x * 4 + 3];
-            let mut min_l = 256.0;
-            let mut l = (0.0, 0,0,0);
-            for u in 0..size {
-                let uu = (y as i32 + u - 1).clamp(0, src.height() as i32 - 1) as usize
-                    * src.width() as usize
-                    * 4;
-                for v in 0..size {
-                    let vv = (x as i32 + v - 1).clamp(0, src.width() as i32 - 1) as usize * 4;
-                    let r = src_buffer[uu + vv];
-                    let g = src_buffer[uu + vv + 1];
-                    let b = src_buffer[uu + vv + 2];
-                    let ln = rgb_to_y(r, g, b);
-                    if ln < min_l {
-                        l = (ln, r, g, b);
-                        min_l = ln;
-                    }
+            let (r,g,b) = match scan_type {
+                Ranking::Erode => {
+                    select_pixel(src_buffer,x,y, src_width, src_height, size, min_pixel)
                 }
-            }
-
-            dest_buffer[offset + x * 4] = l.1;
-            dest_buffer[offset + x * 4 + 1] = l.2;
-            dest_buffer[offset + x * 4 + 2] = l.3;
+                Ranking::Dilates => {
+                    select_pixel(src_buffer,x,y, src_width, src_height, size, max_pixel)
+                }
+               Ranking::Ranking(rank) => {
+                    select_ranking_pixel(src_buffer, x, y, src_width, src_height, size, rank)
+                }
+            };
+            dest_buffer[offset + x * 4] = r;
+            dest_buffer[offset + x * 4 + 1] = g;
+            dest_buffer[offset + x * 4 + 2] = b;
             dest_buffer[offset + x * 4 + 3] = a;
         }
     }
     Ok(())
+}
+
+pub fn erode(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
+    ranking_with_size(src, dest, size, Ranking::Erode)
 }
 
 
 pub fn dilate(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
-    check_kernel_size(size)?;
-    let size = size as i32;
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
-
-    let src_buffer = src.buffer();
-    let dest_buffer = dest.buffer_mut();
-
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let a = src_buffer[offset + x * 4 + 3];
-            let mut max_l = - 1.0;
-            let mut l = (0.0, 0,0,0);
-            for u in 0..size {
-                let uu = (y as i32 + u - 1).clamp(0, src.height() as i32 - 1) as usize
-                    * src.width() as usize
-                    * 4;
-                for v in 0..size {
-                    let vv = (x as i32 + v - 1).clamp(0, src.width() as i32 - 1) as usize * 4;
-                    let r = src_buffer[uu + vv];
-                    let g = src_buffer[uu + vv + 1];
-                    let b = src_buffer[uu + vv + 2];
-                    let ln = rgb_to_y(r, g, b);
-                    if ln > max_l {
-                        l = (ln, r, g, b);
-                        max_l = ln;
-                    }
-                }
-            }
-
-            dest_buffer[offset + x * 4] = l.1;
-            dest_buffer[offset + x * 4 + 1] = l.2;
-            dest_buffer[offset + x * 4 + 2] = l.3;
-            dest_buffer[offset + x * 4 + 3] = a;
-        }
-    }
-    Ok(())
+    ranking_with_size(src, dest, size, Ranking::Dilates)
 }
 
 #[derive(Clone)]
@@ -855,8 +847,8 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
     let result = match filter_type {
         FilterType::Copy => copy_to(src, dest),
         FilterType::Median(size) => median(src, dest, size),
-        FilterType::Erode(size)  => erode(src, dest, size),
-        FilterType::Dilate(size)  => dilate(src, dest, size),
+        FilterType::Erode(size)  => ranking_with_size(src, dest, size, Ranking::Erode),
+        FilterType::Dilate(size)  => ranking_with_size(src, dest, size, Ranking::Dilates),
         FilterType::Sharpness => {
             let matrix = [[-1.0, -1.0, -1.0], [-1.0, 10.0, -1.0], [-1.0, -1.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
