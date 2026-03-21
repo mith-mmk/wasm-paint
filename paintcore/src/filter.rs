@@ -6,9 +6,9 @@ use std::{collections::HashMap, io::{Error, ErrorKind}};
 #[derive(Clone)]
 enum FilterType {
     Copy,
-    Median,
-    Erode,
-    Dilate,
+    Median(usize),
+    Erode(usize),
+    Dilate(usize),
     Sharpness,
     Blur,
     Average,
@@ -34,9 +34,9 @@ impl From<&str> for FilterType {
     fn from(s: &str) -> Self {
         match s {
             "copy" => FilterType::Copy,
-            "median" => FilterType::Median,
-            "erode" => FilterType::Erode,
-            "dilate" => FilterType::Dilate,
+            "median" => FilterType::Median(3),
+            "erode" => FilterType::Erode(3),
+            "dilate" => FilterType::Dilate(3),
             "sharpness" => FilterType::Sharpness,
             "blur" => FilterType::Blur,
             "average" => FilterType::Average,
@@ -97,9 +97,7 @@ impl Kernel {
     }
 
     pub fn gaussian_kernel(size: usize, sigma: f32) -> Result<Self,Error> {
-        if size % 2 == 0 {
-            return Err(Error::new(ErrorKind::Other,"not support even kernel size"))
-        }
+        check_kernel_size(size)?;
         let mut matrix = vec![vec![0.0;size];size];
         let k = (size /2) as i32;
         let mut sum = 0.0;
@@ -137,6 +135,15 @@ fn rgb_to_y(r: u8, g: u8, b: u8) -> f32 {
     let b = b as f32;
 
     0.29900 * r + 0.58700 * g + 0.11400 * b
+}
+
+#[inline]
+fn check_kernel_size(size: usize) -> Result<(),Error> {
+    if size % 2 == 0 {
+        Err(Error::new(ErrorKind::Other,"not support even kernel size"))
+    } else {
+        Ok(())
+    }
 }
 
 #[inline]
@@ -464,9 +471,7 @@ pub fn ranking_with_size(
     rank: usize,
     size: usize,
 ) -> Result<(), Error> {
-    if size <= 2 || size % 2 == 0 {
-        return Err(Error::new(ErrorKind::Other, "not support kernel size"));
-    }
+    check_kernel_size(size)?;
     let size = size as i32;
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
@@ -516,7 +521,19 @@ pub fn ranking_with_size(
 }
 
 pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(), Error> {
-    let size: i32 = 3;
+    ranking_with_size(src, dest, rank, 3)
+}
+
+pub fn median(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
+    check_kernel_size(size)?;
+    let rank = ( size * size / 2) as usize;
+    ranking_with_size(src, dest, rank, size)
+}
+
+
+pub fn erode(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
+    check_kernel_size(size)?;
+    let size = size as i32;
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
     }
@@ -537,7 +554,8 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(
                 break;
             }
             let a = src_buffer[offset + x * 4 + 3];
-            let mut l = vec![(0.0, 0, 0, 0); (size * size) as usize];
+            let mut min_l = 256.0;
+            let mut l = (0.0, 0,0,0);
             for u in 0..size {
                 let uu = (y as i32 + u - 1).clamp(0, src.height() as i32 - 1) as usize
                     * src.width() as usize
@@ -548,12 +566,64 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(
                     let g = src_buffer[uu + vv + 1];
                     let b = src_buffer[uu + vv + 2];
                     let ln = rgb_to_y(r, g, b);
-                    l[u as usize * 3 + v as usize] = (ln, r, g, b);
+                    if ln < min_l {
+                        l = (ln, r, g, b);
+                        min_l = ln;
+                    }
                 }
             }
-            let mut l = l.to_vec();
-            l.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-            let l = l[rank];
+
+            dest_buffer[offset + x * 4] = l.1;
+            dest_buffer[offset + x * 4 + 1] = l.2;
+            dest_buffer[offset + x * 4 + 2] = l.3;
+            dest_buffer[offset + x * 4 + 3] = a;
+        }
+    }
+    Ok(())
+}
+
+
+pub fn dilate(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
+    check_kernel_size(size)?;
+    let size = size as i32;
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+
+    let dest_height = dest.height() as usize;
+    let dest_width = dest.width() as usize;
+
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+
+    for y in 0..src.height() as usize {
+        let offset = y * src.width() as usize * 4;
+        if y >= dest_height {
+            break;
+        }
+        for x in 0..src.width() as usize {
+            if x >= dest_width {
+                break;
+            }
+            let a = src_buffer[offset + x * 4 + 3];
+            let mut max_l = - 1.0;
+            let mut l = (0.0, 0,0,0);
+            for u in 0..size {
+                let uu = (y as i32 + u - 1).clamp(0, src.height() as i32 - 1) as usize
+                    * src.width() as usize
+                    * 4;
+                for v in 0..size {
+                    let vv = (x as i32 + v - 1).clamp(0, src.width() as i32 - 1) as usize * 4;
+                    let r = src_buffer[uu + vv];
+                    let g = src_buffer[uu + vv + 1];
+                    let b = src_buffer[uu + vv + 2];
+                    let ln = rgb_to_y(r, g, b);
+                    if ln > max_l {
+                        l = (ln, r, g, b);
+                        max_l = ln;
+                    }
+                }
+            }
 
             dest_buffer[offset + x * 4] = l.1;
             dest_buffer[offset + x * 4 + 1] = l.2;
@@ -772,11 +842,21 @@ pub fn filter_with_option(src: &dyn Screen, dest: &mut dyn Screen, filter_name: 
 }
 
 fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, options:Option<HashMap<&str, f32>>) -> Result<(), Error> {
+    let size = if let Some(options) = &options {
+        if let Some(size) = options.get("size") {
+            *size as usize
+        } else {
+            3
+        }
+    } else {
+        3
+    };
+
     let result = match filter_type {
         FilterType::Copy => copy_to(src, dest),
-        FilterType::Median => ranking(src, dest, 5),
-        FilterType::Erode => ranking(src, dest, 0),
-        FilterType::Dilate => ranking(src, dest, 8),
+        FilterType::Median(size) => median(src, dest, size),
+        FilterType::Erode(size)  => erode(src, dest, size),
+        FilterType::Dilate(size)  => dilate(src, dest, size),
         FilterType::Sharpness => {
             let matrix = [[-1.0, -1.0, -1.0], [-1.0, 10.0, -1.0], [-1.0, -1.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
@@ -840,16 +920,11 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
             edge_filter(src, dest, &Kernel::new_already_normalized(matrix))
         }
         FilterType::Gaussian => {
-            let kernel = if let Some(options) = options {
+            let kernel = if let Some(options) = &options {
                 let sigma: f32 = if let Some(sigma) = options.get("sigma") {
                     sigma.clone()
                 } else {
                     1.0
-                };
-                let size = if let Some(size) = options.get("size") {
-                    size.clone() as usize
-                } else {
-                    3
                 };
                 Kernel::gaussian_kernel(size, sigma)?
             } else {
