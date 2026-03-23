@@ -452,15 +452,40 @@ fn contour_edges(contours: &[Vec<(f32, f32)>]) -> Vec<Edge> {
     edges
 }
 
-fn fill_span(screen: &mut dyn Screen, start_x: f32, end_x: f32, y: i32, color: u32) {
-    if start_x >= end_x {
+const GLYPH_AA_SUBPIXEL_ROWS: [f32; 4] = [0.125, 0.375, 0.625, 0.875];
+
+fn coverage_bounds(bounds: &GlyphBounds) -> Option<(i32, i32, u32, u32)> {
+    let origin_x = bounds.min_x.floor() as i32;
+    let origin_y = bounds.min_y.floor() as i32;
+    let max_x = bounds.max_x.ceil() as i32;
+    let max_y = bounds.max_y.ceil() as i32;
+
+    let width = max_x.saturating_sub(origin_x) as u32;
+    let height = max_y.saturating_sub(origin_y) as u32;
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    Some((origin_x, origin_y, width, height))
+}
+
+fn accumulate_coverage_span(
+    coverage: &mut [f32],
+    width: u32,
+    height: u32,
+    start_x: f32,
+    end_x: f32,
+    y: i32,
+    row_weight: f32,
+) {
+    if start_x >= end_x || y < 0 || y >= height as i32 {
         return;
     }
 
-    let width = screen.width() as i32;
-    let start = (start_x - 0.5).ceil() as i32;
-    let end = (end_x - 0.5).floor() as i32;
-    if width == 0 || start > end {
+    let width = width as i32;
+    let start = start_x.floor() as i32;
+    let end = end_x.ceil() as i32 - 1;
+    if start > end {
         return;
     }
 
@@ -470,15 +495,64 @@ fn fill_span(screen: &mut dyn Screen, start_x: f32, end_x: f32, y: i32, color: u
         return;
     }
 
-    let (_, _, _, alpha) = color_taple(color);
-    if alpha == 0 {
+    let row_offset = y as usize * width as usize;
+    for x in start..=end {
+        let pixel_start = x as f32;
+        let pixel_end = pixel_start + 1.0;
+        let overlap = pixel_end.min(end_x) - pixel_start.max(start_x);
+        if overlap <= 0.0 {
+            continue;
+        }
+
+        let index = row_offset + x as usize;
+        coverage[index] += overlap.clamp(0.0, 1.0) * row_weight;
+    }
+}
+
+fn blend_coverage_pixel(screen: &mut dyn Screen, x: i32, y: i32, color: u32, coverage: f32) {
+    if x < 0 || y < 0 || x >= screen.width() as i32 || y >= screen.height() as i32 {
         return;
     }
 
-    line::line_with_alpha(screen, start, y, end, y, color & 0x00ff_ffff, alpha);
+    let coverage = coverage.clamp(0.0, 1.0);
+    if coverage <= 0.0 {
+        return;
+    }
+
+    let (red, green, blue, alpha) = color_taple(color);
+    let src_alpha = (alpha as f32 / 255.0) * coverage;
+    if src_alpha <= f32::EPSILON {
+        return;
+    }
+
+    let width = screen.width();
+    let pos = (y as u32 * width * 4 + x as u32 * 4) as usize;
+    let buf = screen.buffer_mut();
+    let dst_alpha = buf[pos + 3] as f32 / 255.0;
+    let out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha);
+    if out_alpha <= f32::EPSILON {
+        return;
+    }
+
+    let dst_scale = dst_alpha * (1.0 - src_alpha);
+    let red = ((red as f32 * src_alpha + buf[pos] as f32 * dst_scale) / out_alpha)
+        .round()
+        .clamp(0.0, 255.0) as u8;
+    let green = ((green as f32 * src_alpha + buf[pos + 1] as f32 * dst_scale) / out_alpha)
+        .round()
+        .clamp(0.0, 255.0) as u8;
+    let blue = ((blue as f32 * src_alpha + buf[pos + 2] as f32 * dst_scale) / out_alpha)
+        .round()
+        .clamp(0.0, 255.0) as u8;
+    let alpha = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
+
+    buf[pos] = red;
+    buf[pos + 1] = green;
+    buf[pos + 2] = blue;
+    buf[pos + 3] = alpha;
 }
 
-fn fill_contours(
+fn fill_contours_antialias(
     screen: &mut dyn Screen,
     contours: &[Vec<(f32, f32)>],
     color: u32,
@@ -491,72 +565,111 @@ fn fill_contours(
     let Some(bounds) = contour_bounds(contours) else {
         return;
     };
+    let Some((origin_x, origin_y, width, height)) = coverage_bounds(&bounds) else {
+        return;
+    };
 
     let edges = contour_edges(contours);
     if edges.is_empty() {
         return;
     }
 
-    let height = screen.height() as i32;
-    let start_y = ((bounds.min_y - 0.5).ceil() as i32).clamp(0, height.saturating_sub(1));
-    let end_y = ((bounds.max_y - 0.5).floor() as i32).clamp(0, height.saturating_sub(1));
+    let translated_edges: Vec<Edge> = edges
+        .into_iter()
+        .map(|edge| Edge {
+            x0: edge.x0 - origin_x as f32,
+            y0: edge.y0 - origin_y as f32,
+            x1: edge.x1 - origin_x as f32,
+            y1: edge.y1 - origin_y as f32,
+            winding: edge.winding,
+        })
+        .collect();
 
-    for y in start_y..=end_y {
-        let scan_y = y as f32 + 0.5;
-        let mut intersections = Vec::new();
+    let row_weight = 1.0 / GLYPH_AA_SUBPIXEL_ROWS.len() as f32;
+    let mut coverage = vec![0.0_f32; width as usize * height as usize];
 
-        for edge in &edges {
-            let y_min = edge.y0.min(edge.y1);
-            let y_max = edge.y0.max(edge.y1);
-            if scan_y < y_min || scan_y >= y_max {
+    for y in 0..height as i32 {
+        for subpixel_y in GLYPH_AA_SUBPIXEL_ROWS {
+            let scan_y = y as f32 + subpixel_y;
+            let mut intersections = Vec::new();
+
+            for edge in &translated_edges {
+                let y_min = edge.y0.min(edge.y1);
+                let y_max = edge.y0.max(edge.y1);
+                if scan_y < y_min || scan_y >= y_max {
+                    continue;
+                }
+
+                let t = (scan_y - edge.y0) / (edge.y1 - edge.y0);
+                let x = edge.x0 + (edge.x1 - edge.x0) * t;
+                intersections.push((x, edge.winding));
+            }
+
+            if intersections.is_empty() {
                 continue;
             }
 
-            let t = (scan_y - edge.y0) / (edge.y1 - edge.y0);
-            let x = edge.x0 + (edge.x1 - edge.x0) * t;
-            intersections.push((x, edge.winding));
-        }
+            intersections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
 
-        if intersections.is_empty() {
-            continue;
-        }
-
-        intersections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
-
-        match rule {
-            FillRule::EvenOdd => {
-                let mut i = 0;
-                while i + 1 < intersections.len() {
-                    fill_span(screen, intersections[i].0, intersections[i + 1].0, y, color);
-                    i += 2;
-                }
-            }
-            FillRule::NonZero => {
-                let mut grouped: Vec<(f32, i32)> = Vec::with_capacity(intersections.len());
-                for (x, delta) in intersections {
-                    if let Some(last) = grouped.last_mut() {
-                        if (last.0 - x).abs() <= 0.001 {
-                            last.1 += delta;
-                            continue;
-                        }
-                    }
-                    grouped.push((x, delta));
-                }
-
-                let mut winding = 0;
-                let mut start_x = None;
-                for (x, delta) in grouped {
-                    let previous = winding;
-                    winding += delta;
-                    if previous == 0 && winding != 0 {
-                        start_x = Some(x);
-                    } else if previous != 0 && winding == 0 {
-                        if let Some(start_x) = start_x.take() {
-                            fill_span(screen, start_x, x, y, color);
-                        }
+            match rule {
+                FillRule::EvenOdd => {
+                    let mut i = 0;
+                    while i + 1 < intersections.len() {
+                        accumulate_coverage_span(
+                            &mut coverage,
+                            width,
+                            height,
+                            intersections[i].0,
+                            intersections[i + 1].0,
+                            y,
+                            row_weight,
+                        );
+                        i += 2;
                     }
                 }
+                FillRule::NonZero => {
+                    let mut grouped: Vec<(f32, i32)> = Vec::with_capacity(intersections.len());
+                    for (x, delta) in intersections {
+                        if let Some(last) = grouped.last_mut() {
+                            if (last.0 - x).abs() <= 0.001 {
+                                last.1 += delta;
+                                continue;
+                            }
+                        }
+                        grouped.push((x, delta));
+                    }
+
+                    let mut winding = 0;
+                    let mut start_x = None;
+                    for (x, delta) in grouped {
+                        let previous = winding;
+                        winding += delta;
+                        if previous == 0 && winding != 0 {
+                            start_x = Some(x);
+                        } else if previous != 0 && winding == 0 {
+                            if let Some(start_x) = start_x.take() {
+                                accumulate_coverage_span(
+                                    &mut coverage,
+                                    width,
+                                    height,
+                                    start_x,
+                                    x,
+                                    y,
+                                    row_weight,
+                                );
+                            }
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    for y in 0..height as i32 {
+        let row_offset = y as usize * width as usize;
+        for x in 0..width as i32 {
+            let pixel_coverage = coverage[row_offset + x as usize];
+            blend_coverage_pixel(screen, origin_x + x, origin_y + y, color, pixel_coverage);
         }
     }
 }
@@ -682,7 +795,7 @@ fn draw_path_layer(
         origin_y + layer.offset_y,
     );
     let color = resolve_paint(layer.paint, default_color);
-    fill_contours(screen, &contours, color, layer.fill_rule);
+    fill_contours_antialias(screen, &contours, color, layer.fill_rule);
 }
 
 fn draw_raster_layer(
@@ -794,6 +907,7 @@ pub fn draw(screen: &mut dyn Screen, commands: &Vec<Command>, color: u32) {
 mod tests {
     use super::*;
     use crate::canvas::Canvas;
+    use crate::clear::fillrect;
 
     fn rgba(screen: &dyn Screen, x: u32, y: u32) -> [u8; 4] {
         let offset = ((y * screen.width() + x) * 4) as usize;
@@ -861,5 +975,31 @@ mod tests {
         assert_eq!(rgba(&canvas, 4, 3), [0x00, 0xff, 0x00, 0xff]);
         assert_eq!(rgba(&canvas, 3, 4), [0x00, 0x00, 0xff, 0xff]);
         assert_eq!(rgba(&canvas, 4, 4), [0x80, 0x80, 0x00, 0xff]);
+    }
+
+    #[test]
+    fn draw_glyphs_antialiases_diagonal_edges() {
+        let commands = vec![
+            Command::MoveTo(1.0, 1.0),
+            Command::Line(8.0, 1.0),
+            Command::Line(8.0, 8.0),
+            Command::Close,
+        ];
+
+        let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::new(
+            commands,
+            GlyphPaint::CurrentColor,
+        ))]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(10, 10);
+        fillrect(&mut canvas, 0x00ff_ffff);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xff00_0000).unwrap();
+
+        let edge = rgba(&canvas, 3, 3);
+        assert_eq!(edge[3], 0xff);
+        assert!(edge[0] > 0x00 && edge[0] < 0xff);
+        assert_eq!(edge[0], edge[1]);
+        assert_eq!(edge[1], edge[2]);
     }
 }

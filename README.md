@@ -56,6 +56,8 @@ Color model ABGR uint32LE
 
 2026/03/20 0.0.25 Pathの拡張実装 FontAPIの前段階実装
 
+2026/03/24 0.0.26 FontAPIの実装
+
 Todo
 - organize Functions
 - border
