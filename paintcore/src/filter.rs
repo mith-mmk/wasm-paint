@@ -1,7 +1,10 @@
 use crate::canvas::*;
 use crate::grayscale::to_grayscale;
 use crate::layer::Layer;
-use std::{collections::HashMap, io::{Error, ErrorKind}};
+use std::{
+    collections::HashMap,
+    io::{Error, ErrorKind},
+};
 
 #[derive(Clone)]
 enum FilterType {
@@ -87,7 +90,12 @@ impl Kernel {
         ];
         Self::from(3, 3, matrix, false)
     }
-    pub fn from(width: usize, height: usize, matrix: Vec<Vec<f32>>,already_nomarized: bool) -> Self {
+    pub fn from(
+        width: usize,
+        height: usize,
+        matrix: Vec<Vec<f32>>,
+        already_nomarized: bool,
+    ) -> Self {
         Self {
             width,
             height,
@@ -96,32 +104,31 @@ impl Kernel {
         }
     }
 
-    pub fn gaussian_kernel(size: usize, sigma: f32) -> Result<Self,Error> {
+    pub fn gaussian_kernel(size: usize, sigma: f32) -> Result<Self, Error> {
         check_kernel_size(size)?;
-        let mut matrix = vec![vec![0.0;size];size];
-        let k = (size /2) as i32;
+        let mut matrix = vec![vec![0.0; size]; size];
+        let k = (size / 2) as i32;
         let mut sum = 0.0;
         for y in -k..=k {
             for x in -k..=k {
-                let v = (-((x*x +y*y) as f32) / (2.0 * sigma * sigma)).exp();
-                matrix[(y + k) as usize][(x + k ) as usize] = v;
+                let v = (-((x * x + y * y) as f32) / (2.0 * sigma * sigma)).exp();
+                matrix[(y + k) as usize][(x + k) as usize] = v;
                 sum += v;
             }
         }
         for y in 0..size {
             for x in 0..size {
-               matrix[y][x] /= sum;
+                matrix[y][x] /= sum;
             }
         }
         Ok(Kernel::from(size, size, matrix, true))
     }
 
-    pub fn avarage_kernel(size: usize) -> Result<Self,Error> {
+    pub fn avarage_kernel(size: usize) -> Result<Self, Error> {
         check_kernel_size(size)?;
-        let matrix = vec![vec![1.0;size];size];
+        let matrix = vec![vec![1.0; size]; size];
         Ok(Kernel::from(size, size, matrix, false))
     }
-
 }
 
 #[inline]
@@ -145,9 +152,9 @@ fn rgb_to_y(r: u8, g: u8, b: u8) -> f32 {
 }
 
 #[inline]
-fn check_kernel_size(size: usize) -> Result<(),Error> {
+fn check_kernel_size(size: usize) -> Result<(), Error> {
     if size % 2 == 0 {
-        Err(Error::new(ErrorKind::Other,"not support even kernel size"))
+        Err(Error::new(ErrorKind::Other, "not support even kernel size"))
     } else {
         Ok(())
     }
@@ -170,7 +177,6 @@ fn yuv_to_rgb(y: f32, u: f32, v: f32) -> (u8, u8, u8) {
 
     (r, g, b)
 }
-
 
 pub fn lum_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> Result<(), Error> {
     if dest.width() == 0 || dest.height() == 0 {
@@ -479,7 +485,7 @@ pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(
 
 pub fn median(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
     check_kernel_size(size)?;
-    let rank = size * size /2;
+    let rank = size * size / 2;
     ranking_with_size(src, dest, size, Ranking::Ranking(rank))
 }
 
@@ -500,12 +506,10 @@ where
     let mut first = true;
 
     for u in 0..size {
-        let yy = (y as i32 + u - size / 2)
-            .clamp(0, height as i32 - 1) as usize;
+        let yy = (y as i32 + u - size / 2).clamp(0, height as i32 - 1) as usize;
 
         for v in 0..size {
-            let xx = (x as i32 + v - size / 2)
-                .clamp(0, width as i32 - 1) as usize;
+            let xx = (x as i32 + v - size / 2).clamp(0, width as i32 - 1) as usize;
 
             let idx = (yy * width + xx) * 4;
             let r = src_buffer[idx];
@@ -540,12 +544,10 @@ fn select_ranking_pixel(
     let mut pixels = Vec::with_capacity((size * size) as usize);
 
     for u in 0..size {
-        let yy = (y as i32 + u - size / 2)
-            .clamp(0, height as i32 - 1) as usize;
+        let yy = (y as i32 + u - size / 2).clamp(0, height as i32 - 1) as usize;
 
         for v in 0..size {
-            let xx = (x as i32 + v - size / 2)
-                .clamp(0, width as i32 - 1) as usize;
+            let xx = (x as i32 + v - size / 2).clamp(0, width as i32 - 1) as usize;
 
             let idx = (yy * width + xx) * 4;
             let r = src_buffer[idx];
@@ -563,23 +565,36 @@ fn select_ranking_pixel(
     (best.1, best.2, best.3)
 }
 
-enum Ranking{
-    Erode ,
+enum Ranking {
+    Erode,
     Dilates,
-    Ranking(usize) ,
+    Ranking(usize),
 }
 
 #[inline]
-fn min_pixel(a: (f32,u8,u8,u8), b: (f32,u8,u8,u8)) -> (f32,u8,u8,u8) {
-    if a.0 < b.0 { a } else { b }
+fn min_pixel(a: (f32, u8, u8, u8), b: (f32, u8, u8, u8)) -> (f32, u8, u8, u8) {
+    if a.0 < b.0 {
+        a
+    } else {
+        b
+    }
 }
 
 #[inline]
-fn max_pixel(a: (f32,u8,u8,u8), b: (f32,u8,u8,u8)) -> (f32,u8,u8,u8) {
-    if a.0 > b.0 { a } else { b }
+fn max_pixel(a: (f32, u8, u8, u8), b: (f32, u8, u8, u8)) -> (f32, u8, u8, u8) {
+    if a.0 > b.0 {
+        a
+    } else {
+        b
+    }
 }
 
-fn ranking_with_size(src: &dyn Screen, dest: &mut dyn Screen, size: usize, scan_type: Ranking) -> Result<(), Error> {
+fn ranking_with_size(
+    src: &dyn Screen,
+    dest: &mut dyn Screen,
+    size: usize,
+    scan_type: Ranking,
+) -> Result<(), Error> {
     check_kernel_size(size)?;
     let size = size as i32;
     if dest.width() == 0 || dest.height() == 0 {
@@ -605,14 +620,14 @@ fn ranking_with_size(src: &dyn Screen, dest: &mut dyn Screen, size: usize, scan_
                 break;
             }
             let a = src_buffer[offset + x * 4 + 3];
-            let (r,g,b) = match scan_type {
+            let (r, g, b) = match scan_type {
                 Ranking::Erode => {
-                    select_pixel(src_buffer,x,y, src_width, src_height, size, min_pixel)
+                    select_pixel(src_buffer, x, y, src_width, src_height, size, min_pixel)
                 }
                 Ranking::Dilates => {
-                    select_pixel(src_buffer,x,y, src_width, src_height, size, max_pixel)
+                    select_pixel(src_buffer, x, y, src_width, src_height, size, max_pixel)
                 }
-               Ranking::Ranking(rank) => {
+                Ranking::Ranking(rank) => {
                     select_ranking_pixel(src_buffer, x, y, src_width, src_height, size, rank)
                 }
             };
@@ -629,7 +644,6 @@ pub fn erode(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(),
     ranking_with_size(src, dest, size, Ranking::Erode)
 }
 
-
 pub fn dilate(src: &dyn Screen, dest: &mut dyn Screen, size: usize) -> Result<(), Error> {
     ranking_with_size(src, dest, size, Ranking::Dilates)
 }
@@ -642,7 +656,6 @@ struct Grad {
 
 fn calc_grad(gx: Vec<f32>, gy: Vec<f32>, w: usize, h: usize) -> Vec<Grad> {
     let mut out = vec![Grad { mag: 0.0, dir: 0 }; w as usize * h as usize];
-
 
     for y in 0..h {
         let stride = (y * w) as usize;
@@ -744,9 +757,7 @@ fn hysteresis(src: &mut [u8], w: usize, h: usize) {
     }
 }
 
-fn edge_filter_f32(
-    src: &dyn Screen,
-) -> (Vec<f32>, Vec<f32>) {
+fn edge_filter_f32(src: &dyn Screen) -> (Vec<f32>, Vec<f32>) {
     let w = src.width() as usize;
     let h = src.height() as usize;
 
@@ -756,19 +767,11 @@ fn edge_filter_f32(
     let mut gy = vec![0.0f32; w * h];
 
     // Sobel kernel
-    let kx = [
-        [ 1.0,  0.0, -1.0],
-        [ 2.0,  0.0, -2.0],
-        [ 1.0,  0.0, -1.0],
-    ];
-    let ky = [
-        [ 1.0,  2.0,  1.0],
-        [ 0.0,  0.0,  0.0],
-        [-1.0, -2.0, -1.0],
-    ];
+    let kx = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
+    let ky = [[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]];
 
-    for y in 1..h-1 {
-        for x in 1..w-1 {
+    for y in 1..h - 1 {
+        for x in 1..w - 1 {
             let mut sum_x = 0.0;
             let mut sum_y = 0.0;
 
@@ -783,7 +786,7 @@ fn edge_filter_f32(
                     let r = buf[offset] as f32;
                     let g = buf[offset + 1] as f32;
                     let b = buf[offset + 2] as f32;
-                    let gray = 0.299*r + 0.587*g + 0.114*b;
+                    let gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
                     sum_x += gray * kx[ky_i][kx_i];
                     sum_y += gray * ky[ky_i][kx_i];
@@ -807,7 +810,7 @@ pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
     lum_filter(
         src,
         &mut tmp_gaussian,
-        &Kernel::gaussian_kernel(3, 1.0).unwrap()
+        &Kernel::gaussian_kernel(3, 1.0).unwrap(),
     )?;
     let (gx, gy) = edge_filter_f32(src);
     let grad = calc_grad(gx, gy, src_width, src_height);
@@ -833,15 +836,25 @@ pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
 
 pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
     let filter_type = FilterType::from(filter_name);
-    _filter(src, dest, filter_type,None)
+    _filter(src, dest, filter_type, None)
 }
 
-pub fn filter_with_option(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str, options:Option<HashMap<&str, f32>>) -> Result<(), Error> {
+pub fn filter_with_option(
+    src: &dyn Screen,
+    dest: &mut dyn Screen,
+    filter_name: &str,
+    options: Option<HashMap<&str, f32>>,
+) -> Result<(), Error> {
     let filter_type = FilterType::from(filter_name);
     _filter(src, dest, filter_type, options)
 }
 
-fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, options:Option<HashMap<&str, f32>>) -> Result<(), Error> {
+fn _filter(
+    src: &dyn Screen,
+    dest: &mut dyn Screen,
+    filter_type: FilterType,
+    options: Option<HashMap<&str, f32>>,
+) -> Result<(), Error> {
     let size = if let Some(options) = &options {
         if let Some(size) = options.get("size") {
             *size as usize
@@ -855,8 +868,8 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
     let result = match filter_type {
         FilterType::Copy => copy_to(src, dest),
         FilterType::Median(size) => median(src, dest, size),
-        FilterType::Erode(size)  => ranking_with_size(src, dest, size, Ranking::Erode),
-        FilterType::Dilate(size)  => ranking_with_size(src, dest, size, Ranking::Dilates),
+        FilterType::Erode(size) => ranking_with_size(src, dest, size, Ranking::Erode),
+        FilterType::Dilate(size) => ranking_with_size(src, dest, size, Ranking::Dilates),
         FilterType::Sharpness => {
             let matrix = [[-1.0, -1.0, -1.0], [-1.0, 10.0, -1.0], [-1.0, -1.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
@@ -866,9 +879,7 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
             let matrix = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
         }
-        FilterType::Average => {
-            rgb_filter(src, dest, &Kernel::avarage_kernel(size)?)
-        }
+        FilterType::Average => rgb_filter(src, dest, &Kernel::avarage_kernel(size)?),
         FilterType::Smooth => {
             let matrix = [[1.0, 1.0, 1.0], [1.0, 4.0, 1.0], [1.0, 1.0, 1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
@@ -887,11 +898,7 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
             let matrix_b = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
             // ガウシアン
             let mut tmp_gaussian = Layer::tmp(src.width(), src.height());
-            lum_filter(
-                src,
-                &mut tmp_gaussian,
-                &Kernel::gaussian_kernel(3, 1.0)?
-            )?;
+            lum_filter(src, &mut tmp_gaussian, &Kernel::gaussian_kernel(3, 1.0)?)?;
             let mut tmp_a = Layer::tmp(src.width(), src.height());
             let mut tmp_b = Layer::tmp(src.width(), src.height());
             // SobelX
@@ -928,8 +935,8 @@ fn _filter(src: &dyn Screen, dest: &mut dyn Screen, filter_type: FilterType, opt
                 };
                 Kernel::gaussian_kernel(size, sigma)?
             } else {
-               let matrix = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
-               Kernel::new(matrix)
+                let matrix = [[1.0, 2.0, 1.0], [2.0, 4.0, 2.0], [1.0, 2.0, 1.0]];
+                Kernel::new(matrix)
             };
             lum_filter(src, dest, &kernel)
         }

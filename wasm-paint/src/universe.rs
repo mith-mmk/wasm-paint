@@ -67,7 +67,6 @@ extern "C" {
     fn log(s: &str);
 }
 
-
 /*
  * If you use Struct in Vec,you happen bollow error for function call multiple same Sturct.
  *
@@ -618,12 +617,18 @@ impl Universe {
     }
 
     #[wasm_bindgen(js_name = filterEx)]
-    pub fn filter_with_option(&mut self, canvas_in: usize, canvas_out: usize, filter_name: String, _options: Vec<f32>) {
+    pub fn filter_with_option(
+        &mut self,
+        canvas_in: usize,
+        canvas_out: usize,
+        filter_name: String,
+        _options: Vec<f32>,
+    ) {
         // 0 size
         // 1 gaussian: sigma
         // 2..size*size+2 custom kernel size*size
-    
-         if canvas_in == 0 {
+
+        if canvas_in == 0 {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             let _ = filter(&self.canvas, output_canvas, &filter_name);
         } else if canvas_out == 0 {
@@ -635,7 +640,6 @@ impl Universe {
             let _ = filter(input_canvas, output_canvas, &filter_name);
         }
     }
-
 
     #[wasm_bindgen(js_name = filters)]
     pub fn filters(&mut self, canvas_in: usize, canvas_out: usize, filter_names: Vec<String>) {

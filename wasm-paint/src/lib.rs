@@ -14,8 +14,6 @@ pub fn initialization() {
     utils::set_panic_hook();
 }
 
-
-
 pub struct Rnd {
     seed: u64,
 }
@@ -36,4 +34,3 @@ impl Rnd {
         (seed % range as u64) as u32
     }
 }
-
