@@ -1,7 +1,7 @@
 type Error = Box<dyn std::error::Error>;
 
+use js_sys::{Array, Reflect};
 use paintcore::{path, prelude::*};
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
@@ -65,6 +65,261 @@ extern "C" {
     fn random() -> f64;
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
+}
+
+fn js_error(message: &str) -> JsValue {
+    JsValue::from_str(message)
+}
+
+fn normalize_path_text(commands: &str) -> String {
+    let mut normalized = String::with_capacity(commands.len() * 2);
+    let mut prev = None;
+
+    for ch in commands.chars() {
+        match ch {
+            ',' => normalized.push(' '),
+            'A'..='Z' | 'a'..='z' => {
+                normalized.push(' ');
+                normalized.push(ch);
+                normalized.push(' ');
+            }
+            '-' | '+' => {
+                let split =
+                    matches!(prev, Some('0'..='9' | '.')) && !matches!(prev, Some('e' | 'E'));
+                if split {
+                    normalized.push(' ');
+                }
+                normalized.push(ch);
+            }
+            _ => normalized.push(ch),
+        }
+        prev = Some(ch);
+    }
+
+    normalized
+}
+
+fn parse_number<'a, I>(tokens: &mut I, command: &str) -> Result<f32, String>
+where
+    I: Iterator<Item = &'a str>,
+{
+    let token = tokens
+        .next()
+        .ok_or_else(|| format!("missing numeric argument for path command {}", command))?;
+
+    token.parse::<f32>().map_err(|_| {
+        format!(
+            "invalid numeric argument '{}' for path command {}",
+            token, command
+        )
+    })
+}
+
+fn parse_path_commands(commands: &str) -> Result<Vec<path::Command>, String> {
+    let normalized = normalize_path_text(commands);
+    let mut tokens = normalized.split_whitespace();
+    let mut parsed = Vec::new();
+    let mut current_point = (0.0_f32, 0.0_f32);
+    let mut start_point = (0.0_f32, 0.0_f32);
+    let mut last_quad_control = None;
+
+    while let Some(command) = tokens.next() {
+        match command {
+            "M" | "m" => {
+                let mut x = parse_number(&mut tokens, command)?;
+                let mut y = parse_number(&mut tokens, command)?;
+                if command == "m" {
+                    x += current_point.0;
+                    y += current_point.1;
+                }
+                current_point = (x, y);
+                start_point = current_point;
+                parsed.push(path::Command::MoveTo(x, y));
+                last_quad_control = None;
+            }
+            "L" | "l" => {
+                let mut x = parse_number(&mut tokens, command)?;
+                let mut y = parse_number(&mut tokens, command)?;
+                if command == "l" {
+                    x += current_point.0;
+                    y += current_point.1;
+                }
+                current_point = (x, y);
+                parsed.push(path::Command::Line(x, y));
+                last_quad_control = None;
+            }
+            "C" | "c" => {
+                let mut cx1 = parse_number(&mut tokens, command)?;
+                let mut cy1 = parse_number(&mut tokens, command)?;
+                let mut cx2 = parse_number(&mut tokens, command)?;
+                let mut cy2 = parse_number(&mut tokens, command)?;
+                let mut ex = parse_number(&mut tokens, command)?;
+                let mut ey = parse_number(&mut tokens, command)?;
+                if command == "c" {
+                    cx1 += current_point.0;
+                    cy1 += current_point.1;
+                    cx2 += current_point.0;
+                    cy2 += current_point.1;
+                    ex += current_point.0;
+                    ey += current_point.1;
+                }
+                current_point = (ex, ey);
+                parsed.push(path::Command::CubicBezier((cx1, cy1), (cx2, cy2), (ex, ey)));
+                last_quad_control = None;
+            }
+            "Q" | "q" => {
+                let mut cx = parse_number(&mut tokens, command)?;
+                let mut cy = parse_number(&mut tokens, command)?;
+                let mut ex = parse_number(&mut tokens, command)?;
+                let mut ey = parse_number(&mut tokens, command)?;
+                if command == "q" {
+                    cx += current_point.0;
+                    cy += current_point.1;
+                    ex += current_point.0;
+                    ey += current_point.1;
+                }
+                current_point = (ex, ey);
+                last_quad_control = Some((cx, cy));
+                parsed.push(path::Command::Bezier((cx, cy), (ex, ey)));
+            }
+            "T" | "t" => {
+                let mut ex = parse_number(&mut tokens, command)?;
+                let mut ey = parse_number(&mut tokens, command)?;
+                if command == "t" {
+                    ex += current_point.0;
+                    ey += current_point.1;
+                }
+                let (cx, cy) = if let Some((px, py)) = last_quad_control {
+                    (
+                        current_point.0 + (current_point.0 - px),
+                        current_point.1 + (current_point.1 - py),
+                    )
+                } else {
+                    current_point
+                };
+                current_point = (ex, ey);
+                last_quad_control = Some((cx, cy));
+                parsed.push(path::Command::Bezier((cx, cy), (ex, ey)));
+            }
+            "Z" | "z" => {
+                current_point = start_point;
+                last_quad_control = None;
+                parsed.push(path::Command::Close);
+            }
+            _ => {
+                return Err(format!("unsupported path command '{}'", command));
+            }
+        }
+    }
+
+    Ok(parsed)
+}
+
+fn js_get(target: &JsValue, key: &str) -> Result<JsValue, JsValue> {
+    Reflect::get(target, &JsValue::from_str(key))
+        .map_err(|_| js_error(&format!("failed to read property '{}'", key)))
+}
+
+fn js_get_optional_f32(target: &JsValue, key: &str) -> Result<Option<f32>, JsValue> {
+    let value = js_get(target, key)?;
+    if value.is_null() || value.is_undefined() {
+        return Ok(None);
+    }
+    value
+        .as_f64()
+        .map(|value| value as f32)
+        .ok_or_else(|| js_error(&format!("property '{}' must be a number", key)))
+        .map(Some)
+}
+
+fn js_get_optional_u32(target: &JsValue, key: &str) -> Result<Option<u32>, JsValue> {
+    let value = js_get(target, key)?;
+    if value.is_null() || value.is_undefined() {
+        return Ok(None);
+    }
+    value
+        .as_f64()
+        .map(|value| value as u32)
+        .ok_or_else(|| js_error(&format!("property '{}' must be a number", key)))
+        .map(Some)
+}
+
+fn js_get_optional_string(target: &JsValue, key: &str) -> Result<Option<String>, JsValue> {
+    let value = js_get(target, key)?;
+    if value.is_null() || value.is_undefined() {
+        return Ok(None);
+    }
+    value
+        .as_string()
+        .ok_or_else(|| js_error(&format!("property '{}' must be a string", key)))
+        .map(Some)
+}
+
+fn parse_js_layer(layer: &JsValue) -> Result<path::GlyphLayer, JsValue> {
+    let commands = js_get_optional_string(layer, "commands")?
+        .or_else(|| js_get_optional_string(layer, "path").ok().flatten())
+        .ok_or_else(|| js_error("glyph layer.commands is required"))?;
+
+    let fill_rule = match js_get_optional_string(layer, "fillRule")?.as_deref() {
+        Some("evenodd") | Some("even-odd") => path::FillRule::EvenOdd,
+        _ => path::FillRule::NonZero,
+    };
+    let paint = match js_get_optional_u32(layer, "color")? {
+        Some(color) => path::GlyphPaint::Solid(color),
+        None => path::GlyphPaint::CurrentColor,
+    };
+    let offset_x = js_get_optional_f32(layer, "offsetX")?.unwrap_or(0.0);
+    let offset_y = js_get_optional_f32(layer, "offsetY")?.unwrap_or(0.0);
+
+    let commands = parse_path_commands(&commands)
+        .map_err(|error| js_error(&format!("invalid path layer: {}", error)))?;
+
+    Ok(path::GlyphLayer::Path(path::PathGlyphLayer {
+        commands,
+        paint,
+        fill_rule,
+        offset_x,
+        offset_y,
+    }))
+}
+
+fn parse_js_glyph(glyph: &JsValue) -> Result<path::PositionedGlyph, JsValue> {
+    if let Some(commands) = glyph.as_string() {
+        let layer = path::GlyphLayer::Path(path::PathGlyphLayer::new(
+            parse_path_commands(&commands)
+                .map_err(|error| js_error(&format!("invalid glyph path: {}", error)))?,
+            path::GlyphPaint::CurrentColor,
+        ));
+        return Ok(path::PositionedGlyph::new(
+            path::Glyph::new(vec![layer]),
+            0.0,
+            0.0,
+        ));
+    }
+
+    let x = js_get_optional_f32(glyph, "x")?.unwrap_or(0.0);
+    let y = js_get_optional_f32(glyph, "y")?.unwrap_or(0.0);
+    let layers_value = js_get(glyph, "layers")?;
+
+    let layers = if layers_value.is_null() || layers_value.is_undefined() {
+        vec![parse_js_layer(glyph)?]
+    } else {
+        Array::from(&layers_value)
+            .iter()
+            .map(|layer| parse_js_layer(&layer))
+            .collect::<Result<Vec<_>, _>>()?
+    };
+
+    Ok(path::PositionedGlyph::new(path::Glyph::new(layers), x, y))
+}
+
+fn parse_js_glyph_run(glyphs: &Array) -> Result<path::GlyphRun, JsValue> {
+    let glyphs = glyphs
+        .iter()
+        .map(|glyph| parse_js_glyph(&glyph))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(path::GlyphRun::new(glyphs))
 }
 
 /*
@@ -458,76 +713,17 @@ impl Universe {
 
     #[wasm_bindgen(js_name = drawPath)]
     pub fn draw_path(&mut self, commands: String, color: u32) {
-        // space split
-        let mut commandline = commands.split(' ');
-        let mut commands = Vec::new();
-        loop {
-            let command = commandline.next();
-            if command.is_none() {
-                break;
-            }
-            let command = command.unwrap();
-            match command {
-                "M" => {
-                    let x = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let y = commandline.next().unwrap().parse::<f32>().unwrap();
-                    commands.push(path::Command::MoveTo(x, y));
-                }
-                "L" => {
-                    let x = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let y = commandline.next().unwrap().parse::<f32>().unwrap();
-                    commands.push(path::Command::Line(x, y));
-                }
-                "C" => {
-                    let cx1 = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let cy1 = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let cx2 = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let cy2 = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let ex = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let ey = commandline.next().unwrap().parse::<f32>().unwrap();
-                    commands.push(path::Command::CubicBezier((cx1, cy1), (cx2, cy2), (ex, ey)));
-                }
-                "Q" => {
-                    let cx = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let cy = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let ex = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let ey = commandline.next().unwrap().parse::<f32>().unwrap();
-                    commands.push(path::Command::Bezier((cx, cy), (ex, ey)));
-                }
-                "T" => {
-                    let ex = commandline.next().unwrap().parse::<f32>().unwrap();
-                    let ey = commandline.next().unwrap().parse::<f32>().unwrap();
-                    // last commands?
-                    let prev = commands.pop();
-                    let prev = match prev {
-                        Some(prev) => {
-                            commands.push(prev.clone());
-                            prev
-                        }
-                        _ => {
-                            continue;
-                        }
-                    };
-                    match prev {
-                        path::Command::Bezier((x1, y1), (x, y)) => {
-                            let cx = x + (x - x1);
-                            let cy = y + (y - y1);
-                            commands.push(path::Command::Bezier((cx, cy), (ex, ey)));
-                        }
-                        _ => {
-                            commands.push(path::Command::Line(ex, ey));
-                        }
-                    }
-                }
-                "Z" => {
-                    commands.push(path::Command::Close);
-                }
-                _ => {
-                    break;
-                }
-            }
-            path::draw(self.layer_mut(), &commands, color);
+        match parse_path_commands(&commands) {
+            Ok(commands) => path::draw(self.layer_mut(), &commands, color),
+            Err(error) => log(&error),
         }
+    }
+
+    #[wasm_bindgen(js_name = drawGlyphs)]
+    pub fn draw_glyphs_js(&mut self, glyphs: Array, color: u32) -> Result<(), JsValue> {
+        let glyphs = parse_js_glyph_run(&glyphs)?;
+        path::draw_glyphs(self.layer_mut(), &glyphs, 0.0, 0.0, color)
+            .map_err(|error| js_error(&error.to_string()))
     }
 
     #[wasm_bindgen(js_name = affineNew)]

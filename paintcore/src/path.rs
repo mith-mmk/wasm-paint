@@ -231,10 +231,18 @@ fn paint_error(message: &str) -> Error {
     })
 }
 
+fn normalize_paint_color(color: u32) -> u32 {
+    if color <= 0x00ff_ffff {
+        0xff00_0000 | color
+    } else {
+        color
+    }
+}
+
 fn resolve_paint(paint: GlyphPaint, default_color: u32) -> u32 {
     match paint {
-        GlyphPaint::Solid(color) => color,
-        GlyphPaint::CurrentColor => default_color,
+        GlyphPaint::Solid(color) => normalize_paint_color(color),
+        GlyphPaint::CurrentColor => normalize_paint_color(default_color),
     }
 }
 
