@@ -1,6 +1,6 @@
 [package]
 name = "paint"
-version = "0.0.24"
+version = "0.0.25"
 authors = ["mith-mmk <47620686+mith-mmk@users.noreply.github.com>"]
 edition = "2024"
 license = "MIT"
@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 [features]
 default = ["console_error_panic_hook"]
 stdweb = [ "instant/stdweb" ]
+font = ["dep:fontloader", "paintcore/font"]
 
 [dependencies]
 paintcore = { path="../paintcore" }
@@ -21,6 +22,7 @@ js-sys = "0.3"
 instant = "0.1"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
+fontloader = { git = "https://github.com/mith-mmk/FontReader.git", branch = "main", optional = true }
 
 wml2.workspace = true
 

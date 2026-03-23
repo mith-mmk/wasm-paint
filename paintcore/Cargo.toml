@@ -6,10 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 
+[features]
+font = ["dep:fontloader"]
 
 [dependencies]
 wml2.workspace = true
-
-[definitions.fontloader]
-git = "https://github.com/mith-mmk/FontReader"
-version = "0.0.1"
+fontloader = { git = "https://github.com/mith-mmk/FontReader.git", branch = "main", optional = true }

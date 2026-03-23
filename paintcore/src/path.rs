@@ -16,6 +16,17 @@ use crate::{
 };
 use std::cmp::Ordering;
 
+#[cfg(feature = "font")]
+pub use fontloader::commands as commads;
+#[cfg(feature = "font")]
+pub use fontloader::{
+    text2commands, Command, FillRule, FontMetrics, FontOptions, FontRef, FontStretch, FontStyle,
+    FontVariant, FontWeight, Glyph, GlyphBounds, GlyphCommands, GlyphFlow, GlyphLayer,
+    GlyphMetrics, GlyphPaint, GlyphRun, PathCommand, PathGlyphLayer, PositionedGlyph,
+    RasterGlyphLayer, RasterGlyphSource,
+};
+
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone)]
 pub enum Command {
     Line(f32, f32),
@@ -26,6 +37,7 @@ pub enum Command {
 }
 
 /// Text advance direction resolved by the font parser.
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GlyphFlow {
     Horizontal,
@@ -33,6 +45,7 @@ pub enum GlyphFlow {
 }
 
 /// Font-level metrics. Keep this on the glyph so mixed fallback fonts can coexist in one run.
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub struct FontMetrics {
     pub ascent: f32,
@@ -41,6 +54,7 @@ pub struct FontMetrics {
     pub flow: GlyphFlow,
 }
 
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphBounds {
     pub min_x: f32,
@@ -50,6 +64,7 @@ pub struct GlyphBounds {
 }
 
 /// Glyph metrics after the font parser has resolved units and orientation.
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphMetrics {
     pub advance_x: f32,
@@ -59,6 +74,7 @@ pub struct GlyphMetrics {
     pub bounds: Option<GlyphBounds>,
 }
 
+#[cfg(not(feature = "font"))]
 impl Default for GlyphMetrics {
     fn default() -> Self {
         Self {
@@ -72,12 +88,14 @@ impl Default for GlyphMetrics {
 }
 
 /// Paint for vector glyph layers. `CurrentColor` maps to the color passed into `draw_glyphs`.
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub enum GlyphPaint {
     Solid(u32),
     CurrentColor,
 }
 
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillRule {
     NonZero,
@@ -88,6 +106,7 @@ pub enum FillRule {
 ///
 /// This is used for normal outline fonts and for SVG emoji after the SVG has been converted
 /// into path commands by the font parser.
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone)]
 pub struct PathGlyphLayer {
     pub commands: Vec<Command>,
@@ -97,6 +116,7 @@ pub struct PathGlyphLayer {
     pub offset_y: f32,
 }
 
+#[cfg(not(feature = "font"))]
 impl PathGlyphLayer {
     pub fn new(commands: Vec<Command>, paint: GlyphPaint) -> Self {
         Self {
@@ -112,6 +132,7 @@ impl PathGlyphLayer {
 /// Raster glyph payload.
 ///
 /// `Encoded` is decoded through the existing image loader, which already covers PNG.
+#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone)]
 pub enum RasterGlyphSource {
     Encoded(Vec<u8>),
@@ -122,6 +143,7 @@ pub enum RasterGlyphSource {
     },
 }
 
+#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub struct RasterGlyphLayer {
     pub source: RasterGlyphSource,
@@ -129,9 +151,9 @@ pub struct RasterGlyphLayer {
     pub offset_y: f32,
     pub width: Option<u32>,
     pub height: Option<u32>,
-    pub interpolation: InterpolationAlgorithm,
 }
 
+#[cfg(not(feature = "font"))]
 impl RasterGlyphLayer {
     pub fn from_encoded(data: Vec<u8>) -> Self {
         Self {
@@ -140,7 +162,6 @@ impl RasterGlyphLayer {
             offset_y: 0.0,
             width: None,
             height: None,
-            interpolation: InterpolationAlgorithm::Bilinear,
         }
     }
 
@@ -155,7 +176,6 @@ impl RasterGlyphLayer {
             offset_y: 0.0,
             width: None,
             height: None,
-            interpolation: InterpolationAlgorithm::Bilinear,
         }
     }
 }
@@ -164,6 +184,7 @@ impl RasterGlyphLayer {
 ///
 /// - `Path`: monochrome outlines and SVG emoji vector layers.
 /// - `Raster`: PNG bitmap emoji and other image-based glyph layers.
+#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub enum GlyphLayer {
     Path(PathGlyphLayer),
@@ -175,6 +196,7 @@ pub enum GlyphLayer {
 /// Coordinates in each layer are already in screen space relative to the glyph origin.
 /// Metrics are preserved for layout and future extensions, but drawing only uses the resolved
 /// positioned origin plus the layer offsets.
+#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub struct Glyph {
     pub font: Option<FontMetrics>,
@@ -182,6 +204,7 @@ pub struct Glyph {
     pub layers: Vec<GlyphLayer>,
 }
 
+#[cfg(not(feature = "font"))]
 impl Glyph {
     pub fn new(layers: Vec<GlyphLayer>) -> Self {
         Self {
@@ -192,6 +215,7 @@ impl Glyph {
     }
 }
 
+#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub struct PositionedGlyph {
     pub glyph: Glyph,
@@ -199,17 +223,20 @@ pub struct PositionedGlyph {
     pub y: f32,
 }
 
+#[cfg(not(feature = "font"))]
 impl PositionedGlyph {
     pub fn new(glyph: Glyph, x: f32, y: f32) -> Self {
         Self { glyph, x, y }
     }
 }
 
+#[cfg(not(feature = "font"))]
 #[derive(Clone, Default)]
 pub struct GlyphRun {
     pub glyphs: Vec<PositionedGlyph>,
 }
 
+#[cfg(not(feature = "font"))]
 impl GlyphRun {
     pub fn new(glyphs: Vec<PositionedGlyph>) -> Self {
         Self { glyphs }
@@ -638,6 +665,10 @@ fn scale_raster(
     target
 }
 
+fn raster_interpolation(_layer: &RasterGlyphLayer) -> InterpolationAlgorithm {
+    InterpolationAlgorithm::Bilinear
+}
+
 fn draw_path_layer(
     screen: &mut dyn Screen,
     layer: &PathGlyphLayer,
@@ -667,7 +698,7 @@ fn draw_raster_layer(
         &source,
         target_width,
         target_height,
-        layer.interpolation.clone(),
+        raster_interpolation(layer),
     );
 
     draw_over_screen_with_alpha(
@@ -818,7 +849,6 @@ mod tests {
             offset_y: 2.0,
             width: None,
             height: None,
-            interpolation: InterpolationAlgorithm::Bilinear,
         };
 
         let glyph = Glyph::new(vec![GlyphLayer::Raster(raster)]);

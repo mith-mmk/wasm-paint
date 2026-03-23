@@ -54,6 +54,8 @@ Color model ABGR uint32LE
 
 2026/03/20 0.0.24 Canvasの実装の変更(破壊的変更)、filterの実装拡張
 
+2026/03/20 0.0.25 Pathの拡張実装 FontAPIの前段階実装
+
 Todo
 - organize Functions
 - border

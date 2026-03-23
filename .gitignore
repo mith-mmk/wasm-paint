@@ -1,4 +1,4 @@
-/target
+/target-*
 **/*.rs.bk
 Cargo.lock
 bin/
@@ -7,3 +7,5 @@ wasm-pack.log
 tests/sample/
 .vscode
 session.txt
+.cargo*
+.tmp-*

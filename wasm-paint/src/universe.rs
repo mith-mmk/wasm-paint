@@ -1,6 +1,8 @@
 type Error = Box<dyn std::error::Error>;
 
 use js_sys::{Array, Reflect};
+#[cfg(feature = "font")]
+use fontloader::{fontload_buffer, FontOptions, LoadedFont};
 use paintcore::{path, prelude::*};
 use std::sync::{Arc, RwLock};
 use wasm_bindgen::Clamped;
@@ -365,6 +367,8 @@ pub struct Universe {
     ctx2: Option<CanvasRenderingContext2d>,
     affine: Affine,
     tmp_canvas: Option<(Canvas, Option<InterpolationAlgorithm>, ImageAlign)>,
+    #[cfg(feature = "font")]
+    font: Option<LoadedFont>,
 }
 
 #[wasm_bindgen]
@@ -398,6 +402,8 @@ impl Universe {
             ctx2: None,
             affine: Affine::new(),
             tmp_canvas: None,
+            #[cfg(feature = "font")]
+            font: None,
         }
     }
 
@@ -723,6 +729,48 @@ impl Universe {
     pub fn draw_glyphs_js(&mut self, glyphs: Array, color: u32) -> Result<(), JsValue> {
         let glyphs = parse_js_glyph_run(&glyphs)?;
         path::draw_glyphs(self.layer_mut(), &glyphs, 0.0, 0.0, color)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = hasFontFeature)]
+    pub fn has_font_feature(&self) -> bool {
+        cfg!(feature = "font")
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = loadFont)]
+    pub fn load_font(&mut self, buffer: Vec<u8>) -> Result<(), JsValue> {
+        let font = fontload_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
+        self.font = Some(font);
+        Ok(())
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = drawText)]
+    pub fn draw_text(
+        &mut self,
+        text: String,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: u32,
+    ) -> Result<(), JsValue> {
+        if !font_size.is_finite() || font_size <= 0.0 {
+            return Err(js_error("font_size must be a positive finite value"));
+        }
+
+        let glyphs = {
+            let font = self
+                .font
+                .as_ref()
+                .ok_or_else(|| js_error("font is not loaded"))?;
+            let mut options = FontOptions::new(font);
+            options.font_size = font_size;
+            font.text2glyph_run(&text, options)
+                .map_err(|error| js_error(&error.to_string()))?
+        };
+
+        path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
             .map_err(|error| js_error(&error.to_string()))
     }
 
