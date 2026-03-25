@@ -10,4 +10,4 @@ resolver = "3"
 [workspace.dependencies]
 wml2 = {version = "0.0.18"}
 #wml2 = { git = "https://github.com/mith-mmk/wml2-on-rust", rev = "a95f5e69251e460b5ed1012ea8e7c687bd66982b"}
-fontloader = { git = "https://github.com/mith-mmk/FontReader.git", rev = "6d8976908298547ed05efc0910524e1e78adbd7c"}
+fontloader = { git = "https://github.com/mith-mmk/FontReader.git", rev = "13bb32e4d52c52969f089aadb1d13fb3d0adcd71"}
