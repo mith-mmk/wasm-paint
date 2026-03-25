@@ -11,4 +11,5 @@ font = ["dep:fontloader"]
 
 [dependencies]
 wml2.workspace = true
-fontloader = { git = "https://github.com/mith-mmk/FontReader.git", branch = "main", optional = true }
+fontloader = {workspace = true, optional = true}
+

@@ -266,9 +266,23 @@ fn normalize_paint_color(color: u32) -> u32 {
     }
 }
 
+fn normalize_solid_color(color: u32) -> u32 {
+    let color = normalize_paint_color(color);
+    let alpha_hi = ((color >> 24) & 0xff) as u8;
+    let alpha_lo = (color & 0xff) as u8;
+
+    // `paintcore` colors are ARGB, but FontReader COLR/CPAL layers currently arrive as RGBA.
+    // Keep explicit ARGB input intact and only reinterpret the unambiguous RGBA cases.
+    if alpha_hi != 0x00 && alpha_hi != 0xff && (alpha_lo == 0x00 || alpha_lo == 0xff) {
+        ((alpha_lo as u32) << 24) | (color >> 8)
+    } else {
+        color
+    }
+}
+
 fn resolve_paint(paint: GlyphPaint, default_color: u32) -> u32 {
     match paint {
-        GlyphPaint::Solid(color) => normalize_paint_color(color),
+        GlyphPaint::Solid(color) => normalize_solid_color(color),
         GlyphPaint::CurrentColor => normalize_paint_color(default_color),
     }
 }
@@ -908,6 +922,10 @@ mod tests {
     use super::*;
     use crate::canvas::Canvas;
     use crate::clear::fillrect;
+    #[cfg(feature = "font")]
+    use fontloader::fontload_buffer;
+    #[cfg(feature = "font")]
+    use std::path::{Path, PathBuf};
 
     fn rgba(screen: &dyn Screen, x: u32, y: u32) -> [u8; 4] {
         let offset = ((y * screen.width() + x) * 4) as usize;
@@ -1001,5 +1019,233 @@ mod tests {
         assert!(edge[0] > 0x00 && edge[0] < 0xff);
         assert_eq!(edge[0], edge[1]);
         assert_eq!(edge[1], edge[2]);
+    }
+
+    #[test]
+    fn draw_glyphs_keeps_argb_path_colors() {
+        let commands = vec![
+            Command::MoveTo(1.0, 1.0),
+            Command::Line(5.0, 1.0),
+            Command::Line(5.0, 5.0),
+            Command::Line(1.0, 5.0),
+            Command::Close,
+        ];
+
+        let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::new(
+            commands,
+            GlyphPaint::Solid(0xff11_2233),
+        ))]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(8, 8);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xffff_ffff).unwrap();
+
+        assert_eq!(rgba(&canvas, 2, 2), [0x11, 0x22, 0x33, 0xff]);
+    }
+
+    #[test]
+    fn draw_glyphs_accepts_opaque_rgba_path_colors() {
+        let commands = vec![
+            Command::MoveTo(1.0, 1.0),
+            Command::Line(5.0, 1.0),
+            Command::Line(5.0, 5.0),
+            Command::Line(1.0, 5.0),
+            Command::Close,
+        ];
+
+        let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::new(
+            commands,
+            GlyphPaint::Solid(0x11_22_33_ff),
+        ))]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(8, 8);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xffff_ffff).unwrap();
+
+        assert_eq!(rgba(&canvas, 2, 2), [0x11, 0x22, 0x33, 0xff]);
+    }
+
+    #[cfg(feature = "font")]
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .to_path_buf()
+    }
+
+    #[cfg(feature = "font")]
+    fn tmp_font_path(name: &str) -> PathBuf {
+        workspace_root().join(".tmp-fonts").join(name)
+    }
+
+    #[cfg(feature = "font")]
+    fn load_required_tmp_font(name: &str) -> fontloader::LoadedFont {
+        let path = tmp_font_path(name);
+        let buffer = std::fs::read(&path).unwrap_or_else(|error| {
+            panic!("failed to read test font {}: {}", path.display(), error)
+        });
+        fontload_buffer(&buffer)
+            .unwrap_or_else(|error| panic!("failed to load test font {}: {}", path.display(), error))
+    }
+
+    #[cfg(feature = "font")]
+    fn count_non_white_pixels(screen: &dyn Screen, x0: u32, y0: u32, x1: u32, y1: u32) -> usize {
+        let x1 = x1.min(screen.width());
+        let y1 = y1.min(screen.height());
+        let mut count = 0;
+
+        for y in y0.min(y1)..y1 {
+            for x in x0.min(x1)..x1 {
+                let pixel = rgba(screen, x, y);
+                if pixel[0] != 0xff || pixel[1] != 0xff || pixel[2] != 0xff {
+                    count += 1;
+                }
+            }
+        }
+
+        count
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    #[ignore = "diagnostic: currently fails on fontloader outline extraction for FiraSans-Black"]
+    fn font_reader_fira_black_text2command_still_has_commands() {
+        let font = load_required_tmp_font("FiraSans-Black.ttf");
+
+        for ch in ['i', 'j'] {
+            let commands = font
+                .text2command(&ch.to_string())
+                .expect("text2command should succeed");
+            assert_eq!(commands.len(), 1, "expected one glyph for {}", ch);
+            assert!(
+                !commands[0].commands.is_empty(),
+                "text2command returned no commands for {}",
+                ch
+            );
+        }
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    #[ignore = "diagnostic: currently fails on fontloader glyph_run output for FiraSans-Black"]
+    fn font_reader_fira_black_i_and_j_have_outline_layers() {
+        let font = load_required_tmp_font("FiraSans-Black.ttf");
+
+        let mut options = fontloader::FontOptions::new(&font);
+        options.font_size = 64.0;
+        let run = font.text2glyph_run("ij", options).expect("glyph run");
+
+        assert_eq!(run.glyphs.len(), 2, "expected two glyphs for 'ij'");
+        for (index, glyph) in run.glyphs.iter().enumerate() {
+            let path_layers: Vec<&PathGlyphLayer> = glyph
+                .glyph
+                .layers
+                .iter()
+                .filter_map(|layer| match layer {
+                    GlyphLayer::Path(path) => Some(path),
+                    GlyphLayer::Raster(_) => None,
+                })
+                .collect();
+            assert!(
+                !path_layers.is_empty(),
+                "font reader returned no outline layers for glyph index {}",
+                index
+            );
+            assert!(
+                path_layers.iter().any(|path| !path.commands.is_empty()),
+                "font reader returned only empty outline layers for glyph index {}",
+                index
+            );
+            assert!(
+                glyph.glyph.metrics.bounds.is_some(),
+                "font reader returned no bounds for glyph index {}",
+                index
+            );
+        }
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    #[ignore = "diagnostic: currently fails on fontloader glyph_run output for seguiemj"]
+    fn font_reader_segoe_emoji_has_colr_path_layers() {
+        let font = load_required_tmp_font("seguiemj.ttf");
+
+        let mut options = fontloader::FontOptions::new(&font);
+        options.font_size = 64.0;
+        let run = font.text2glyph_run("🥺", options).expect("glyph run");
+
+        assert_eq!(run.glyphs.len(), 1, "expected one glyph for emoji");
+        let mut solid_layers = 0usize;
+        for layer in &run.glyphs[0].glyph.layers {
+            if let GlyphLayer::Path(path) = layer {
+                if matches!(path.paint, GlyphPaint::Solid(_)) {
+                    solid_layers += 1;
+                    assert!(
+                        !path.commands.is_empty(),
+                        "COLR path layer should have commands"
+                    );
+                }
+            }
+        }
+
+        assert!(solid_layers > 0, "expected solid COLR path layers");
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    fn segoe_emoji_colr_layers_resolve_to_opaque_argb() {
+        let font = load_required_tmp_font("seguiemj.ttf");
+
+        let mut options = fontloader::FontOptions::new(&font);
+        options.font_size = 64.0;
+        let run = font.text2glyph_run("🥺", options).expect("glyph run");
+
+        let mut found_solid = false;
+        for glyph in &run.glyphs {
+            for layer in &glyph.glyph.layers {
+                if let GlyphLayer::Path(path) = layer {
+                    if let GlyphPaint::Solid(color) = path.paint {
+                        found_solid = true;
+                        let resolved = resolve_paint(GlyphPaint::Solid(color), 0xff00_0000);
+                        assert_eq!(
+                            resolved >> 24,
+                            0xff,
+                            "COLR layer colors should resolve as opaque ARGB"
+                        );
+                    }
+                }
+            }
+        }
+
+        assert!(found_solid, "expected at least one solid COLR layer");
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    #[ignore = "diagnostic: currently fails because FiraSans-Black glyph_run has empty bounds/paths"]
+    fn composite_lowercase_glyphs_render_with_visible_ink_when_fira_is_available() {
+        let font = load_required_tmp_font("FiraSans-Black.ttf");
+
+        let mut options = fontloader::FontOptions::new(&font);
+        options.font_size = 64.0;
+        let run = font.text2glyph_run("ij", options).expect("glyph run");
+
+        let mut canvas = Canvas::new(256, 160);
+        fillrect(&mut canvas, 0x00ff_ffff);
+        draw_glyphs(&mut canvas, &run, 24.0, 96.0, 0xff11_1111).unwrap();
+
+        for (index, glyph) in run.glyphs.iter().enumerate() {
+            let bounds = glyph.glyph.metrics.bounds.expect("glyph bounds");
+            let min_x = (24.0 + glyph.x + bounds.min_x - 2.0).floor().max(0.0) as u32;
+            let max_x = (24.0 + glyph.x + bounds.max_x + 2.0).ceil().max(0.0) as u32;
+            let min_y = (96.0 + glyph.y + bounds.min_y - 2.0).floor().max(0.0) as u32;
+            let max_y = (96.0 + glyph.y + bounds.max_y + 2.0).ceil().max(0.0) as u32;
+            let ink = count_non_white_pixels(&canvas, min_x, min_y, max_x, max_y);
+            assert!(
+                ink > 0,
+                "renderer left no visible ink for glyph index {} in its own bounds",
+                index
+            );
+        }
     }
 }

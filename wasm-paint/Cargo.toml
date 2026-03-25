@@ -22,8 +22,8 @@ js-sys = "0.3"
 instant = "0.1"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
-fontloader = { git = "https://github.com/mith-mmk/FontReader.git", branch = "main", optional = true }
-
+#fontloader = { git = "https://github.com/mith-mmk/FontReader.git", rev = "0c194e8c12ba3ab4347ea815259e3dd9c0ad35b2", optional = true }
+fontloader = {workspace = true, optional = true}
 wml2.workspace = true
 
 [dependencies.web-sys]
