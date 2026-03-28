@@ -4,8 +4,8 @@ use js_sys::{Array, Reflect};
 use paintcore::{path, prelude::*};
 #[cfg(feature = "font")]
 use paintcore::path::{
-    load_font_from_buffer, FontFamily, FontOptions, FontStretch, FontStyle, FontWeight,
-    LoadedFont,
+    load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle,
+    FontWeight, LoadedFont,
 };
 use std::sync::{Arc, RwLock};
 use wasm_bindgen::Clamped;
@@ -787,6 +787,75 @@ impl Universe {
             load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
         family.add_loaded_font(font);
         Ok(())
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = beginFontFamilyFace)]
+    pub fn begin_font_family_face(
+        &mut self,
+        face_id: String,
+        total_size: usize,
+        font_name: Option<String>,
+        font_weight: u32,
+        font_style: Option<String>,
+        font_stretch: f32,
+    ) -> Result<(), JsValue> {
+        if total_size == 0 {
+            return Err(js_error("total_size must be greater than zero"));
+        }
+        if !font_stretch.is_finite() || font_stretch <= 0.0 {
+            return Err(js_error("font_stretch must be a positive finite value"));
+        }
+
+        let family = self
+            .font_family
+            .as_mut()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        let mut descriptor = FontFaceDescriptor::new(family.name());
+        if let Some(font_name) = font_name {
+            let font_name = font_name.trim();
+            if !font_name.is_empty() {
+                descriptor = descriptor.with_font_name(font_name);
+            }
+        }
+        descriptor = descriptor
+            .with_font_weight(FontWeight(font_weight as u16))
+            .with_font_style(parse_font_style(font_style.as_deref())?)
+            .with_font_stretch(FontStretch(font_stretch));
+
+        family
+            .begin_chunked_face(face_id, descriptor, total_size)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = appendFontFamilyChunk)]
+    pub fn append_font_family_chunk(
+        &mut self,
+        face_id: String,
+        offset: usize,
+        chunk: Vec<u8>,
+    ) -> Result<bool, JsValue> {
+        let family = self
+            .font_family
+            .as_mut()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        family
+            .append_chunk(&face_id, offset, &chunk)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = finalizeFontFamilyFace)]
+    pub fn finalize_font_family_face(&mut self, face_id: String) -> Result<(), JsValue> {
+        let family = self
+            .font_family
+            .as_mut()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        family
+            .finalize_chunked_face(&face_id)
+            .map(|_| ())
+            .map_err(|error| js_error(&error.to_string()))
     }
 
     #[cfg(feature = "font")]

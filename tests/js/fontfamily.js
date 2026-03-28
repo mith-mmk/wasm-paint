@@ -48,6 +48,7 @@ let pixelWorker;
 let workerReady = false;
 let familyLoaded = false;
 let lastFamilyToken = '';
+const FONT_CHUNK_SIZE = 256 * 1024;
 
 function setSummary(message) {
   if (summary != null) {
@@ -83,39 +84,197 @@ function postRender() {
   });
 }
 
-async function loadFacesFromUrls(urls) {
-  const faces = [];
-  for (const url of urls) {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`failed to fetch font: ${response.status} ${response.statusText}`);
-    }
-    const buffer = await response.arrayBuffer();
-    faces.push({ buffer, source: url });
-  }
-  return faces;
-}
-
-async function collectFamilyFaces() {
-  const faces = [];
-  const files = Array.from(fontFilesInput.files ?? []);
-  for (const file of files) {
-    const buffer = await file.arrayBuffer();
-    faces.push({ buffer, source: file.name });
-  }
-
-  const urls = fontUrlsInput.value
+function listedFontUrls() {
+  return fontUrlsInput.value
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter((value) => value !== '');
-  const urlFaces = await loadFacesFromUrls(urls);
-  faces.push(...urlFaces);
+}
+
+async function collectFamilyFaceSources() {
+  const faces = [];
+  const files = Array.from(fontFilesInput.files ?? []);
+  for (const [index, file] of files.entries()) {
+    faces.push({
+      faceId: `file-${index}-${file.name}`,
+      source: file.name,
+      kind: 'file',
+      file,
+    });
+  }
+
+  const urls = listedFontUrls();
+  for (const [index, url] of urls.entries()) {
+    faces.push({
+      faceId: `url-${index}`,
+      source: url,
+      kind: 'url',
+      url,
+    });
+  }
 
   return faces;
 }
 
 function familyToken(familyName, faces) {
   return `${familyName}::${faces.map((face) => face.source).join('|')}`;
+}
+
+function inferFaceDescriptor(face) {
+  const label = face.source.split(/[\\/]/).pop() ?? face.source;
+  const baseName = label.replace(/\.[^.]+$/, '');
+  const normalized = baseName.toLowerCase();
+
+  let fontWeight = 400;
+  if (/(black|heavy)/.test(normalized)) {
+    fontWeight = 900;
+  } else if (/(extra[-_ ]?bold|ultra[-_ ]?bold)/.test(normalized)) {
+    fontWeight = 800;
+  } else if (/(semi[-_ ]?bold|demi[-_ ]?bold)/.test(normalized)) {
+    fontWeight = 600;
+  } else if (/bold/.test(normalized)) {
+    fontWeight = 700;
+  } else if (/medium/.test(normalized)) {
+    fontWeight = 500;
+  } else if (/(extra[-_ ]?light|ultra[-_ ]?light)/.test(normalized)) {
+    fontWeight = 200;
+  } else if (/(light|thin|hair)/.test(normalized)) {
+    fontWeight = 300;
+  }
+
+  let fontStyle = 'normal';
+  if (/oblique/.test(normalized)) {
+    fontStyle = 'oblique';
+  } else if (/italic/.test(normalized)) {
+    fontStyle = 'italic';
+  }
+
+  let fontStretch = 1;
+  if (/(condensed|narrow)/.test(normalized)) {
+    fontStretch = 0.875;
+  } else if (/(expanded|extended|wide)/.test(normalized)) {
+    fontStretch = 1.125;
+  }
+
+  return {
+    fontName: baseName,
+    fontWeight,
+    fontStyle,
+    fontStretch,
+  };
+}
+
+function transferChunk(message, buffer) {
+  pixelWorker.postMessage(
+    {
+      ...message,
+      buffer,
+    },
+    [buffer],
+  );
+}
+
+async function fetchContentLength(url) {
+  const head = await fetch(url, { method: 'HEAD' });
+  if (!head.ok) {
+    return null;
+  }
+  const value = head.headers.get('content-length');
+  if (value == null) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function streamUrlFace(face) {
+  const response = await fetch(face.url);
+  if (!response.ok) {
+    throw new Error(`failed to fetch font: ${response.status} ${response.statusText}`);
+  }
+
+  let totalSize = Number.parseInt(response.headers.get('content-length') ?? '', 10);
+  if (!Number.isFinite(totalSize) || totalSize <= 0) {
+    totalSize = await fetchContentLength(face.url);
+  }
+  if (!Number.isFinite(totalSize) || totalSize <= 0) {
+    throw new Error(`content-length is required for chunked font loading: ${face.url}`);
+  }
+  if (response.body == null) {
+    throw new Error(`streaming response body is unavailable: ${face.url}`);
+  }
+
+  pixelWorker.postMessage({
+    command: 'beginFamilyFace',
+    faceId: face.faceId,
+    totalSize,
+    ...inferFaceDescriptor(face),
+  });
+
+  const reader = response.body.getReader();
+  let offset = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    const chunk = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+    transferChunk(
+      {
+        command: 'appendFamilyChunk',
+        faceId: face.faceId,
+        offset,
+      },
+      chunk,
+    );
+    offset += value.byteLength;
+  }
+  if (offset !== totalSize) {
+    throw new Error(`font download ended early for ${face.source}: ${offset}/${totalSize} bytes`);
+  }
+
+  pixelWorker.postMessage({
+    command: 'finalizeFamilyFace',
+    faceId: face.faceId,
+  });
+}
+
+async function streamFileFace(face) {
+  const totalSize = face.file.size;
+  pixelWorker.postMessage({
+    command: 'beginFamilyFace',
+    faceId: face.faceId,
+    totalSize,
+    ...inferFaceDescriptor(face),
+  });
+
+  let offset = 0;
+  while (offset < totalSize) {
+    const end = Math.min(offset + FONT_CHUNK_SIZE, totalSize);
+    const chunk = await face.file.slice(offset, end).arrayBuffer();
+    transferChunk(
+      {
+        command: 'appendFamilyChunk',
+        faceId: face.faceId,
+        offset,
+      },
+      chunk,
+    );
+    offset = end;
+  }
+
+  pixelWorker.postMessage({
+    command: 'finalizeFamilyFace',
+    faceId: face.faceId,
+  });
+}
+
+async function streamFamilyFace(face) {
+  if (face.kind === 'file') {
+    await streamFileFace(face);
+    return;
+  }
+  await streamUrlFace(face);
 }
 
 async function loadSelectedFamily() {
@@ -130,7 +289,7 @@ async function loadSelectedFamily() {
     return;
   }
 
-  const faces = await collectFamilyFaces();
+  const faces = await collectFamilyFaceSources();
   if (faces.length === 0) {
     setSummary('select at least one font file or URL');
     return;
@@ -143,14 +302,15 @@ async function loadSelectedFamily() {
   }
 
   setSummary(`loading family ${familyName}`);
-  pixelWorker.postMessage(
-    {
-      command: 'loadFamily',
-      familyName,
-      faces,
-    },
-    faces.map((face) => face.buffer),
-  );
+  pixelWorker.postMessage({
+    command: 'loadFamily',
+    familyName,
+  });
+  for (const face of faces) {
+    setSummary(`loading ${face.source}`);
+    await streamFamilyFace(face);
+  }
+  pixelWorker.postMessage({ command: 'finishFamily' });
   lastFamilyToken = token;
 }
 

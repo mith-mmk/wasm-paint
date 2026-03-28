@@ -22,7 +22,8 @@ js-sys = "0.3"
 instant = "0.1"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
-fontloader = { git = "https://github.com/mith-mmk/FontReader.git", rev = "3799538b571f469b9fb76a69737c6155cc699d83", optional = true }
+fontloader = {workspace = true, optional = true}
+
 
 wml2.workspace = true
 

@@ -50,20 +50,49 @@ function renderText(request) {
   });
 }
 
-function loadFamily(request) {
+function beginFamily(request) {
   if (universe == null) {
     throw new Error('worker is not ready');
   }
-  if (!Array.isArray(request.faces) || request.faces.length === 0) {
-    throw new Error('family requires at least one face');
-  }
-
   universe.resetFontFamily(request.familyName);
-  for (const face of request.faces) {
-    universe.addFontToFamily(new Uint8Array(face.buffer));
-  }
   familyName = request.familyName;
+  faceCount = 0;
+}
+
+function beginFamilyFace(request) {
+  if (universe == null) {
+    throw new Error('worker is not ready');
+  }
+  universe.beginFontFamilyFace(
+    request.faceId,
+    Number(request.totalSize),
+    request.fontName ?? undefined,
+    Number(request.fontWeight ?? 400),
+    request.fontStyle ?? 'normal',
+    Number(request.fontStretch ?? 1),
+  );
+}
+
+function appendFamilyChunk(request) {
+  if (universe == null) {
+    throw new Error('worker is not ready');
+  }
+  universe.appendFontFamilyChunk(
+    request.faceId,
+    Number(request.offset ?? 0),
+    new Uint8Array(request.buffer),
+  );
+}
+
+function finalizeFamilyFace(request) {
+  if (universe == null) {
+    throw new Error('worker is not ready');
+  }
+  universe.finalizeFontFamilyFace(request.faceId);
   faceCount = universe.fontFamilyFaceCount();
+}
+
+function finishFamily() {
   postMessage({ message: 'familyLoaded', familyName, faceCount });
 }
 
@@ -79,7 +108,19 @@ onmessage = async function(ev) {
         await workerInit(data.width, data.height);
         break;
       case 'loadFamily':
-        loadFamily(data);
+        beginFamily(data);
+        break;
+      case 'beginFamilyFace':
+        beginFamilyFace(data);
+        break;
+      case 'appendFamilyChunk':
+        appendFamilyChunk(data);
+        break;
+      case 'finalizeFamilyFace':
+        finalizeFamilyFace(data);
+        break;
+      case 'finishFamily':
+        finishFamily();
         break;
       case 'render':
         renderText(data);
