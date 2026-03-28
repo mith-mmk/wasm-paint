@@ -1,9 +1,12 @@
 type Error = Box<dyn std::error::Error>;
 
 use js_sys::{Array, Reflect};
-#[cfg(feature = "font")]
-use fontloader::{fontload_buffer, FontOptions, LoadedFont};
 use paintcore::{path, prelude::*};
+#[cfg(feature = "font")]
+use paintcore::path::{
+    load_font_from_buffer, FontFamily, FontOptions, FontStretch, FontStyle, FontWeight,
+    LoadedFont,
+};
 use std::sync::{Arc, RwLock};
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
@@ -71,6 +74,19 @@ extern "C" {
 
 fn js_error(message: &str) -> JsValue {
     JsValue::from_str(message)
+}
+
+#[cfg(feature = "font")]
+fn parse_font_style(style: Option<&str>) -> Result<FontStyle, JsValue> {
+    match style.unwrap_or("normal").trim().to_ascii_lowercase().as_str() {
+        "normal" => Ok(FontStyle::Normal),
+        "italic" => Ok(FontStyle::Italic),
+        "oblique" => Ok(FontStyle::Oblique),
+        other => Err(js_error(&format!(
+            "unsupported font style '{}'; expected normal, italic, or oblique",
+            other
+        ))),
+    }
 }
 
 fn normalize_path_text(commands: &str) -> String {
@@ -369,6 +385,8 @@ pub struct Universe {
     tmp_canvas: Option<(Canvas, Option<InterpolationAlgorithm>, ImageAlign)>,
     #[cfg(feature = "font")]
     font: Option<LoadedFont>,
+    #[cfg(feature = "font")]
+    font_family: Option<FontFamily>,
 }
 
 #[wasm_bindgen]
@@ -404,6 +422,8 @@ impl Universe {
             tmp_canvas: None,
             #[cfg(feature = "font")]
             font: None,
+            #[cfg(feature = "font")]
+            font_family: None,
         }
     }
 
@@ -740,9 +760,42 @@ impl Universe {
     #[cfg(feature = "font")]
     #[wasm_bindgen(js_name = loadFont)]
     pub fn load_font(&mut self, buffer: Vec<u8>) -> Result<(), JsValue> {
-        let font = fontload_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
+        let font = load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
         self.font = Some(font);
         Ok(())
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = resetFontFamily)]
+    pub fn reset_font_family(&mut self, family_name: String) -> Result<(), JsValue> {
+        let family_name = family_name.trim();
+        if family_name.is_empty() {
+            return Err(js_error("family_name must not be empty"));
+        }
+        self.font_family = Some(FontFamily::new(family_name));
+        Ok(())
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = addFontToFamily)]
+    pub fn add_font_to_family(&mut self, buffer: Vec<u8>) -> Result<(), JsValue> {
+        let family = self
+            .font_family
+            .as_mut()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        let font =
+            load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
+        family.add_loaded_font(font);
+        Ok(())
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = fontFamilyFaceCount)]
+    pub fn font_family_face_count(&self) -> usize {
+        self.font_family
+            .as_ref()
+            .map(|family| family.cached_faces_len())
+            .unwrap_or(0)
     }
 
     #[cfg(feature = "font")]
@@ -759,15 +812,53 @@ impl Universe {
             return Err(js_error("font_size must be a positive finite value"));
         }
 
+        let font = self
+            .font
+            .as_ref()
+            .ok_or_else(|| js_error("font is not loaded"))?;
         let glyphs = {
-            let font = self
-                .font
-                .as_ref()
-                .ok_or_else(|| js_error("font is not loaded"))?;
             let mut options = FontOptions::new(font);
             options.font_size = font_size;
-            font.text2glyph_run(&text, options)
-                .map_err(|error| js_error(&error.to_string()))?
+            path::layout_text(&text, options).map_err(|error| js_error(&error.to_string()))?
+        };
+
+        path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = drawTextFamily)]
+    pub fn draw_text_family(
+        &mut self,
+        text: String,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: u32,
+        font_name: Option<String>,
+        font_weight: u32,
+        font_style: Option<String>,
+        font_stretch: f32,
+    ) -> Result<(), JsValue> {
+        if !font_size.is_finite() || font_size <= 0.0 {
+            return Err(js_error("font_size must be a positive finite value"));
+        }
+        if !font_stretch.is_finite() || font_stretch <= 0.0 {
+            return Err(js_error("font_stretch must be a positive finite value"));
+        }
+
+        let family = self
+            .font_family
+            .as_ref()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        let glyphs = {
+            let mut options = FontOptions::from_family(family);
+            options.font_size = font_size;
+            options.font_weight = FontWeight(font_weight as u16);
+            options.font_style = parse_font_style(font_style.as_deref())?;
+            options.font_stretch = FontStretch(font_stretch);
+            options.font_name = font_name.as_deref();
+            path::layout_text(&text, options).map_err(|error| js_error(&error.to_string()))?
         };
 
         path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
