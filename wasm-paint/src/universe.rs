@@ -790,6 +790,42 @@ impl Universe {
     }
 
     #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = addFontToFamilyWithDescriptor)]
+    pub fn add_font_to_family_with_descriptor(
+        &mut self,
+        buffer: Vec<u8>,
+        font_name: Option<String>,
+        font_weight: u32,
+        font_style: Option<String>,
+        font_stretch: f32,
+    ) -> Result<(), JsValue> {
+        if !font_stretch.is_finite() || font_stretch <= 0.0 {
+            return Err(js_error("font_stretch must be a positive finite value"));
+        }
+
+        let family = self
+            .font_family
+            .as_mut()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        let font =
+            load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
+        let mut descriptor = FontFaceDescriptor::from_loaded_font(&font);
+        if let Some(font_name) = font_name {
+            let font_name = font_name.trim();
+            if !font_name.is_empty() {
+                descriptor = descriptor.with_font_name(font_name);
+            }
+        }
+        descriptor = descriptor
+            .with_font_weight(FontWeight(font_weight as u16))
+            .with_font_style(parse_font_style(font_style.as_deref())?)
+            .with_font_stretch(FontStretch(font_stretch));
+
+        family.add_face(descriptor, font);
+        Ok(())
+    }
+
+    #[cfg(feature = "font")]
     #[wasm_bindgen(js_name = beginFontFamilyFace)]
     pub fn begin_font_family_face(
         &mut self,

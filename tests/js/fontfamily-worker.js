@@ -1,16 +1,43 @@
-import init, { Universe } from "../../wasm-paint/pkg/paint.js";
-
 let universe;
 let familyName = '';
 let faceCount = 0;
+const pendingFaces = new Map();
+let initWasm;
+let UniverseCtor;
+let lastStage = 'startup';
+
+function setStage(stage) {
+  lastStage = stage;
+}
+
+async function ensureWasmBindings() {
+  setStage('import wasm bindings');
+  if (initWasm != null && UniverseCtor != null) {
+    return;
+  }
+
+  const buildId = new URL(self.location.href).searchParams.get('v') ?? '';
+  const suffix = buildId === '' ? '' : `?v=${encodeURIComponent(buildId)}`;
+  const moduleUrl = new URL(`../../wasm-paint/pkg/paint.js${suffix}`, import.meta.url);
+  const wasmUrl = new URL(`../../wasm-paint/pkg/paint_bg.wasm${suffix}`, import.meta.url);
+  const pkg = await import(moduleUrl.href);
+  initWasm = pkg.default;
+  UniverseCtor = pkg.Universe;
+  setStage('initialize wasm module');
+  await initWasm(wasmUrl);
+}
 
 async function workerInit(width, height) {
-  await init();
-  universe = new Universe(width, height);
+  setStage('worker init');
+  await ensureWasmBindings();
+  setStage('construct universe');
+  universe = new UniverseCtor(width, height);
   if (typeof universe.hasFontFeature === 'function' && !universe.hasFontFeature()) {
     throw new Error('wasm-paint must be built with --features font');
   }
+  setStage('clear canvas');
   universe.clear(0xffffff);
+  setStage('read initial image');
   const image = universe.getImageData(0);
   postMessage({ message: 'init', image });
 }
@@ -20,7 +47,9 @@ function renderText(request) {
     return;
   }
 
+  setStage('render clear');
   universe.clear(0xffffff);
+  setStage('draw text family');
   universe.drawTextFamily(
     request.text ?? '',
     32,
@@ -32,8 +61,10 @@ function renderText(request) {
     request.fontStyle ?? 'normal',
     Number(request.fontStretch ?? 1),
   );
+  setStage('combine layers');
   universe.combine();
 
+  setStage('read rendered image');
   const image = universe.getImageData(0);
   postMessage({
     message: 'render',
@@ -54,41 +85,81 @@ function beginFamily(request) {
   if (universe == null) {
     throw new Error('worker is not ready');
   }
+  setStage(`reset family ${request.familyName}`);
   universe.resetFontFamily(request.familyName);
   familyName = request.familyName;
   faceCount = 0;
+  pendingFaces.clear();
 }
 
 function beginFamilyFace(request) {
   if (universe == null) {
     throw new Error('worker is not ready');
   }
-  universe.beginFontFamilyFace(
-    request.faceId,
-    Number(request.totalSize),
-    request.fontName ?? undefined,
-    Number(request.fontWeight ?? 400),
-    request.fontStyle ?? 'normal',
-    Number(request.fontStretch ?? 1),
-  );
+  const totalSize = Number(request.totalSize);
+  if (!Number.isFinite(totalSize) || totalSize <= 0) {
+    throw new Error('totalSize must be a positive finite number');
+  }
+  pendingFaces.set(request.faceId, {
+    totalSize,
+    received: 0,
+    buffer: new Uint8Array(totalSize),
+    fontName: request.fontName ?? undefined,
+    fontWeight: Number(request.fontWeight ?? 400),
+    fontStyle: request.fontStyle ?? 'normal',
+    fontStretch: Number(request.fontStretch ?? 1),
+  });
 }
 
 function appendFamilyChunk(request) {
   if (universe == null) {
     throw new Error('worker is not ready');
   }
-  universe.appendFontFamilyChunk(
-    request.faceId,
-    Number(request.offset ?? 0),
-    new Uint8Array(request.buffer),
-  );
+  const pending = pendingFaces.get(request.faceId);
+  if (pending == null) {
+    throw new Error(`unknown pending font face: ${request.faceId}`);
+  }
+
+  const offset = Number(request.offset ?? 0);
+  const chunk = new Uint8Array(request.buffer);
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error(`invalid chunk offset: ${request.offset}`);
+  }
+  if (offset !== pending.received) {
+    throw new Error(
+      `unexpected chunk offset for ${request.faceId}: expected ${pending.received}, got ${offset}`,
+    );
+  }
+
+  const end = offset + chunk.byteLength;
+  if (end > pending.totalSize) {
+    throw new Error(
+      `chunk is out of range for ${request.faceId}: ${end}/${pending.totalSize}`,
+    );
+  }
+
+  pending.buffer.set(chunk, offset);
+  pending.received = end;
 }
 
 function finalizeFamilyFace(request) {
   if (universe == null) {
     throw new Error('worker is not ready');
   }
-  universe.finalizeFontFamilyFace(request.faceId);
+  const pending = pendingFaces.get(request.faceId);
+  if (pending == null) {
+    throw new Error(`unknown pending font face: ${request.faceId}`);
+  }
+  if (pending.received !== pending.totalSize) {
+    throw new Error(
+      `font ${request.faceId} is incomplete: ${pending.received}/${pending.totalSize} bytes`,
+    );
+  }
+
+  setStage(`add font to family ${request.faceId}`);
+  universe.addFontToFamily(pending.buffer);
+  pendingFaces.delete(request.faceId);
+  setStage('count family faces');
   faceCount = universe.fontFamilyFaceCount();
 }
 
@@ -131,7 +202,7 @@ onmessage = async function(ev) {
   } catch (error) {
     postMessage({
       message: 'error',
-      error: error instanceof Error ? error.message : String(error),
+      error: `[${lastStage}] ${error instanceof Error ? error.message : String(error)}`,
     });
   }
 };

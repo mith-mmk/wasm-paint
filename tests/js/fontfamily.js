@@ -49,6 +49,8 @@ let workerReady = false;
 let familyLoaded = false;
 let lastFamilyToken = '';
 const FONT_CHUNK_SIZE = 256 * 1024;
+const BUILD_ID =
+  new URL(import.meta.url).searchParams.get('v') ?? 'fontfamily-20260329-2';
 
 function setSummary(message) {
   if (summary != null) {
@@ -315,7 +317,9 @@ async function loadSelectedFamily() {
 }
 
 function workerInit() {
-  pixelWorker = new Worker('js/fontfamily-worker.js', { type: 'module' });
+  pixelWorker = new Worker(`js/fontfamily-worker.js?v=${encodeURIComponent(BUILD_ID)}`, {
+    type: 'module',
+  });
 
   pixelWorker.onmessage = (ev) => {
     const data = ev.data;

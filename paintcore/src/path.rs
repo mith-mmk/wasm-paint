@@ -1308,6 +1308,79 @@ mod tests {
 
     #[cfg(feature = "font")]
     #[test]
+    fn twemoji_sbix_woff2_loads_from_buffer_and_emits_raster_layers() {
+        let Some(path) = find_test_font_path("TwemojiMozilla-sbix.woff2") else {
+            return;
+        };
+        let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
+        let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
+
+        let run = font
+            .text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(96.0))
+            .expect("build glyph run for sbix font");
+
+        assert!(
+            !run.glyphs.is_empty(),
+            "expected at least one glyph from TwemojiMozilla-sbix.woff2"
+        );
+        assert!(
+            run.glyphs.iter().flat_map(|glyph| glyph.glyph.layers.iter()).any(
+                |layer| matches!(layer, GlyphLayer::Raster(_))
+            ),
+            "expected sbix font to emit raster glyph layers"
+        );
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    fn twemoji_sbix_woff2_promotes_chunked_face_into_family_cache() {
+        let Some(path) = find_test_font_path("TwemojiMozilla-sbix.woff2") else {
+            return;
+        };
+        let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
+
+        let mut family = FontFamily::new("Twemoji Mozilla");
+        family
+            .begin_chunked_face(
+                "twemoji-sbix",
+                FontFaceDescriptor::new("Twemoji Mozilla")
+                    .with_font_name("Twemoji Mozilla sbix")
+                    .with_font_weight(FontWeight::NORMAL),
+                bytes.len(),
+            )
+            .expect("begin chunked sbix face");
+
+        let chunk = 256 * 1024;
+        let mut offset = 0;
+        while offset < bytes.len() {
+            let end = (offset + chunk).min(bytes.len());
+            family
+                .append_chunk("twemoji-sbix", offset, &bytes[offset..end])
+                .expect("append sbix chunk");
+            offset = end;
+        }
+
+        family
+            .finalize_chunked_face("twemoji-sbix")
+            .expect("finalize chunked sbix face");
+        assert_eq!(family.cached_faces_len(), 1);
+
+        let run = family
+            .text2glyph_run(
+                "😀",
+                FontOptions::from_family(&family).with_font_size(96.0),
+            )
+            .expect("layout sbix glyph from chunked family");
+        assert!(
+            run.glyphs.iter().flat_map(|glyph| glyph.glyph.layers.iter()).any(
+                |layer| matches!(layer, GlyphLayer::Raster(_))
+            ),
+            "expected chunked sbix family load to keep raster glyph layers"
+        );
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
     #[ignore = "diagnostic: currently fails because FiraSans-Black glyph_run has empty bounds/paths"]
     fn composite_lowercase_glyphs_render_with_visible_ink_when_fira_is_available() {
         let Some(font) = load_test_font("FiraSans-Black.ttf") else {
