@@ -14,7 +14,9 @@ use crate::{
     spline,
     utils::color_taple,
 };
+use png::{ColorType as PngColorType, Decoder as PngDecoder, Transformations as PngTransformations};
 use std::cmp::Ordering;
+use std::io::Cursor;
 
 #[cfg(feature = "font")]
 pub use fontloader::commands as commads;
@@ -693,8 +695,10 @@ fn decode_raster(source: &RasterGlyphSource) -> Result<Layer, Error> {
     match source {
         RasterGlyphSource::Encoded(data) => {
             let mut layer = Layer::tmp(0, 0);
-            image::draw_image(&mut layer, data, 0)?;
-            Ok(layer)
+            match image::draw_image(&mut layer, data, 0) {
+                Ok(_) => Ok(layer),
+                Err(primary_error) => decode_png_raster(data).or(Err(primary_error)),
+            }
         }
         RasterGlyphSource::Rgba {
             width,
@@ -718,6 +722,63 @@ fn decode_raster(source: &RasterGlyphSource) -> Result<Layer, Error> {
             ))
         }
     }
+}
+
+fn decode_png_raster(data: &[u8]) -> Result<Layer, Error> {
+    const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+    if data.len() < PNG_SIGNATURE.len() || &data[..PNG_SIGNATURE.len()] != PNG_SIGNATURE {
+        return Err(paint_error("encoded raster glyph is not a PNG"));
+    }
+
+    let cursor = Cursor::new(data);
+    let mut decoder = PngDecoder::new(cursor);
+    decoder.set_transformations(PngTransformations::EXPAND | PngTransformations::STRIP_16);
+
+    let mut reader = decoder
+        .read_info()
+        .map_err(|error| paint_error(&format!("png glyph decode failed: {}", error)))?;
+    let mut buffer = vec![0; reader.output_buffer_size()];
+    let info = reader
+        .next_frame(&mut buffer)
+        .map_err(|error| paint_error(&format!("png glyph frame decode failed: {}", error)))?;
+    let pixels = &buffer[..info.buffer_size()];
+
+    let rgba = match info.color_type {
+        PngColorType::Rgba => pixels.to_vec(),
+        PngColorType::Rgb => {
+            let mut rgba = Vec::with_capacity((info.width * info.height * 4) as usize);
+            for chunk in pixels.chunks_exact(3) {
+                rgba.extend_from_slice(&[chunk[0], chunk[1], chunk[2], 0xff]);
+            }
+            rgba
+        }
+        PngColorType::Grayscale => {
+            let mut rgba = Vec::with_capacity((info.width * info.height * 4) as usize);
+            for gray in pixels {
+                rgba.extend_from_slice(&[*gray, *gray, *gray, 0xff]);
+            }
+            rgba
+        }
+        PngColorType::GrayscaleAlpha => {
+            let mut rgba = Vec::with_capacity((info.width * info.height * 4) as usize);
+            for chunk in pixels.chunks_exact(2) {
+                rgba.extend_from_slice(&[chunk[0], chunk[0], chunk[0], chunk[1]]);
+            }
+            rgba
+        }
+        PngColorType::Indexed => {
+            return Err(paint_error(
+                "png glyph decode left indexed data after EXPAND transformation",
+            ));
+        }
+    };
+
+    Ok(Layer::new_in(
+        "_glyph_raster_png_".to_string(),
+        rgba,
+        info.width,
+        info.height,
+    ))
 }
 
 fn scaled_size(
@@ -820,8 +881,12 @@ fn draw_raster_layer(
     origin_y: f32,
 ) -> Result<(), Error> {
     let source = decode_raster(&layer.source)?;
-    let (target_width, target_height) =
-        scaled_size(source.width(), source.height(), layer.width, layer.height);
+    let (target_width, target_height) = scaled_size(
+        source.width(),
+        source.height(),
+        layer.width,
+        layer.height,
+    );
     let raster = scale_raster(
         &source,
         target_width,
@@ -1377,6 +1442,26 @@ mod tests {
             ),
             "expected chunked sbix family load to keep raster glyph layers"
         );
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    fn twemoji_sbix_woff2_raster_layers_draw_on_canvas() {
+        let Some(path) = find_test_font_path("TwemojiMozilla-sbix.woff2") else {
+            return;
+        };
+        let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
+        let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
+        let run = font
+            .text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(96.0))
+            .expect("build glyph run for sbix font");
+
+        let mut canvas = Canvas::new(256, 256);
+        fillrect(&mut canvas, 0x00ff_ffff);
+        draw_glyphs(&mut canvas, &run, 32.0, 128.0, 0xff11_1111).expect("draw sbix glyph");
+
+        let ink = count_non_white_pixels(&canvas, 0, 0, canvas.width(), canvas.height());
+        assert!(ink > 0, "expected rendered pixels from sbix raster glyph");
     }
 
     #[cfg(feature = "font")]

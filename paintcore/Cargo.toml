@@ -12,4 +12,4 @@ font = ["dep:fontloader"]
 [dependencies]
 wml2.workspace = true
 fontloader = {workspace = true, optional = true}
-
+png = "0.17"

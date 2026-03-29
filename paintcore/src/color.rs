@@ -1,0 +1,1 @@
+// gamma de-gamma, construst, blightness r,g, b, leveling, swap rgb, huv shift, CrCb Shift, colorname_to_rgb, lighting, tone curve
