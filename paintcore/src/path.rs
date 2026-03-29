@@ -300,43 +300,90 @@ fn push_point(points: &mut Vec<(f32, f32)>, point: (f32, f32)) {
     points.push(point);
 }
 
-fn curve_steps(points: &[(f32, f32)]) -> usize {
-    let mut length = 0.0;
-    for i in 0..points.len().saturating_sub(1) {
-        length += (points[i].0 - points[i + 1].0).abs() + (points[i].1 - points[i + 1].1).abs();
+fn midpoint(a: (f32, f32), b: (f32, f32)) -> (f32, f32) {
+    ((a.0 + b.0) * 0.5, (a.1 + b.1) * 0.5)
+}
+
+fn point_segment_distance_sq(point: (f32, f32), start: (f32, f32), end: (f32, f32)) -> f32 {
+    let dx = end.0 - start.0;
+    let dy = end.1 - start.1;
+    let length_sq = dx * dx + dy * dy;
+    if length_sq <= f32::EPSILON {
+        let px = point.0 - start.0;
+        let py = point.1 - start.1;
+        return px * px + py * py;
     }
 
-    length.ceil().clamp(8.0, 2048.0) as usize
+    let t = (((point.0 - start.0) * dx + (point.1 - start.1) * dy) / length_sq).clamp(0.0, 1.0);
+    let projection = (start.0 + dx * t, start.1 + dy * t);
+    let px = point.0 - projection.0;
+    let py = point.1 - projection.1;
+    px * px + py * py
 }
 
-fn quadratic_point(start: (f32, f32), control: (f32, f32), end: (f32, f32), t: f32) -> (f32, f32) {
-    let mt = 1.0 - t;
-    (
-        mt * mt * start.0 + 2.0 * mt * t * control.0 + t * t * end.0,
-        mt * mt * start.1 + 2.0 * mt * t * control.1 + t * t * end.1,
-    )
+// Font outlines already arrive in device space. Keep curve error comfortably below a pixel edge
+// so rounded TrueType glyphs stay visually close to browser SVG rendering.
+const CURVE_FLATNESS_TOLERANCE_SQ: f32 = 0.0009765625;
+const CURVE_MAX_RECURSION_DEPTH: usize = 16;
+const CURVE_MAX_SEGMENT_LENGTH_SQ: f32 = 0.25;
+
+fn flatten_quadratic_segment(
+    points: &mut Vec<(f32, f32)>,
+    start: (f32, f32),
+    control: (f32, f32),
+    end: (f32, f32),
+    depth: usize,
+) {
+    let flatness = point_segment_distance_sq(control, start, end);
+    let dx = end.0 - start.0;
+    let dy = end.1 - start.1;
+    let segment_length_sq = dx * dx + dy * dy;
+    if depth >= CURVE_MAX_RECURSION_DEPTH
+        || (flatness <= CURVE_FLATNESS_TOLERANCE_SQ
+            && segment_length_sq <= CURVE_MAX_SEGMENT_LENGTH_SQ)
+    {
+        push_point(points, end);
+        return;
+    }
+
+    let start_control = midpoint(start, control);
+    let control_end = midpoint(control, end);
+    let mid = midpoint(start_control, control_end);
+
+    flatten_quadratic_segment(points, start, start_control, mid, depth + 1);
+    flatten_quadratic_segment(points, mid, control_end, end, depth + 1);
 }
 
-fn cubic_point(
+fn flatten_cubic_segment(
+    points: &mut Vec<(f32, f32)>,
     start: (f32, f32),
     control1: (f32, f32),
     control2: (f32, f32),
     end: (f32, f32),
-    t: f32,
-) -> (f32, f32) {
-    let mt = 1.0 - t;
-    let mt2 = mt * mt;
-    let t2 = t * t;
-    (
-        mt2 * mt * start.0
-            + 3.0 * mt2 * t * control1.0
-            + 3.0 * mt * t2 * control2.0
-            + t2 * t * end.0,
-        mt2 * mt * start.1
-            + 3.0 * mt2 * t * control1.1
-            + 3.0 * mt * t2 * control2.1
-            + t2 * t * end.1,
-    )
+    depth: usize,
+) {
+    let flatness = point_segment_distance_sq(control1, start, end)
+        .max(point_segment_distance_sq(control2, start, end));
+    let dx = end.0 - start.0;
+    let dy = end.1 - start.1;
+    let segment_length_sq = dx * dx + dy * dy;
+    if depth >= CURVE_MAX_RECURSION_DEPTH
+        || (flatness <= CURVE_FLATNESS_TOLERANCE_SQ
+            && segment_length_sq <= CURVE_MAX_SEGMENT_LENGTH_SQ)
+    {
+        push_point(points, end);
+        return;
+    }
+
+    let start_control1 = midpoint(start, control1);
+    let control1_control2 = midpoint(control1, control2);
+    let control2_end = midpoint(control2, end);
+    let left_control2 = midpoint(start_control1, control1_control2);
+    let right_control1 = midpoint(control1_control2, control2_end);
+    let mid = midpoint(left_control2, right_control1);
+
+    flatten_cubic_segment(points, start, start_control1, left_control2, mid, depth + 1);
+    flatten_cubic_segment(points, mid, right_control1, control2_end, end, depth + 1);
 }
 
 fn flush_contour(contours: &mut Vec<Vec<(f32, f32)>>, contour: &mut Vec<(f32, f32)>) {
@@ -383,11 +430,7 @@ fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<V
                     if contour.is_empty() {
                         contour.push(start);
                     }
-                    let steps = curve_steps(&[start, control, end]);
-                    for i in 1..=steps {
-                        let t = i as f32 / steps as f32;
-                        push_point(&mut contour, quadratic_point(start, control, end, t));
-                    }
+                    flatten_quadratic_segment(&mut contour, start, control, end, 0);
                     current_point = Some(end);
                 }
             }
@@ -399,11 +442,7 @@ fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<V
                     if contour.is_empty() {
                         contour.push(start);
                     }
-                    let steps = curve_steps(&[start, control1, control2, end]);
-                    for i in 1..=steps {
-                        let t = i as f32 / steps as f32;
-                        push_point(&mut contour, cubic_point(start, control1, control2, end, t));
-                    }
+                    flatten_cubic_segment(&mut contour, start, control1, control2, end, 0);
                     current_point = Some(end);
                 }
             }
@@ -469,7 +508,9 @@ fn contour_edges(contours: &[Vec<(f32, f32)>]) -> Vec<Edge> {
     edges
 }
 
-const GLYPH_AA_SUBPIXEL_ROWS: [f32; 4] = [0.125, 0.375, 0.625, 0.875];
+// We rasterize vector glyphs in device space, so rounded low-resolution glyphs benefit from
+// denser vertical supersampling than generic shapes.
+const GLYPH_AA_SUBPIXEL_ROW_COUNT: usize = 32;
 
 fn coverage_bounds(bounds: &GlyphBounds) -> Option<(i32, i32, u32, u32)> {
     let origin_x = bounds.min_x.floor() as i32;
@@ -602,12 +643,13 @@ fn fill_contours_antialias(
         })
         .collect();
 
-    let row_weight = 1.0 / GLYPH_AA_SUBPIXEL_ROWS.len() as f32;
+    let row_weight = 1.0 / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
     let mut coverage = vec![0.0_f32; width as usize * height as usize];
 
     for y in 0..height as i32 {
-        for subpixel_y in GLYPH_AA_SUBPIXEL_ROWS {
-            let scan_y = y as f32 + subpixel_y;
+        for subpixel_index in 0..GLYPH_AA_SUBPIXEL_ROW_COUNT {
+            let scan_y = y as f32
+                + (subpixel_index as f32 + 0.5) / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
             let mut intersections = Vec::new();
 
             for edge in &translated_edges {
@@ -945,6 +987,16 @@ pub fn draw_glyphs(
     Ok(())
 }
 
+pub fn glyph_renderer_info() -> String {
+    format!(
+        "curve_tol_sq={:.10};max_depth={};max_seg_sq={:.4};aa_rows={}",
+        CURVE_FLATNESS_TOLERANCE_SQ,
+        CURVE_MAX_RECURSION_DEPTH,
+        CURVE_MAX_SEGMENT_LENGTH_SQ,
+        GLYPH_AA_SUBPIXEL_ROW_COUNT
+    )
+}
+
 #[cfg(feature = "font")]
 pub fn layout_text(text: &str, options: FontOptions<'_>) -> Result<GlyphRun, Error> {
     text2commands(text, options).map_err(|error| Box::new(error) as Error)
@@ -1039,6 +1091,25 @@ mod tests {
         ]
     }
 
+    fn has_gray_pixel(screen: &dyn Screen, x0: u32, y0: u32, x1: u32, y1: u32) -> bool {
+        let x1 = x1.min(screen.width());
+        let y1 = y1.min(screen.height());
+        for y in y0.min(y1)..y1 {
+            for x in x0.min(x1)..x1 {
+                let pixel = rgba(screen, x, y);
+                if pixel[3] == 0xff
+                    && pixel[0] > 0x00
+                    && pixel[0] < 0xff
+                    && pixel[0] == pixel[1]
+                    && pixel[1] == pixel[2]
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     #[test]
     fn draw_glyphs_fills_nonzero_path_with_hole() {
         let commands = vec![
@@ -1121,6 +1192,79 @@ mod tests {
         assert!(edge[0] > 0x00 && edge[0] < 0xff);
         assert_eq!(edge[0], edge[1]);
         assert_eq!(edge[1], edge[2]);
+    }
+
+    fn append_cubic_circle(commands: &mut Vec<Command>, cx: f32, cy: f32, radius: f32, clockwise: bool) {
+        let k = radius * 0.552_284_8;
+        if clockwise {
+            commands.push(Command::MoveTo(cx + radius, cy));
+            commands.push(Command::CubicBezier(
+                (cx + radius, cy + k),
+                (cx + k, cy + radius),
+                (cx, cy + radius),
+            ));
+            commands.push(Command::CubicBezier(
+                (cx - k, cy + radius),
+                (cx - radius, cy + k),
+                (cx - radius, cy),
+            ));
+            commands.push(Command::CubicBezier(
+                (cx - radius, cy - k),
+                (cx - k, cy - radius),
+                (cx, cy - radius),
+            ));
+            commands.push(Command::CubicBezier(
+                (cx + k, cy - radius),
+                (cx + radius, cy - k),
+                (cx + radius, cy),
+            ));
+        } else {
+            commands.push(Command::MoveTo(cx + radius, cy));
+            commands.push(Command::CubicBezier(
+                (cx + radius, cy - k),
+                (cx + k, cy - radius),
+                (cx, cy - radius),
+            ));
+            commands.push(Command::CubicBezier(
+                (cx - k, cy - radius),
+                (cx - radius, cy - k),
+                (cx - radius, cy),
+            ));
+            commands.push(Command::CubicBezier(
+                (cx - radius, cy + k),
+                (cx - k, cy + radius),
+                (cx, cy + radius),
+            ));
+            commands.push(Command::CubicBezier(
+                (cx + k, cy + radius),
+                (cx + radius, cy + k),
+                (cx + radius, cy),
+            ));
+        }
+        commands.push(Command::Close);
+    }
+
+    #[test]
+    fn draw_glyphs_antialiases_round_cubic_edges() {
+        let mut commands = Vec::new();
+        append_cubic_circle(&mut commands, 20.0, 20.0, 12.0, true);
+        append_cubic_circle(&mut commands, 20.0, 20.0, 6.0, false);
+
+        let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::new(
+            commands,
+            GlyphPaint::CurrentColor,
+        ))]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(40, 40);
+        fillrect(&mut canvas, 0x00ff_ffff);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xff00_0000).unwrap();
+
+        assert_eq!(rgba(&canvas, 20, 20), [0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(rgba(&canvas, 20, 10), [0x00, 0x00, 0x00, 0xff]);
+
+        assert!(has_gray_pixel(&canvas, 27, 11, 31, 15));
+        assert!(has_gray_pixel(&canvas, 23, 15, 26, 18));
     }
 
     #[test]
@@ -1211,6 +1355,37 @@ mod tests {
         }
 
         count
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    #[ignore = "diagnostic: inspect Yu Gothic round glyph flattening density"]
+    fn inspect_yu_gothic_round_glyph_flattening() {
+        let Some(font) = load_test_font("YuGothB.ttc").or_else(|| load_test_font("YuGothB.ttf")) else {
+            return;
+        };
+
+        let run = font
+            .text2glyph_run("CGOQ", fontloader::FontOptions::new(&font).with_font_size(64.0))
+            .expect("glyph run");
+
+        for (index, glyph) in run.glyphs.iter().enumerate() {
+            for (layer_index, layer) in glyph.glyph.layers.iter().enumerate() {
+                if let GlyphLayer::Path(path) = layer {
+                    let contours = flatten_commands(&path.commands, glyph.x + path.offset_x, glyph.y + path.offset_y);
+                    let point_count: usize = contours.iter().map(|contour| contour.len()).sum();
+                    eprintln!(
+                        "glyph {} layer {} commands={} contours={} points={} bounds={:?}",
+                        index,
+                        layer_index,
+                        path.commands.len(),
+                        contours.len(),
+                        point_count,
+                        glyph.glyph.metrics.bounds
+                    );
+                }
+            }
+        }
     }
 
     #[cfg(feature = "font")]
@@ -1369,6 +1544,75 @@ mod tests {
         assert_eq!(glyphs.glyphs.len(), 1);
         let ink = count_non_white_pixels(&canvas, 0, 0, canvas.width(), canvas.height());
         assert!(ink > 0, "expected rendered ink from cached family face");
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    #[ignore = "diagnostic: compare direct loaded font against FontFamily face resolution"]
+    fn compare_direct_font_and_family_yugothb() {
+        let Some(font) = load_test_font("YuGothB.ttc").or_else(|| load_test_font("YuGothB.ttf")) else {
+            return;
+        };
+
+        let direct = font
+            .text2glyph_run("CGO", fontloader::FontOptions::new(&font).with_font_size(64.0))
+            .expect("direct glyph run");
+
+        let mut family_auto = FontFamily::new("Yu Gothic");
+        family_auto.add_loaded_font(font.clone());
+        let auto = family_auto
+            .text2glyph_run(
+                "CGO",
+                FontOptions::from_family(&family_auto)
+                    .with_font_family("Yu Gothic")
+                    .with_font_size(64.0)
+                    .with_font_weight(FontWeight::BOLD),
+            )
+            .expect("auto family glyph run");
+
+        let mut family_face = FontFamily::new("Yu Gothic");
+        family_face.add_face(FontFaceDescriptor::from_loaded_font(&font), font);
+        let face = family_face
+            .text2glyph_run(
+                "CGO",
+                FontOptions::from_family(&family_face)
+                    .with_font_family("Yu Gothic")
+                    .with_font_size(64.0)
+                    .with_font_weight(FontWeight::BOLD),
+            )
+            .expect("descriptor family glyph run");
+
+        fn summarize(run: &GlyphRun) -> Vec<(usize, usize, usize, Option<(i32, i32, i32, i32)>)> {
+            run.glyphs
+                .iter()
+                .map(|glyph| {
+                    let mut layers = 0usize;
+                    let mut commands = 0usize;
+                    for layer in &glyph.glyph.layers {
+                        if let GlyphLayer::Path(path) = layer {
+                            layers += 1;
+                            commands += path.commands.len();
+                        }
+                    }
+                    let bounds = glyph.glyph.metrics.bounds.map(|bounds| {
+                        (
+                            (bounds.min_x * 1024.0).round() as i32,
+                            (bounds.min_y * 1024.0).round() as i32,
+                            (bounds.max_x * 1024.0).round() as i32,
+                            (bounds.max_y * 1024.0).round() as i32,
+                        )
+                    });
+                    (layers, commands, glyph.glyph.layers.len(), bounds)
+                })
+                .collect()
+        }
+
+        eprintln!("direct={:?}", summarize(&direct));
+        eprintln!("auto={:?}", summarize(&auto));
+        eprintln!("face={:?}", summarize(&face));
+
+        assert_eq!(summarize(&direct), summarize(&auto));
+        assert_eq!(summarize(&direct), summarize(&face));
     }
 
     #[cfg(feature = "font")]

@@ -5,6 +5,8 @@ const pendingFaces = new Map();
 let initWasm;
 let UniverseCtor;
 let lastStage = 'startup';
+let rendererInfo = '';
+const BUILD_ID = new URL(self.location.href).searchParams.get('v') ?? 'fontfamily-worker-20260329-3';
 
 function setStage(stage) {
   lastStage = stage;
@@ -35,17 +37,33 @@ async function workerInit(width, height) {
   if (typeof universe.hasFontFeature === 'function' && !universe.hasFontFeature()) {
     throw new Error('wasm-paint must be built with --features font');
   }
+  rendererInfo =
+    typeof universe.glyphRendererInfo === 'function'
+      ? universe.glyphRendererInfo()
+      : 'renderer info unavailable';
   setStage('clear canvas');
   universe.clear(0xffffff);
   setStage('read initial image');
   const image = universe.getImageData(0);
-  postMessage({ message: 'init', image });
+  postMessage({ message: 'init', image, buildId: BUILD_ID, rendererInfo });
 }
 
 function renderText(request) {
   if (universe == null) {
     return;
   }
+
+  const layoutInfo =
+    typeof universe.inspectTextFamily === 'function'
+      ? universe.inspectTextFamily(
+          request.text ?? '',
+          Number(request.fontSize ?? 48),
+          request.fontName ?? undefined,
+          Number(request.fontWeight ?? 400),
+          request.fontStyle ?? 'normal',
+          Number(request.fontStretch ?? 1),
+        )
+      : 'layout inspection unavailable';
 
   setStage('render clear');
   universe.clear(0xffffff);
@@ -77,6 +95,9 @@ function renderText(request) {
       fontWeight: Number(request.fontWeight ?? 400),
       fontStyle: request.fontStyle ?? 'normal',
       fontStretch: Number(request.fontStretch ?? 1),
+      buildId: BUILD_ID,
+      rendererInfo,
+      layoutInfo,
     },
   });
 }
@@ -157,14 +178,20 @@ function finalizeFamilyFace(request) {
   }
 
   setStage(`add font to family ${request.faceId}`);
-  universe.addFontToFamily(pending.buffer);
+  universe.addFontToFamilyWithDescriptor(
+    pending.buffer,
+    pending.fontName,
+    pending.fontWeight,
+    pending.fontStyle,
+    pending.fontStretch,
+  );
   pendingFaces.delete(request.faceId);
   setStage('count family faces');
   faceCount = universe.fontFamilyFaceCount();
 }
 
 function finishFamily() {
-  postMessage({ message: 'familyLoaded', familyName, faceCount });
+  postMessage({ message: 'familyLoaded', familyName, faceCount, buildId: BUILD_ID, rendererInfo });
 }
 
 onmessage = async function(ev) {

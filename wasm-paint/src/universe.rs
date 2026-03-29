@@ -77,6 +77,122 @@ fn js_error(message: &str) -> JsValue {
 }
 
 #[cfg(feature = "font")]
+fn extend_bounds(
+    bounds: &mut Option<paintcore::path::GlyphBounds>,
+    x: f32,
+    y: f32,
+) {
+    if let Some(bounds) = bounds.as_mut() {
+        bounds.min_x = bounds.min_x.min(x);
+        bounds.min_y = bounds.min_y.min(y);
+        bounds.max_x = bounds.max_x.max(x);
+        bounds.max_y = bounds.max_y.max(y);
+    } else {
+        *bounds = Some(paintcore::path::GlyphBounds {
+            min_x: x,
+            min_y: y,
+            max_x: x,
+            max_y: y,
+        });
+    }
+}
+
+#[cfg(feature = "font")]
+fn glyph_run_bounds(run: &path::GlyphRun) -> Option<paintcore::path::GlyphBounds> {
+    let mut bounds = None;
+
+    for glyph in &run.glyphs {
+        if let Some(glyph_bounds) = glyph.glyph.metrics.bounds {
+            extend_bounds(&mut bounds, glyph_bounds.min_x + glyph.x, glyph_bounds.min_y + glyph.y);
+            extend_bounds(&mut bounds, glyph_bounds.max_x + glyph.x, glyph_bounds.max_y + glyph.y);
+            continue;
+        }
+
+        for layer in &glyph.glyph.layers {
+            match layer {
+                path::GlyphLayer::Path(path) => {
+                    for command in &path.commands {
+                        match command {
+                            path::Command::MoveTo(x, y) | path::Command::Line(x, y) => {
+                                extend_bounds(
+                                    &mut bounds,
+                                    *x + glyph.x + path.offset_x,
+                                    *y + glyph.y + path.offset_y,
+                                );
+                            }
+                            path::Command::Bezier((cx, cy), (x, y)) => {
+                                extend_bounds(
+                                    &mut bounds,
+                                    *cx + glyph.x + path.offset_x,
+                                    *cy + glyph.y + path.offset_y,
+                                );
+                                extend_bounds(
+                                    &mut bounds,
+                                    *x + glyph.x + path.offset_x,
+                                    *y + glyph.y + path.offset_y,
+                                );
+                            }
+                            path::Command::CubicBezier((ax, ay), (bx, by), (x, y)) => {
+                                extend_bounds(
+                                    &mut bounds,
+                                    *ax + glyph.x + path.offset_x,
+                                    *ay + glyph.y + path.offset_y,
+                                );
+                                extend_bounds(
+                                    &mut bounds,
+                                    *bx + glyph.x + path.offset_x,
+                                    *by + glyph.y + path.offset_y,
+                                );
+                                extend_bounds(
+                                    &mut bounds,
+                                    *x + glyph.x + path.offset_x,
+                                    *y + glyph.y + path.offset_y,
+                                );
+                            }
+                            path::Command::Close => {}
+                        }
+                    }
+                }
+                path::GlyphLayer::Raster(raster) => {
+                    let width = raster.width.unwrap_or(0) as f32;
+                    let height = raster.height.unwrap_or(0) as f32;
+                    extend_bounds(
+                        &mut bounds,
+                        glyph.x + raster.offset_x,
+                        glyph.y + raster.offset_y,
+                    );
+                    extend_bounds(
+                        &mut bounds,
+                        glyph.x + raster.offset_x + width,
+                        glyph.y + raster.offset_y + height,
+                    );
+                }
+            }
+        }
+    }
+
+    bounds
+}
+
+#[cfg(feature = "font")]
+fn format_glyph_run_bounds(run: &path::GlyphRun) -> String {
+    if let Some(bounds) = glyph_run_bounds(run) {
+        format!(
+            "glyphs={} bounds=({:.2},{:.2})-({:.2},{:.2}) size=({:.2}x{:.2})",
+            run.glyphs.len(),
+            bounds.min_x,
+            bounds.min_y,
+            bounds.max_x,
+            bounds.max_y,
+            bounds.max_x - bounds.min_x,
+            bounds.max_y - bounds.min_y,
+        )
+    } else {
+        format!("glyphs={} bounds=none", run.glyphs.len())
+    }
+}
+
+#[cfg(feature = "font")]
 fn parse_font_style(style: Option<&str>) -> Result<FontStyle, JsValue> {
     match style.unwrap_or("normal").trim().to_ascii_lowercase().as_str() {
         "normal" => Ok(FontStyle::Normal),
@@ -757,6 +873,11 @@ impl Universe {
         cfg!(feature = "font")
     }
 
+    #[wasm_bindgen(js_name = glyphRendererInfo)]
+    pub fn glyph_renderer_info(&self) -> String {
+        path::glyph_renderer_info()
+    }
+
     #[cfg(feature = "font")]
     #[wasm_bindgen(js_name = loadFont)]
     pub fn load_font(&mut self, buffer: Vec<u8>) -> Result<(), JsValue> {
@@ -968,6 +1089,41 @@ impl Universe {
 
         path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
             .map_err(|error| js_error(&error.to_string()))
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = inspectTextFamily)]
+    pub fn inspect_text_family(
+        &self,
+        text: String,
+        font_size: f32,
+        font_name: Option<String>,
+        font_weight: u32,
+        font_style: Option<String>,
+        font_stretch: f32,
+    ) -> Result<String, JsValue> {
+        if !font_size.is_finite() || font_size <= 0.0 {
+            return Err(js_error("font_size must be a positive finite value"));
+        }
+        if !font_stretch.is_finite() || font_stretch <= 0.0 {
+            return Err(js_error("font_stretch must be a positive finite value"));
+        }
+
+        let family = self
+            .font_family
+            .as_ref()
+            .ok_or_else(|| js_error("font family is not initialized"))?;
+        let glyphs = {
+            let mut options = FontOptions::from_family(family);
+            options.font_size = font_size;
+            options.font_weight = FontWeight(font_weight as u16);
+            options.font_style = parse_font_style(font_style.as_deref())?;
+            options.font_stretch = FontStretch(font_stretch);
+            options.font_name = font_name.as_deref();
+            path::layout_text(&text, options).map_err(|error| js_error(&error.to_string()))?
+        };
+
+        Ok(format_glyph_run_bounds(&glyphs))
     }
 
     #[wasm_bindgen(js_name = affineNew)]

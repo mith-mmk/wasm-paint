@@ -50,7 +50,7 @@ let familyLoaded = false;
 let lastFamilyToken = '';
 const FONT_CHUNK_SIZE = 256 * 1024;
 const BUILD_ID =
-  new URL(import.meta.url).searchParams.get('v') ?? 'fontfamily-20260329-2';
+  new URL(import.meta.url).searchParams.get('v') ?? 'fontfamily-20260329-3';
 
 function setSummary(message) {
   if (summary != null) {
@@ -333,11 +333,15 @@ function workerInit() {
         if (data.image != null) {
           ctx.putImageData(data.image, 0, 0);
         }
-        setSummary('worker ready');
+        setSummary(
+          `worker ready build=${data.buildId ?? BUILD_ID} renderer=${data.rendererInfo ?? 'unknown'}`,
+        );
         break;
       case 'familyLoaded':
         familyLoaded = true;
-        setSummary(`family=${data.familyName} faces=${data.faceCount}`);
+        setSummary(
+          `family=${data.familyName} faces=${data.faceCount} build=${data.buildId ?? BUILD_ID} renderer=${data.rendererInfo ?? 'unknown'}`,
+        );
         postRender();
         break;
       case 'render':
@@ -347,7 +351,7 @@ function workerInit() {
         if (data.summary != null) {
           const info = data.summary;
           setSummary(
-            `family=${info.familyName} faces=${info.faceCount} chars=${info.charCount} size=${info.fontSize}px weight=${info.fontWeight} style=${info.fontStyle} stretch=${info.fontStretch}`,
+            `family=${info.familyName} faces=${info.faceCount} chars=${info.charCount} size=${info.fontSize}px weight=${info.fontWeight} style=${info.fontStyle} stretch=${info.fontStretch} build=${info.buildId ?? BUILD_ID} renderer=${info.rendererInfo ?? 'unknown'} layout=${info.layoutInfo ?? 'unknown'}`,
           );
         }
         break;

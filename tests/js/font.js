@@ -12,6 +12,7 @@ const renderButton = document.getElementById('render-font');
 
 const width = 1280;
 const height = 960;
+const BUILD_ID = 'font-ui-20260329-1';
 
 canvas.width = width;
 canvas.height = height;
@@ -126,7 +127,8 @@ async function loadSelectedFont() {
 }
 
 function workerInit() {
-  pixelWorker = new Worker('js/font-worker.js', { type: 'module' });
+  const workerUrl = new URL(`./font-worker.js?${BUILD_ID}`, import.meta.url);
+  pixelWorker = new Worker(workerUrl, { type: 'module' });
 
   pixelWorker.onmessage = (ev) => {
     const data = ev.data;
@@ -140,7 +142,9 @@ function workerInit() {
         if (data.image != null) {
           ctx.putImageData(data.image, 0, 0);
         }
-        setSummary('worker ready');
+        setSummary(
+          `worker ready build=${data.buildId ?? BUILD_ID} renderer=${data.rendererInfo ?? 'unknown'}`,
+        );
         if (fontUrlInput.value.trim() !== '') {
           loadSelectedFont().catch((error) => {
             setSummary(error instanceof Error ? error.message : String(error));
@@ -159,7 +163,7 @@ function workerInit() {
         if (data.summary != null) {
           const info = data.summary;
           setSummary(
-            `font=${info.fontSource} chars=${info.charCount} lines=${info.lineCount} size=${info.fontSize}px`,
+            `font=${info.fontSource} chars=${info.charCount} lines=${info.lineCount} size=${info.fontSize}px build=${info.buildId ?? BUILD_ID} renderer=${info.rendererInfo ?? 'unknown'}`,
           );
         }
         break;

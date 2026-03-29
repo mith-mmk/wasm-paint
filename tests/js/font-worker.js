@@ -1,17 +1,27 @@
-import init, { Universe } from "../../wasm-paint/pkg/paint.js";
+const BUILD_ID = 'font-worker-20260329-1';
 
 let universe;
 let fontSource = '';
+let rendererInfo = '';
+
+async function loadWasm() {
+  return import(`../../wasm-paint/pkg/paint.js?${BUILD_ID}`);
+}
 
 async function workerInit(width, height) {
+  const { default: init, Universe } = await loadWasm();
   await init();
   universe = new Universe(width, height);
   if (typeof universe.hasFontFeature === 'function' && !universe.hasFontFeature()) {
     throw new Error('wasm-paint must be built with --features font');
   }
+  rendererInfo =
+    typeof universe.glyphRendererInfo === 'function'
+      ? universe.glyphRendererInfo()
+      : 'renderer info unavailable';
   universe.clear(0xffffff);
   const image = universe.getImageData(0);
-  postMessage({ message: 'init', image });
+  postMessage({ message: 'init', image, rendererInfo, buildId: BUILD_ID });
 }
 
 function renderText(text, fontSize) {
@@ -33,6 +43,8 @@ function renderText(text, fontSize) {
       charCount: Array.from(text).length,
       lineCount,
       fontSize,
+      rendererInfo,
+      buildId: BUILD_ID,
     },
   });
 }
