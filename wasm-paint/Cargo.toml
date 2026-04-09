@@ -6,7 +6,8 @@ edition = "2024"
 license = "MIT"
 keywords= ["wasm","paint","graphics"]
 rust-version = "1.91"
-
+description = "Web Browser for processing images and raster data"
+repository = "https://github.com/mith-mmk/wasm-paint"
 [lib]
 crate-type = ["cdylib"] 
 
@@ -14,6 +15,7 @@ crate-type = ["cdylib"]
 default = ["console_error_panic_hook"]
 stdweb = [ "instant/stdweb" ]
 font = ["dep:fontloader", "paintcore/font"]
+svg-font = ["font", "fontloader/svg-fonts", "paintcore/svg-font"]
 
 [dependencies]
 paintcore = { path="../paintcore" }

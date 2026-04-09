@@ -22,14 +22,12 @@ use std::io::Cursor;
 pub use fontloader::commands as commads;
 #[cfg(feature = "font")]
 pub use fontloader::{
-    load_font_from_buffer, text2commands, Command, FillRule, FontFaceDescriptor, FontFamily,
-    FontMetrics, FontOptions, FontRef, FontStretch, FontStyle, FontVariant, FontWeight, Glyph,
-    GlyphBounds, GlyphCommands, GlyphFlow, GlyphLayer, GlyphMetrics, GlyphPaint, GlyphRun,
-    LoadedFont, PathCommand, PathGlyphLayer, PositionedGlyph, RasterGlyphLayer,
-    RasterGlyphSource,
+    load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontRef, FontStretch,
+    FontStyle, FontVariant, FontWeight,
 };
+#[cfg(feature = "font")]
+pub type LoadedFont = fontloader::FontFace;
 
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone)]
 pub enum Command {
     Line(f32, f32),
@@ -40,7 +38,6 @@ pub enum Command {
 }
 
 /// Text advance direction resolved by the font parser.
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GlyphFlow {
     Horizontal,
@@ -48,7 +45,6 @@ pub enum GlyphFlow {
 }
 
 /// Font-level metrics. Keep this on the glyph so mixed fallback fonts can coexist in one run.
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub struct FontMetrics {
     pub ascent: f32,
@@ -57,7 +53,6 @@ pub struct FontMetrics {
     pub flow: GlyphFlow,
 }
 
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphBounds {
     pub min_x: f32,
@@ -67,7 +62,6 @@ pub struct GlyphBounds {
 }
 
 /// Glyph metrics after the font parser has resolved units and orientation.
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphMetrics {
     pub advance_x: f32,
@@ -77,7 +71,6 @@ pub struct GlyphMetrics {
     pub bounds: Option<GlyphBounds>,
 }
 
-#[cfg(not(feature = "font"))]
 impl Default for GlyphMetrics {
     fn default() -> Self {
         Self {
@@ -91,41 +84,96 @@ impl Default for GlyphMetrics {
 }
 
 /// Paint for vector glyph layers. `CurrentColor` maps to the color passed into `draw_glyphs`.
-#[cfg(not(feature = "font"))]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum GlyphPaint {
     Solid(u32),
     CurrentColor,
+    LinearGradient(LinearGradientPaint),
+    RadialGradient(RadialGradientPaint),
 }
 
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillRule {
     NonZero,
     EvenOdd,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathPaintMode {
+    Fill,
+    Stroke,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradientSpread {
+    Pad,
+    Repeat,
+    Reflect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GradientStop {
+    pub offset: f32,
+    pub color: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct LinearGradientPaint {
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+    pub spread: GradientSpread,
+    pub stops: Vec<GradientStop>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RadialGradientPaint {
+    pub cx: f32,
+    pub cy: f32,
+    pub r: f32,
+    pub fx: f32,
+    pub fy: f32,
+    pub fr: f32,
+    pub spread: GradientSpread,
+    pub stops: Vec<GradientStop>,
+}
+
 /// Vector glyph layer.
 ///
 /// This is used for normal outline fonts and for SVG emoji after the SVG has been converted
 /// into path commands by the font parser.
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone)]
 pub struct PathGlyphLayer {
     pub commands: Vec<Command>,
     pub paint: GlyphPaint,
+    pub paint_mode: PathPaintMode,
     pub fill_rule: FillRule,
+    pub stroke_width: f32,
     pub offset_x: f32,
     pub offset_y: f32,
 }
 
-#[cfg(not(feature = "font"))]
 impl PathGlyphLayer {
     pub fn new(commands: Vec<Command>, paint: GlyphPaint) -> Self {
         Self {
             commands,
             paint,
+            paint_mode: PathPaintMode::Fill,
             fill_rule: FillRule::NonZero,
+            stroke_width: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        }
+    }
+
+    pub fn stroke(commands: Vec<Command>, paint: GlyphPaint, stroke_width: f32) -> Self {
+        Self {
+            commands,
+            paint,
+            paint_mode: PathPaintMode::Stroke,
+            fill_rule: FillRule::NonZero,
+            stroke_width,
             offset_x: 0.0,
             offset_y: 0.0,
         }
@@ -135,7 +183,6 @@ impl PathGlyphLayer {
 /// Raster glyph payload.
 ///
 /// `Encoded` is decoded through the existing image loader, which already covers PNG.
-#[cfg(not(feature = "font"))]
 #[derive(Debug, Clone)]
 pub enum RasterGlyphSource {
     Encoded(Vec<u8>),
@@ -146,7 +193,6 @@ pub enum RasterGlyphSource {
     },
 }
 
-#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub struct RasterGlyphLayer {
     pub source: RasterGlyphSource,
@@ -156,7 +202,6 @@ pub struct RasterGlyphLayer {
     pub height: Option<u32>,
 }
 
-#[cfg(not(feature = "font"))]
 impl RasterGlyphLayer {
     pub fn from_encoded(data: Vec<u8>) -> Self {
         Self {
@@ -183,15 +228,30 @@ impl RasterGlyphLayer {
     }
 }
 
+#[cfg(feature = "svg-font")]
+#[derive(Debug, Clone)]
+pub struct SvgGlyphLayer {
+    pub document: String,
+    pub view_box_min_x: f32,
+    pub view_box_min_y: f32,
+    pub view_box_width: f32,
+    pub view_box_height: f32,
+    pub width: f32,
+    pub height: f32,
+    pub offset_x: f32,
+    pub offset_y: f32,
+}
+
 /// Extensible glyph layer model.
 ///
 /// - `Path`: monochrome outlines and SVG emoji vector layers.
 /// - `Raster`: PNG bitmap emoji and other image-based glyph layers.
-#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub enum GlyphLayer {
     Path(PathGlyphLayer),
     Raster(RasterGlyphLayer),
+    #[cfg(feature = "svg-font")]
+    Svg(SvgGlyphLayer),
 }
 
 /// A single glyph as prepared by the font parser.
@@ -199,7 +259,6 @@ pub enum GlyphLayer {
 /// Coordinates in each layer are already in screen space relative to the glyph origin.
 /// Metrics are preserved for layout and future extensions, but drawing only uses the resolved
 /// positioned origin plus the layer offsets.
-#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub struct Glyph {
     pub font: Option<FontMetrics>,
@@ -207,7 +266,6 @@ pub struct Glyph {
     pub layers: Vec<GlyphLayer>,
 }
 
-#[cfg(not(feature = "font"))]
 impl Glyph {
     pub fn new(layers: Vec<GlyphLayer>) -> Self {
         Self {
@@ -218,7 +276,6 @@ impl Glyph {
     }
 }
 
-#[cfg(not(feature = "font"))]
 #[derive(Clone)]
 pub struct PositionedGlyph {
     pub glyph: Glyph,
@@ -226,23 +283,218 @@ pub struct PositionedGlyph {
     pub y: f32,
 }
 
-#[cfg(not(feature = "font"))]
 impl PositionedGlyph {
     pub fn new(glyph: Glyph, x: f32, y: f32) -> Self {
         Self { glyph, x, y }
     }
 }
 
-#[cfg(not(feature = "font"))]
 #[derive(Clone, Default)]
 pub struct GlyphRun {
     pub glyphs: Vec<PositionedGlyph>,
 }
 
-#[cfg(not(feature = "font"))]
 impl GlyphRun {
     pub fn new(glyphs: Vec<PositionedGlyph>) -> Self {
         Self { glyphs }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::Command> for Command {
+    fn from(command: fontloader::Command) -> Self {
+        match command {
+            fontloader::Command::Line(x, y) => Self::Line(x, y),
+            fontloader::Command::MoveTo(x, y) => Self::MoveTo(x, y),
+            fontloader::Command::Bezier(control, end) => Self::Bezier(control, end),
+            fontloader::Command::CubicBezier(control1, control2, end) => {
+                Self::CubicBezier(control1, control2, end)
+            }
+            fontloader::Command::Close => Self::Close,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphFlow> for GlyphFlow {
+    fn from(flow: fontloader::GlyphFlow) -> Self {
+        match flow {
+            fontloader::GlyphFlow::Horizontal => Self::Horizontal,
+            fontloader::GlyphFlow::Vertical => Self::Vertical,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::FontMetrics> for FontMetrics {
+    fn from(metrics: fontloader::FontMetrics) -> Self {
+        Self {
+            ascent: metrics.ascent,
+            descent: metrics.descent,
+            line_gap: metrics.line_gap,
+            flow: metrics.flow.into(),
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphBounds> for GlyphBounds {
+    fn from(bounds: fontloader::GlyphBounds) -> Self {
+        Self {
+            min_x: bounds.min_x,
+            min_y: bounds.min_y,
+            max_x: bounds.max_x,
+            max_y: bounds.max_y,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphMetrics> for GlyphMetrics {
+    fn from(metrics: fontloader::GlyphMetrics) -> Self {
+        Self {
+            advance_x: metrics.advance_x,
+            advance_y: metrics.advance_y,
+            bearing_x: metrics.bearing_x,
+            bearing_y: metrics.bearing_y,
+            bounds: metrics.bounds.map(Into::into),
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphPaint> for GlyphPaint {
+    fn from(paint: fontloader::GlyphPaint) -> Self {
+        match paint {
+            fontloader::GlyphPaint::Solid(color) => Self::Solid(color),
+            fontloader::GlyphPaint::CurrentColor => Self::CurrentColor,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::FillRule> for FillRule {
+    fn from(rule: fontloader::FillRule) -> Self {
+        match rule {
+            fontloader::FillRule::NonZero => Self::NonZero,
+            fontloader::FillRule::EvenOdd => Self::EvenOdd,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::PathPaintMode> for PathPaintMode {
+    fn from(mode: fontloader::PathPaintMode) -> Self {
+        match mode {
+            fontloader::PathPaintMode::Fill => Self::Fill,
+            fontloader::PathPaintMode::Stroke => Self::Stroke,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::PathGlyphLayer> for PathGlyphLayer {
+    fn from(layer: fontloader::PathGlyphLayer) -> Self {
+        Self {
+            commands: layer.commands.into_iter().map(Into::into).collect(),
+            paint: layer.paint.into(),
+            paint_mode: layer.paint_mode.into(),
+            fill_rule: layer.fill_rule.into(),
+            stroke_width: layer.stroke_width,
+            offset_x: layer.offset_x,
+            offset_y: layer.offset_y,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::RasterGlyphSource> for RasterGlyphSource {
+    fn from(source: fontloader::RasterGlyphSource) -> Self {
+        match source {
+            fontloader::RasterGlyphSource::Encoded(data) => Self::Encoded(data),
+            fontloader::RasterGlyphSource::Rgba {
+                width,
+                height,
+                data,
+            } => Self::Rgba {
+                width,
+                height,
+                data,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::RasterGlyphLayer> for RasterGlyphLayer {
+    fn from(layer: fontloader::RasterGlyphLayer) -> Self {
+        Self {
+            source: layer.source.into(),
+            offset_x: layer.offset_x,
+            offset_y: layer.offset_y,
+            width: layer.width,
+            height: layer.height,
+        }
+    }
+}
+
+#[cfg(all(feature = "font", feature = "svg-font"))]
+impl From<fontloader::SvgGlyphLayer> for SvgGlyphLayer {
+    fn from(layer: fontloader::SvgGlyphLayer) -> Self {
+        Self {
+            document: layer.document,
+            view_box_min_x: layer.view_box_min_x,
+            view_box_min_y: layer.view_box_min_y,
+            view_box_width: layer.view_box_width,
+            view_box_height: layer.view_box_height,
+            width: layer.width,
+            height: layer.height,
+            offset_x: layer.offset_x,
+            offset_y: layer.offset_y,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphLayer> for GlyphLayer {
+    fn from(layer: fontloader::GlyphLayer) -> Self {
+        match layer {
+            fontloader::GlyphLayer::Path(path) => Self::Path(path.into()),
+            fontloader::GlyphLayer::Raster(raster) => Self::Raster(raster.into()),
+            #[cfg(feature = "svg-font")]
+            fontloader::GlyphLayer::Svg(svg) => Self::Svg(svg.into()),
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::Glyph> for Glyph {
+    fn from(glyph: fontloader::Glyph) -> Self {
+        Self {
+            font: glyph.font.map(Into::into),
+            metrics: glyph.metrics.into(),
+            layers: glyph.layers.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::PositionedGlyph> for PositionedGlyph {
+    fn from(glyph: fontloader::PositionedGlyph) -> Self {
+        Self {
+            glyph: glyph.glyph.into(),
+            x: glyph.x,
+            y: glyph.y,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphRun> for GlyphRun {
+    fn from(run: fontloader::GlyphRun) -> Self {
+        Self {
+            glyphs: run.glyphs.into_iter().map(Into::into).collect(),
+        }
     }
 }
 
@@ -253,6 +505,19 @@ struct Edge {
     x1: f32,
     y1: f32,
     winding: i32,
+}
+
+#[derive(Debug, Clone)]
+struct FlattenedSubpath {
+    points: Vec<(f32, f32)>,
+}
+
+struct CoverageMask {
+    origin_x: i32,
+    origin_y: i32,
+    width: u32,
+    height: u32,
+    coverage: Vec<f32>,
 }
 
 fn paint_error(message: &str) -> Error {
@@ -283,10 +548,156 @@ fn normalize_solid_color(color: u32) -> u32 {
     }
 }
 
-fn resolve_paint(paint: GlyphPaint, default_color: u32) -> u32 {
+fn resolve_paint(paint: &GlyphPaint, default_color: u32) -> u32 {
     match paint {
-        GlyphPaint::Solid(color) => normalize_solid_color(color),
+        GlyphPaint::Solid(color) => normalize_solid_color(*color),
         GlyphPaint::CurrentColor => normalize_paint_color(default_color),
+        GlyphPaint::LinearGradient(_) | GlyphPaint::RadialGradient(_) => normalize_paint_color(default_color),
+    }
+}
+
+fn interpolate_channel(start: u8, end: u8, t: f32) -> u8 {
+    (start as f32 + (end as f32 - start as f32) * t)
+        .round()
+        .clamp(0.0, 255.0) as u8
+}
+
+fn gradient_spread_t(mut t: f32, spread: GradientSpread) -> f32 {
+    match spread {
+        GradientSpread::Pad => t.clamp(0.0, 1.0),
+        GradientSpread::Repeat => {
+            t = t - t.floor();
+            if t < 0.0 {
+                t + 1.0
+            } else {
+                t
+            }
+        }
+        GradientSpread::Reflect => {
+            let period = t.rem_euclid(2.0);
+            if period <= 1.0 {
+                period
+            } else {
+                2.0 - period
+            }
+        }
+    }
+}
+
+fn sample_gradient_stops(stops: &[GradientStop], t: f32) -> u32 {
+    if stops.is_empty() {
+        return 0;
+    }
+    if stops.len() == 1 {
+        return normalize_solid_color(stops[0].color);
+    }
+
+    let mut stops: Vec<GradientStop> = stops.to_vec();
+    stops.sort_by(|left, right| left.offset.partial_cmp(&right.offset).unwrap_or(Ordering::Equal));
+    let t = t.clamp(0.0, 1.0);
+    if t <= stops[0].offset {
+        return normalize_solid_color(stops[0].color);
+    }
+
+    for pair in stops.windows(2) {
+        let start = pair[0];
+        let end = pair[1];
+        if t > end.offset {
+            continue;
+        }
+
+        let start_color = normalize_solid_color(start.color);
+        let end_color = normalize_solid_color(end.color);
+        let span = (end.offset - start.offset).abs();
+        let local_t = if span <= f32::EPSILON {
+            0.0
+        } else {
+            ((t - start.offset) / (end.offset - start.offset)).clamp(0.0, 1.0)
+        };
+
+        let start_a = ((start_color >> 24) & 0xff) as u8;
+        let start_r = ((start_color >> 16) & 0xff) as u8;
+        let start_g = ((start_color >> 8) & 0xff) as u8;
+        let start_b = (start_color & 0xff) as u8;
+        let end_a = ((end_color >> 24) & 0xff) as u8;
+        let end_r = ((end_color >> 16) & 0xff) as u8;
+        let end_g = ((end_color >> 8) & 0xff) as u8;
+        let end_b = (end_color & 0xff) as u8;
+
+        return ((interpolate_channel(start_a, end_a, local_t) as u32) << 24)
+            | ((interpolate_channel(start_r, end_r, local_t) as u32) << 16)
+            | ((interpolate_channel(start_g, end_g, local_t) as u32) << 8)
+            | interpolate_channel(start_b, end_b, local_t) as u32;
+    }
+
+    normalize_solid_color(stops.last().unwrap().color)
+}
+
+fn sample_linear_gradient(gradient: &LinearGradientPaint, x: f32, y: f32) -> u32 {
+    let dx = gradient.x2 - gradient.x1;
+    let dy = gradient.y2 - gradient.y1;
+    let denom = dx * dx + dy * dy;
+    let t = if denom <= f32::EPSILON {
+        0.0
+    } else {
+        ((x - gradient.x1) * dx + (y - gradient.y1) * dy) / denom
+    };
+    sample_gradient_stops(&gradient.stops, gradient_spread_t(t, gradient.spread))
+}
+
+fn solve_radial_gradient_t(gradient: &RadialGradientPaint, x: f32, y: f32) -> f32 {
+    let px = x - gradient.fx;
+    let py = y - gradient.fy;
+    let dcx = gradient.cx - gradient.fx;
+    let dcy = gradient.cy - gradient.fy;
+    let dr = gradient.r - gradient.fr;
+
+    let a = dcx * dcx + dcy * dcy - dr * dr;
+    let b = -2.0 * (px * dcx + py * dcy + gradient.fr * dr);
+    let c = px * px + py * py - gradient.fr * gradient.fr;
+
+    if a.abs() <= f32::EPSILON {
+        if b.abs() <= f32::EPSILON {
+            return 0.0;
+        }
+        return (-c / b).clamp(-1_000_000.0, 1_000_000.0);
+    }
+
+    let discriminant = b * b - 4.0 * a * c;
+    if discriminant < 0.0 {
+        return 0.0;
+    }
+
+    let sqrt_d = discriminant.sqrt();
+    let t0 = (-b - sqrt_d) / (2.0 * a);
+    let t1 = (-b + sqrt_d) / (2.0 * a);
+
+    match (t0.is_finite(), t1.is_finite()) {
+        (true, true) => {
+            if t0 >= 0.0 && t1 >= 0.0 {
+                t0.min(t1)
+            } else if t0 >= 0.0 {
+                t0
+            } else {
+                t1
+            }
+        }
+        (true, false) => t0,
+        (false, true) => t1,
+        (false, false) => 0.0,
+    }
+}
+
+fn sample_radial_gradient(gradient: &RadialGradientPaint, x: f32, y: f32) -> u32 {
+    let t = solve_radial_gradient_t(gradient, x, y);
+    sample_gradient_stops(&gradient.stops, gradient_spread_t(t, gradient.spread))
+}
+
+fn resolve_paint_at(paint: &GlyphPaint, default_color: u32, x: f32, y: f32) -> u32 {
+    match paint {
+        GlyphPaint::Solid(_) | GlyphPaint::CurrentColor => resolve_paint(paint, default_color),
+        GlyphPaint::LinearGradient(gradient) => sample_linear_gradient(gradient, x, y),
+        GlyphPaint::RadialGradient(gradient) => sample_radial_gradient(gradient, x, y),
     }
 }
 
@@ -386,40 +797,42 @@ fn flatten_cubic_segment(
     flatten_cubic_segment(points, mid, right_control1, control2_end, end, depth + 1);
 }
 
-fn flush_contour(contours: &mut Vec<Vec<(f32, f32)>>, contour: &mut Vec<(f32, f32)>) {
-    if contour.len() < 2 {
-        contour.clear();
+fn flush_subpath(
+    subpaths: &mut Vec<FlattenedSubpath>,
+    points: &mut Vec<(f32, f32)>,
+    _closed: bool,
+) {
+    if points.len() < 2 {
+        points.clear();
         return;
     }
-    if contour.first() != contour.last() {
-        let first = contour[0];
-        contour.push(first);
-    }
-    contours.push(std::mem::take(contour));
+    subpaths.push(FlattenedSubpath {
+        points: std::mem::take(points),
+    });
 }
 
-fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<Vec<(f32, f32)>> {
-    let mut contours = Vec::new();
-    let mut contour = Vec::new();
+fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<FlattenedSubpath> {
+    let mut subpaths = Vec::new();
+    let mut points = Vec::new();
     let mut current_point = None;
     let mut start_point = None;
 
     for command in commands {
         match command {
             Command::MoveTo(x, y) => {
-                flush_contour(&mut contours, &mut contour);
+                flush_subpath(&mut subpaths, &mut points, false);
                 let point = (x + offset_x, y + offset_y);
-                contour.push(point);
+                points.push(point);
                 current_point = Some(point);
                 start_point = Some(point);
             }
             Command::Line(x, y) => {
                 if let Some(current) = current_point {
                     let point = (x + offset_x, y + offset_y);
-                    if contour.is_empty() {
-                        contour.push(current);
+                    if points.is_empty() {
+                        points.push(current);
                     }
-                    push_point(&mut contour, point);
+                    push_point(&mut points, point);
                     current_point = Some(point);
                 }
             }
@@ -427,10 +840,10 @@ fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<V
                 if let Some(start) = current_point {
                     let control = (control.0 + offset_x, control.1 + offset_y);
                     let end = (end.0 + offset_x, end.1 + offset_y);
-                    if contour.is_empty() {
-                        contour.push(start);
+                    if points.is_empty() {
+                        points.push(start);
                     }
-                    flatten_quadratic_segment(&mut contour, start, control, end, 0);
+                    flatten_quadratic_segment(&mut points, start, control, end, 0);
                     current_point = Some(end);
                 }
             }
@@ -439,32 +852,33 @@ fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<V
                     let control1 = (control1.0 + offset_x, control1.1 + offset_y);
                     let control2 = (control2.0 + offset_x, control2.1 + offset_y);
                     let end = (end.0 + offset_x, end.1 + offset_y);
-                    if contour.is_empty() {
-                        contour.push(start);
+                    if points.is_empty() {
+                        points.push(start);
                     }
-                    flatten_cubic_segment(&mut contour, start, control1, control2, end, 0);
+                    flatten_cubic_segment(&mut points, start, control1, control2, end, 0);
                     current_point = Some(end);
                 }
             }
             Command::Close => {
                 if let Some(start) = start_point {
-                    if contour.first() != Some(&start) {
-                        contour.insert(0, start);
+                    if points.is_empty() {
+                        points.push(start);
                     }
+                    push_point(&mut points, start);
                 }
-                flush_contour(&mut contours, &mut contour);
+                flush_subpath(&mut subpaths, &mut points, true);
                 current_point = start_point;
                 start_point = None;
             }
         }
     }
 
-    flush_contour(&mut contours, &mut contour);
-    contours
+    flush_subpath(&mut subpaths, &mut points, false);
+    subpaths
 }
 
-fn contour_bounds(contours: &[Vec<(f32, f32)>]) -> Option<GlyphBounds> {
-    let mut iter = contours.iter().flat_map(|contour| contour.iter().copied());
+fn subpath_bounds(subpaths: &[FlattenedSubpath]) -> Option<GlyphBounds> {
+    let mut iter = subpaths.iter().flat_map(|subpath| subpath.points.iter().copied());
     let first = iter.next()?;
 
     let mut bounds = GlyphBounds {
@@ -506,6 +920,36 @@ fn contour_edges(contours: &[Vec<(f32, f32)>]) -> Vec<Edge> {
     }
 
     edges
+}
+
+fn subpaths_to_fill_contours(subpaths: &[FlattenedSubpath]) -> Vec<Vec<(f32, f32)>> {
+    subpaths
+        .iter()
+        .filter_map(|subpath| {
+            if subpath.points.len() < 2 {
+                return None;
+            }
+            let mut contour = subpath.points.clone();
+            if contour.first() != contour.last() {
+                contour.push(contour[0]);
+            }
+            Some(contour)
+        })
+        .collect()
+}
+
+fn stroke_segments(subpaths: &[FlattenedSubpath]) -> Vec<((f32, f32), (f32, f32))> {
+    let mut segments = Vec::new();
+
+    for subpath in subpaths {
+        for window in subpath.points.windows(2) {
+            if window[0] != window[1] {
+                segments.push((window[0], window[1]));
+            }
+        }
+    }
+
+    segments
 }
 
 // We rasterize vector glyphs in device space, so rounded low-resolution glyphs benefit from
@@ -610,26 +1054,21 @@ fn blend_coverage_pixel(screen: &mut dyn Screen, x: i32, y: i32, color: u32, cov
     buf[pos + 3] = alpha;
 }
 
-fn fill_contours_antialias(
-    screen: &mut dyn Screen,
-    contours: &[Vec<(f32, f32)>],
-    color: u32,
-    rule: FillRule,
-) {
-    if screen.width() == 0 || screen.height() == 0 || contours.is_empty() {
-        return;
-    }
-
-    let Some(bounds) = contour_bounds(contours) else {
-        return;
-    };
-    let Some((origin_x, origin_y, width, height)) = coverage_bounds(&bounds) else {
-        return;
-    };
+fn rasterize_fill_coverage(contours: &[Vec<(f32, f32)>], rule: FillRule) -> Option<CoverageMask> {
+    let bounds = subpath_bounds(
+        &contours
+            .iter()
+            .cloned()
+            .map(|points| FlattenedSubpath {
+                points,
+            })
+            .collect::<Vec<_>>(),
+    )?;
+    let (origin_x, origin_y, width, height) = coverage_bounds(&bounds)?;
 
     let edges = contour_edges(contours);
     if edges.is_empty() {
-        return;
+        return None;
     }
 
     let translated_edges: Vec<Edge> = edges
@@ -724,11 +1163,95 @@ fn fill_contours_antialias(
         }
     }
 
+    Some(CoverageMask {
+        origin_x,
+        origin_y,
+        width,
+        height,
+        coverage,
+    })
+}
+
+fn rasterize_stroke_coverage(
+    subpaths: &[FlattenedSubpath],
+    stroke_width: f32,
+) -> Option<CoverageMask> {
+    let radius = (stroke_width.max(0.0) * 0.5).max(0.5);
+    let radius_sq = radius * radius;
+    let mut bounds = subpath_bounds(subpaths)?;
+    bounds.min_x -= radius;
+    bounds.min_y -= radius;
+    bounds.max_x += radius;
+    bounds.max_y += radius;
+    let (origin_x, origin_y, width, height) = coverage_bounds(&bounds)?;
+    let segments = stroke_segments(subpaths);
+    if segments.is_empty() {
+        return None;
+    }
+
+    let row_weight = 1.0 / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
+    let mut coverage = vec![0.0_f32; width as usize * height as usize];
+
     for y in 0..height as i32 {
         let row_offset = y as usize * width as usize;
         for x in 0..width as i32 {
-            let pixel_coverage = coverage[row_offset + x as usize];
-            blend_coverage_pixel(screen, origin_x + x, origin_y + y, color, pixel_coverage);
+            let sample_x = origin_x as f32 + x as f32 + 0.5;
+            let mut pixel_coverage = 0.0;
+
+            for subpixel_index in 0..GLYPH_AA_SUBPIXEL_ROW_COUNT {
+                let sample_y = origin_y as f32
+                    + y as f32
+                    + (subpixel_index as f32 + 0.5) / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
+
+                let covered = segments.iter().any(|(start, end)| {
+                    point_segment_distance_sq((sample_x, sample_y), *start, *end) <= radius_sq
+                });
+
+                if covered {
+                    pixel_coverage += row_weight;
+                }
+            }
+
+            coverage[row_offset + x as usize] = pixel_coverage;
+        }
+    }
+
+    Some(CoverageMask {
+        origin_x,
+        origin_y,
+        width,
+        height,
+        coverage,
+    })
+}
+
+fn paint_coverage_mask(
+    screen: &mut dyn Screen,
+    mask: CoverageMask,
+    paint: &GlyphPaint,
+    default_color: u32,
+) {
+    if screen.width() == 0 || screen.height() == 0 {
+        return;
+    }
+
+    for y in 0..mask.height as i32 {
+        let row_offset = y as usize * mask.width as usize;
+        for x in 0..mask.width as i32 {
+            let pixel_coverage = mask.coverage[row_offset + x as usize];
+            if pixel_coverage <= 0.0 {
+                continue;
+            }
+            let paint_x = mask.origin_x as f32 + x as f32 + 0.5;
+            let paint_y = mask.origin_y as f32 + y as f32 + 0.5;
+            let color = resolve_paint_at(paint, default_color, paint_x, paint_y);
+            blend_coverage_pixel(
+                screen,
+                mask.origin_x + x,
+                mask.origin_y + y,
+                color,
+                pixel_coverage,
+            );
         }
     }
 }
@@ -907,13 +1430,24 @@ fn draw_path_layer(
     origin_y: f32,
     default_color: u32,
 ) {
-    let contours = flatten_commands(
+    let subpaths = flatten_commands(
         &layer.commands,
         origin_x + layer.offset_x,
         origin_y + layer.offset_y,
     );
-    let color = resolve_paint(layer.paint, default_color);
-    fill_contours_antialias(screen, &contours, color, layer.fill_rule);
+    match layer.paint_mode {
+        PathPaintMode::Fill => {
+            let contours = subpaths_to_fill_contours(&subpaths);
+            if let Some(mask) = rasterize_fill_coverage(&contours, layer.fill_rule) {
+                paint_coverage_mask(screen, mask, &layer.paint, default_color);
+            }
+        }
+        PathPaintMode::Stroke => {
+            if let Some(mask) = rasterize_stroke_coverage(&subpaths, layer.stroke_width) {
+                paint_coverage_mask(screen, mask, &layer.paint, default_color);
+            }
+        }
+    }
 }
 
 fn draw_raster_layer(
@@ -945,6 +1479,16 @@ fn draw_raster_layer(
     Ok(())
 }
 
+#[cfg(feature = "svg-font")]
+fn draw_svg_layer(
+    _screen: &mut dyn Screen,
+    _layer: &SvgGlyphLayer,
+    _origin_x: f32,
+    _origin_y: f32,
+) -> Result<(), Error> {
+    Ok(())
+}
+
 pub fn draw_glyph(
     screen: &mut dyn Screen,
     glyph: &PositionedGlyph,
@@ -961,6 +1505,8 @@ pub fn draw_glyph(
                 draw_path_layer(screen, layer, origin_x, origin_y, default_color)
             }
             GlyphLayer::Raster(layer) => draw_raster_layer(screen, layer, origin_x, origin_y)?,
+            #[cfg(feature = "svg-font")]
+            GlyphLayer::Svg(layer) => draw_svg_layer(screen, layer, origin_x, origin_y)?,
         }
     }
 
@@ -999,7 +1545,9 @@ pub fn glyph_renderer_info() -> String {
 
 #[cfg(feature = "font")]
 pub fn layout_text(text: &str, options: FontOptions<'_>) -> Result<GlyphRun, Error> {
-    text2commands(text, options).map_err(|error| Box::new(error) as Error)
+    fontloader::text2commands(text, options)
+        .map(Into::into)
+        .map_err(|error| Box::new(error) as Error)
 }
 
 #[cfg(feature = "font")]
@@ -1311,6 +1859,64 @@ mod tests {
         assert_eq!(rgba(&canvas, 2, 2), [0x11, 0x22, 0x33, 0xff]);
     }
 
+    #[test]
+    fn draw_glyphs_strokes_open_paths() {
+        let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::stroke(
+            vec![Command::MoveTo(2.0, 2.0), Command::Line(8.0, 8.0)],
+            GlyphPaint::Solid(0xff00_0000),
+            2.0,
+        ))]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(12, 12);
+        fillrect(&mut canvas, 0x00ff_ffff);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xff00_0000).unwrap();
+
+        let pixel = rgba(&canvas, 5, 5);
+        assert_eq!(pixel[3], 0xff);
+        assert!(pixel[0] < 0xff);
+    }
+
+    #[test]
+    fn draw_glyphs_fill_linear_gradient_interpolates_between_stops() {
+        let gradient = LinearGradientPaint {
+            x1: 1.0,
+            y1: 0.0,
+            x2: 7.0,
+            y2: 0.0,
+            spread: GradientSpread::Pad,
+            stops: vec![
+                GradientStop {
+                    offset: 0.0,
+                    color: 0xffff_0000,
+                },
+                GradientStop {
+                    offset: 1.0,
+                    color: 0xff00_00ff,
+                },
+            ],
+        };
+        let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::new(
+            vec![
+                Command::MoveTo(1.0, 1.0),
+                Command::Line(7.0, 1.0),
+                Command::Line(7.0, 7.0),
+                Command::Line(1.0, 7.0),
+                Command::Close,
+            ],
+            GlyphPaint::LinearGradient(gradient),
+        ))]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(10, 10);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xff00_0000).unwrap();
+
+        let left = rgba(&canvas, 2, 4);
+        let right = rgba(&canvas, 6, 4);
+        assert!(left[0] > right[0], "left side should stay redder");
+        assert!(right[2] > left[2], "right side should become bluer");
+    }
+
     #[cfg(feature = "font")]
     fn workspace_root() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1333,10 +1939,15 @@ mod tests {
     }
 
     #[cfg(feature = "font")]
-    fn load_test_font(name: &str) -> Option<fontloader::LoadedFont> {
+    fn load_test_font(name: &str) -> Option<LoadedFont> {
         let path = find_test_font_path(name)?;
         let buffer = std::fs::read(&path).ok()?;
         load_font_from_buffer(&buffer).ok()
+    }
+
+    #[cfg(feature = "font")]
+    fn into_local_run(run: fontloader::GlyphRun) -> GlyphRun {
+        run.into()
     }
 
     #[cfg(feature = "font")]
@@ -1365,15 +1976,15 @@ mod tests {
             return;
         };
 
-        let run = font
+        let run = into_local_run(font
             .text2glyph_run("CGOQ", fontloader::FontOptions::new(&font).with_font_size(64.0))
-            .expect("glyph run");
+            .expect("glyph run"));
 
         for (index, glyph) in run.glyphs.iter().enumerate() {
             for (layer_index, layer) in glyph.glyph.layers.iter().enumerate() {
                 if let GlyphLayer::Path(path) = layer {
                     let contours = flatten_commands(&path.commands, glyph.x + path.offset_x, glyph.y + path.offset_y);
-                    let point_count: usize = contours.iter().map(|contour| contour.len()).sum();
+                    let point_count: usize = contours.iter().map(|contour| contour.points.len()).sum();
                     eprintln!(
                         "glyph {} layer {} commands={} contours={} points={} bounds={:?}",
                         index,
@@ -1397,13 +2008,21 @@ mod tests {
         };
 
         for ch in ['i', 'j'] {
-            let commands = font
-                .text2command(&ch.to_string())
-                .expect("text2command should succeed");
-            assert_eq!(commands.len(), 1, "expected one glyph for {}", ch);
+            let commands = into_local_run(
+                font.text2glyph_run(
+                    &ch.to_string(),
+                    fontloader::FontOptions::new(&font).with_font_size(64.0),
+                )
+                .expect("text2glyph_run should succeed"),
+            );
+            assert_eq!(commands.glyphs.len(), 1, "expected one glyph for {}", ch);
             assert!(
-                !commands[0].commands.is_empty(),
-                "text2command returned no commands for {}",
+                commands.glyphs[0]
+                    .glyph
+                    .layers
+                    .iter()
+                    .any(|layer| matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())),
+                "text2glyph_run returned no commands for {}",
                 ch
             );
         }
@@ -1419,7 +2038,7 @@ mod tests {
 
         let mut options = fontloader::FontOptions::new(&font);
         options.font_size = 64.0;
-        let run = font.text2glyph_run("ij", options).expect("glyph run");
+        let run = into_local_run(font.text2glyph_run("ij", options).expect("glyph run"));
 
         assert_eq!(run.glyphs.len(), 2, "expected two glyphs for 'ij'");
         for (index, glyph) in run.glyphs.iter().enumerate() {
@@ -1430,6 +2049,8 @@ mod tests {
                 .filter_map(|layer| match layer {
                     GlyphLayer::Path(path) => Some(path),
                     GlyphLayer::Raster(_) => None,
+                    #[cfg(feature = "svg-font")]
+                    GlyphLayer::Svg(_) => None,
                 })
                 .collect();
             assert!(
@@ -1460,7 +2081,7 @@ mod tests {
 
         let mut options = fontloader::FontOptions::new(&font);
         options.font_size = 64.0;
-        let run = font.text2glyph_run("🥺", options).expect("glyph run");
+        let run = into_local_run(font.text2glyph_run("🥺", options).expect("glyph run"));
 
         assert_eq!(run.glyphs.len(), 1, "expected one glyph for emoji");
         let mut solid_layers = 0usize;
@@ -1488,7 +2109,7 @@ mod tests {
 
         let mut options = fontloader::FontOptions::new(&font);
         options.font_size = 64.0;
-        let run = font.text2glyph_run("🥺", options).expect("glyph run");
+        let run = into_local_run(font.text2glyph_run("🥺", options).expect("glyph run"));
 
         let mut found_solid = false;
         for glyph in &run.glyphs {
@@ -1496,7 +2117,7 @@ mod tests {
                 if let GlyphLayer::Path(path) = layer {
                     if let GlyphPaint::Solid(color) = path.paint {
                         found_solid = true;
-                        let resolved = resolve_paint(GlyphPaint::Solid(color), 0xff00_0000);
+                        let resolved = resolve_paint(&GlyphPaint::Solid(color), 0xff00_0000);
                         assert_eq!(
                             resolved >> 24,
                             0xff,
@@ -1554,13 +2175,13 @@ mod tests {
             return;
         };
 
-        let direct = font
+        let direct = into_local_run(font
             .text2glyph_run("CGO", fontloader::FontOptions::new(&font).with_font_size(64.0))
-            .expect("direct glyph run");
+            .expect("direct glyph run"));
 
         let mut family_auto = FontFamily::new("Yu Gothic");
-        family_auto.add_loaded_font(font.clone());
-        let auto = family_auto
+        family_auto.add_font_face(font.clone());
+        let auto = into_local_run(family_auto
             .text2glyph_run(
                 "CGO",
                 FontOptions::from_family(&family_auto)
@@ -1568,11 +2189,11 @@ mod tests {
                     .with_font_size(64.0)
                     .with_font_weight(FontWeight::BOLD),
             )
-            .expect("auto family glyph run");
+            .expect("auto family glyph run"));
 
         let mut family_face = FontFamily::new("Yu Gothic");
-        family_face.add_face(FontFaceDescriptor::from_loaded_font(&font), font);
-        let face = family_face
+        family_face.add_face(FontFaceDescriptor::from_face(&font), font);
+        let face = into_local_run(family_face
             .text2glyph_run(
                 "CGO",
                 FontOptions::from_family(&family_face)
@@ -1580,7 +2201,7 @@ mod tests {
                     .with_font_size(64.0)
                     .with_font_weight(FontWeight::BOLD),
             )
-            .expect("descriptor family glyph run");
+            .expect("descriptor family glyph run"));
 
         fn summarize(run: &GlyphRun) -> Vec<(usize, usize, usize, Option<(i32, i32, i32, i32)>)> {
             run.glyphs
@@ -1624,9 +2245,9 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
         let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
 
-        let run = font
+        let run = into_local_run(font
             .text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(96.0))
-            .expect("build glyph run for sbix font");
+            .expect("build glyph run for sbix font"));
 
         assert!(
             !run.glyphs.is_empty(),
@@ -1674,12 +2295,12 @@ mod tests {
             .expect("finalize chunked sbix face");
         assert_eq!(family.cached_faces_len(), 1);
 
-        let run = family
+        let run = into_local_run(family
             .text2glyph_run(
                 "😀",
                 FontOptions::from_family(&family).with_font_size(96.0),
             )
-            .expect("layout sbix glyph from chunked family");
+            .expect("layout sbix glyph from chunked family"));
         assert!(
             run.glyphs.iter().flat_map(|glyph| glyph.glyph.layers.iter()).any(
                 |layer| matches!(layer, GlyphLayer::Raster(_))
@@ -1696,9 +2317,9 @@ mod tests {
         };
         let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
         let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
-        let run = font
+        let run = into_local_run(font
             .text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(96.0))
-            .expect("build glyph run for sbix font");
+            .expect("build glyph run for sbix font"));
 
         let mut canvas = Canvas::new(256, 256);
         fillrect(&mut canvas, 0x00ff_ffff);
@@ -1718,7 +2339,7 @@ mod tests {
 
         let mut options = fontloader::FontOptions::new(&font);
         options.font_size = 64.0;
-        let run = font.text2glyph_run("ij", options).expect("glyph run");
+        let run = into_local_run(font.text2glyph_run("ij", options).expect("glyph run"));
 
         let mut canvas = Canvas::new(256, 160);
         fillrect(&mut canvas, 0x00ff_ffff);

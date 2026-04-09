@@ -11,4 +11,4 @@ resolver = "3"
 wml2 = {version = "0.0.18"}
 #wml2 = { git = "https://github.com/mith-mmk/wml2-on-rust", rev = "a95f5e69251e460b5ed1012ea8e7c687bd66982b"}
 # 0.0.4 or later
-fontloader = { git = "https://github.com/mith-mmk/FontReader.git", rev = "d8bc5a0"}
+fontloader = { git = "https://github.com/mith-mmk/FontReader.git", branch = "0.0.10" }

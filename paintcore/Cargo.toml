@@ -2,12 +2,14 @@
 name = "paintcore"
 version = "0.0.26"
 edition = "2021"
-
+description = "the Library for processing images and raster data"
+repository = "https://github.com/mith-mmk/wasm-paint"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 
 [features]
 font = ["dep:fontloader"]
+svg-font = ["font", "fontloader/svg-fonts"]
 
 [dependencies]
 wml2.workspace = true

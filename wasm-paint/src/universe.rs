@@ -167,6 +167,19 @@ fn glyph_run_bounds(run: &path::GlyphRun) -> Option<paintcore::path::GlyphBounds
                         glyph.y + raster.offset_y + height,
                     );
                 }
+                #[cfg(feature = "svg-font")]
+                path::GlyphLayer::Svg(svg) => {
+                    extend_bounds(
+                        &mut bounds,
+                        glyph.x + svg.offset_x,
+                        glyph.y + svg.offset_y,
+                    );
+                    extend_bounds(
+                        &mut bounds,
+                        glyph.x + svg.offset_x + svg.width,
+                        glyph.y + svg.offset_y + svg.height,
+                    );
+                }
             }
         }
     }
@@ -411,7 +424,9 @@ fn parse_js_layer(layer: &JsValue) -> Result<path::GlyphLayer, JsValue> {
     Ok(path::GlyphLayer::Path(path::PathGlyphLayer {
         commands,
         paint,
+        paint_mode: path::PathPaintMode::Fill,
         fill_rule,
+        stroke_width: 1.0,
         offset_x,
         offset_y,
     }))
@@ -906,7 +921,7 @@ impl Universe {
             .ok_or_else(|| js_error("font family is not initialized"))?;
         let font =
             load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
-        family.add_loaded_font(font);
+        family.add_font_face(font);
         Ok(())
     }
 
@@ -930,7 +945,7 @@ impl Universe {
             .ok_or_else(|| js_error("font family is not initialized"))?;
         let font =
             load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
-        let mut descriptor = FontFaceDescriptor::from_loaded_font(&font);
+        let mut descriptor = FontFaceDescriptor::from_face(&font);
         if let Some(font_name) = font_name {
             let font_name = font_name.trim();
             if !font_name.is_empty() {
