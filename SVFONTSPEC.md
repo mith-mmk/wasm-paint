@@ -1,6 +1,6 @@
 # SVFONTSPEC
 
-この文書は、`FontReader` が `paintcore` に渡すべき SVG glyph 情報を固定するための受け渡し仕様です。
+この文書は、`FontReader` が `paintcore` に渡すべき SVG glyph 情報を固定するための受け渡し仕様です。あわせて、`fontloader` 側で `features = ["svg-fonts"]` 有効時にどこまで解決してから渡すかも定義します。
 
 目的は 2 つです。
 
@@ -14,8 +14,11 @@
 - SVG の解釈は原則として `FontReader` 側の責務
 - `paintcore` は parser ではなく renderer として振る舞う
 - `paintcore` は `GlyphLayer` 群を受け取り、それぞれを描画する
-- raw SVG payload が必要な場合は `GlyphLayer::Svg` として保持する
+- path 化できない、または別 backend に委譲したい場合だけ raw SVG payload を `GlyphLayer::Svg` として保持する
 - simple SVG の path 化は `FontReader` 側で完了していること
+- `linearGradient` / `radialGradient` / `stop` のような単純 gradient は `GlyphPaint` に解決してから渡すこと
+- `objectBoundingBox` は path 化後の shape bounds を使って最低限の絶対座標へ解決すること
+- gradient の `href` / `xlink:href` 継承は `FontReader` 側で stop と属性を解決してから渡すこと
 
 ## `Command` の責務
 
@@ -51,6 +54,7 @@ simple SVG を path 化できた場合は `PathGlyphLayer` を渡す。
 `PathGlyphLayer` に必要な情報:
 
 - `commands`
+- `clip_commands`
 - `paint`
 - `paint_mode`
 - `fill_rule`
@@ -75,6 +79,8 @@ simple SVG を path 化できた場合は `PathGlyphLayer` を渡す。
 
 - `GlyphPaint::CurrentColor`
 - `GlyphPaint::Solid(u32)`
+- `GlyphPaint::LinearGradient(...)`
+- `GlyphPaint::RadialGradient(...)`
 
 SVG gradient を path layer として `paintcore` に描かせる場合は、次も渡す。
 
@@ -87,6 +93,14 @@ SVG gradient を path layer として `paintcore` に描かせる場合は、次
 
 - `NonZero`
 - `EvenOdd`
+
+#### `clip_commands`
+
+`clip-path` の参照解決結果を layer ごとに `clip_commands` へ確定して渡す。
+
+- `clip_commands` は未解決の `url(#...)` や `clipPath` ノードではなく、解決済み path command 群であること
+- 最小対応では simple shape/path のみ解決すればよい
+- `clipPathUnits="objectBoundingBox"` は対象 shape bounds を使って絶対座標へ解決してから渡すこと
 
 #### `stroke_width`
 
@@ -118,7 +132,7 @@ raw SVG payload を保持したい場合は `SvgGlyphLayer` を渡す。
 - `offset_x`
 - `offset_y`
 
-`GlyphLayer::Svg` は「simple SVG を path 化できなかった時の生データ保持」および「別 renderer への委譲」のために存在する。
+`GlyphLayer::Svg` は「simple SVG を path 化できなかった時の生データ保持」および「別 renderer への委譲」のために存在する。path 化できる glyph について raw SVG を常に重ね持ちする必要はない。
 
 ## `FontReader` が自前で解決しておくべき事項
 
@@ -128,12 +142,44 @@ raw SVG payload を保持したい場合は `SvgGlyphLayer` を渡す。
 - `<use>` の参照解決
 - `href` / `xlink:href` の適用
 - `x` / `y` の合成
+- `<clipPath>` の収集
+- `clip-path: url(#...)` の解決
 - presentation attributes と `style` の統合
 - `fill` / `stroke` / `fill-rule` / `stroke-width` の継承
 - 対応 transform の適用結果
 - shape 要素の path 化
 
-少なくとも仕様書 `svg-fonts-spec.ja.md` にある対応範囲については、`paintcore` に未解決状態で渡さないこと。
+現状の `fontloader` 実装では、少なくとも次の対応範囲については `paintcore` に未解決状態で渡さないこと。
+
+- 要素
+  - `path`
+  - `rect`
+  - `circle`
+  - `ellipse`
+  - `line`
+  - `polyline`
+  - `polygon`
+- コンテナ
+  - `svg`
+  - `g`
+  - `symbol`
+  - `defs`
+  - `use`
+- 属性
+  - `fill`
+  - `fill-rule`
+- `stroke`
+- `stroke-width`
+- `clip-path`
+  - `style`
+  - `x`
+  - `y`
+  - `href`
+  - `xlink:href`
+- transform
+  - `translate(...)`
+  - `scale(...)`
+  - `matrix(a b c d e f)`
 
 ## `paintcore` が担当する責務
 
@@ -141,6 +187,7 @@ raw SVG payload を保持したい場合は `SvgGlyphLayer` を渡す。
 
 - `PathGlyphLayer` の fill 描画
 - `PathGlyphLayer` の stroke 描画
+- `PathGlyphLayer` の clip 適用
 - gradient paint の rasterization
 - `RasterGlyphLayer` の描画
 - `SvgGlyphLayer` の renderer / adapter への委譲
@@ -150,6 +197,7 @@ raw SVG payload を保持したい場合は `SvgGlyphLayer` を渡す。
 次のような中途半端な情報は渡さないこと。
 
 - path はあるが fill/stroke の別が不明
+- clip-path の参照 ID だけあり、clip shape が未解決
 - gradient 参照 ID だけあり、stop 情報が未解決
 - `use` の参照先解決前のノード
 - 親からの継承が未適用の style
@@ -175,9 +223,11 @@ gradient は `Command` ではなく `GlyphPaint` の責務とする。
 - stroke/fill と同じく「描画スタイル」であり「形状」ではないため
 - raw SVG と path 化 SVG の両方で同じ paint モデルを共有しやすいため
 
-`FontReader` が gradient を path layer として渡す場合、少なくとも次を確定済みで渡すこと。
+現状の `fontloader` 実装では、少なくとも `linearGradient` / `radialGradient` / `stop` を path layer の paint として解決できる。`FontReader` が gradient を path layer として渡す場合、少なくとも次を確定済みで渡すこと。
 
 - gradient 種別
+- gradient units
+- gradient transform
 - endpoint / center / radius
 - spread mode
 - stop 一覧
@@ -229,6 +279,7 @@ stroke は `Command` ではなく `PathGlyphLayer` の責務とする。
 
 - `GlyphLayer::Path`
   - `commands`
+  - `clip_commands`
   - `paint`
   - `paint_mode`
   - `fill_rule`
@@ -240,3 +291,24 @@ stroke は `Command` ではなく `PathGlyphLayer` の責務とする。
   - raw payload と viewBox 情報
 
 この境界を守ることで、`FontReader` は parser、`paintcore` は renderer として責務を分離できる。
+
+## 現状の未対応
+
+`fontloader` / `paintcore` 境界の現状未対応は次です。
+
+- gradient
+- pattern
+- `clipPath`
+- `mask`
+- filter
+- gradientTransform
+- gradientUnits の shape bounds まで含む完全解決
+- `stroke-linecap`
+- `stroke-linejoin`
+- `stroke-dasharray`
+- `stroke-dashoffset`
+- `rotate` / `skewX` / `skewY`
+- SVG path arc (`A` / `a`)
+- CSS class / selector ベースの style 解決
+- 外部参照
+- `paintcore` 側の stroke 実描画

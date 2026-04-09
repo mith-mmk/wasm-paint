@@ -146,6 +146,7 @@ pub struct RadialGradientPaint {
 #[derive(Debug, Clone)]
 pub struct PathGlyphLayer {
     pub commands: Vec<Command>,
+    pub clip_commands: Vec<Command>,
     pub paint: GlyphPaint,
     pub paint_mode: PathPaintMode,
     pub fill_rule: FillRule,
@@ -158,6 +159,7 @@ impl PathGlyphLayer {
     pub fn new(commands: Vec<Command>, paint: GlyphPaint) -> Self {
         Self {
             commands,
+            clip_commands: Vec::new(),
             paint,
             paint_mode: PathPaintMode::Fill,
             fill_rule: FillRule::NonZero,
@@ -170,6 +172,7 @@ impl PathGlyphLayer {
     pub fn stroke(commands: Vec<Command>, paint: GlyphPaint, stroke_width: f32) -> Self {
         Self {
             commands,
+            clip_commands: Vec::new(),
             paint,
             paint_mode: PathPaintMode::Stroke,
             fill_rule: FillRule::NonZero,
@@ -397,6 +400,7 @@ impl From<fontloader::PathGlyphLayer> for PathGlyphLayer {
     fn from(layer: fontloader::PathGlyphLayer) -> Self {
         Self {
             commands: layer.commands.into_iter().map(Into::into).collect(),
+            clip_commands: Vec::new(),
             paint: layer.paint.into(),
             paint_mode: layer.paint_mode.into(),
             fill_rule: layer.fill_rule.into(),
@@ -1256,6 +1260,43 @@ fn paint_coverage_mask(
     }
 }
 
+fn mask_coverage_at(mask: &CoverageMask, x: i32, y: i32) -> f32 {
+    if x < mask.origin_x
+        || y < mask.origin_y
+        || x >= mask.origin_x + mask.width as i32
+        || y >= mask.origin_y + mask.height as i32
+    {
+        return 0.0;
+    }
+
+    let local_x = (x - mask.origin_x) as usize;
+    let local_y = (y - mask.origin_y) as usize;
+    mask.coverage[local_y * mask.width as usize + local_x]
+}
+
+fn apply_clip_mask(mask: &mut CoverageMask, clip_mask: &CoverageMask) {
+    for y in 0..mask.height as i32 {
+        let row_offset = y as usize * mask.width as usize;
+        let abs_y = mask.origin_y + y;
+        for x in 0..mask.width as i32 {
+            let abs_x = mask.origin_x + x;
+            let clip_coverage = mask_coverage_at(clip_mask, abs_x, abs_y);
+            let index = row_offset + x as usize;
+            mask.coverage[index] *= clip_coverage;
+        }
+    }
+}
+
+fn clip_mask_from_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Option<CoverageMask> {
+    if commands.is_empty() {
+        return None;
+    }
+
+    let subpaths = flatten_commands(commands, offset_x, offset_y);
+    let contours = subpaths_to_fill_contours(&subpaths);
+    rasterize_fill_coverage(&contours, FillRule::NonZero)
+}
+
 fn decode_raster(source: &RasterGlyphSource) -> Result<Layer, Error> {
     match source {
         RasterGlyphSource::Encoded(data) => {
@@ -1430,6 +1471,11 @@ fn draw_path_layer(
     origin_y: f32,
     default_color: u32,
 ) {
+    let clip_mask = clip_mask_from_commands(
+        &layer.clip_commands,
+        origin_x + layer.offset_x,
+        origin_y + layer.offset_y,
+    );
     let subpaths = flatten_commands(
         &layer.commands,
         origin_x + layer.offset_x,
@@ -1438,12 +1484,18 @@ fn draw_path_layer(
     match layer.paint_mode {
         PathPaintMode::Fill => {
             let contours = subpaths_to_fill_contours(&subpaths);
-            if let Some(mask) = rasterize_fill_coverage(&contours, layer.fill_rule) {
+            if let Some(mut mask) = rasterize_fill_coverage(&contours, layer.fill_rule) {
+                if let Some(clip_mask) = &clip_mask {
+                    apply_clip_mask(&mut mask, clip_mask);
+                }
                 paint_coverage_mask(screen, mask, &layer.paint, default_color);
             }
         }
         PathPaintMode::Stroke => {
-            if let Some(mask) = rasterize_stroke_coverage(&subpaths, layer.stroke_width) {
+            if let Some(mut mask) = rasterize_stroke_coverage(&subpaths, layer.stroke_width) {
+                if let Some(clip_mask) = &clip_mask {
+                    apply_clip_mask(&mut mask, clip_mask);
+                }
                 paint_coverage_mask(screen, mask, &layer.paint, default_color);
             }
         }
@@ -1917,6 +1969,36 @@ mod tests {
         assert!(right[2] > left[2], "right side should become bluer");
     }
 
+    #[test]
+    fn draw_glyphs_applies_clip_commands_to_fill_layers() {
+        let mut layer = PathGlyphLayer::new(
+            vec![
+                Command::MoveTo(1.0, 1.0),
+                Command::Line(8.0, 1.0),
+                Command::Line(8.0, 8.0),
+                Command::Line(1.0, 8.0),
+                Command::Close,
+            ],
+            GlyphPaint::Solid(0xff00_0000),
+        );
+        layer.clip_commands = vec![
+            Command::MoveTo(1.0, 1.0),
+            Command::Line(4.0, 1.0),
+            Command::Line(4.0, 8.0),
+            Command::Line(1.0, 8.0),
+            Command::Close,
+        ];
+
+        let glyph = Glyph::new(vec![GlyphLayer::Path(layer)]);
+        let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+        let mut canvas = Canvas::new(10, 10);
+
+        draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xff00_0000).unwrap();
+
+        assert_eq!(rgba(&canvas, 2, 4), [0x00, 0x00, 0x00, 0xff]);
+        assert_eq!(rgba(&canvas, 6, 4), [0x00, 0x00, 0x00, 0x00]);
+    }
+
     #[cfg(feature = "font")]
     fn workspace_root() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1948,6 +2030,13 @@ mod tests {
     #[cfg(feature = "font")]
     fn into_local_run(run: fontloader::GlyphRun) -> GlyphRun {
         run.into()
+    }
+
+    #[cfg(all(feature = "font", feature = "svg-font"))]
+    fn find_svg_test_font(name: &str) -> Option<PathBuf> {
+        let root = workspace_root();
+        let candidates = [root.join("_test-fonts").join(name), root.join(".test_fonts").join(name)];
+        candidates.into_iter().find(|path| path.exists())
     }
 
     #[cfg(feature = "font")]
@@ -2327,6 +2416,54 @@ mod tests {
 
         let ink = count_non_white_pixels(&canvas, 0, 0, canvas.width(), canvas.height());
         assert!(ink > 0, "expected rendered pixels from sbix raster glyph");
+    }
+
+    #[cfg(all(feature = "font", feature = "svg-font"))]
+    #[test]
+    fn svg_font_feature_exposes_svg_layer_for_emojione_color() {
+        let Some(path) = find_svg_test_font("EmojiOneColor.otf") else {
+            return;
+        };
+        let bytes = std::fs::read(&path).expect("read EmojiOneColor.otf");
+        let font = load_font_from_buffer(&bytes).expect("load EmojiOneColor.otf");
+        let run = into_local_run(
+            font.text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(32.0))
+                .expect("glyph run for EmojiOneColor.otf"),
+        );
+
+        assert_eq!(run.glyphs.len(), 1);
+        assert!(
+            run.glyphs[0]
+                .glyph
+                .layers
+                .iter()
+                .any(|layer| matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())),
+            "expected SVG layer from EmojiOneColor.otf"
+        );
+    }
+
+    #[cfg(all(feature = "font", feature = "svg-font"))]
+    #[test]
+    fn svg_font_feature_exposes_svg_layer_for_noto_color_emoji() {
+        let Some(path) = find_svg_test_font("NotoColorEmoji-Regular.ttf") else {
+            return;
+        };
+        let bytes = std::fs::read(&path).expect("read NotoColorEmoji-Regular.ttf");
+        let font = load_font_from_buffer(&bytes).expect("load NotoColorEmoji-Regular.ttf");
+        let run = into_local_run(
+            font.text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(32.0))
+                .expect("glyph run for NotoColorEmoji-Regular.ttf"),
+        );
+
+        assert_eq!(run.glyphs.len(), 1);
+        assert!(
+            run.glyphs[0]
+                .glyph
+                .layers
+                .iter()
+                .any(|layer| matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())),
+            "expected SVG layer from NotoColorEmoji-Regular.ttf"
+        );
     }
 
     #[cfg(feature = "font")]
