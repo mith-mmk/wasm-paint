@@ -2171,7 +2171,7 @@ mod tests {
     fn find_test_font_path(name: &str) -> Option<PathBuf> {
         let root = workspace_root();
         let candidates = [
-            root.join("_test-fonts").join(name),
+            root.join(".test-fonts").join(name),
             root.join(".tmp-fonts").join(name),
             root.join(".tmp-font").join(name),
             PathBuf::from(r"C:\Windows\Fonts").join(name),
@@ -2195,7 +2195,7 @@ mod tests {
     #[cfg(all(feature = "font", feature = "svg-font"))]
     fn find_svg_test_font(name: &str) -> Option<PathBuf> {
         let root = workspace_root();
-        let candidates = [root.join("_test-fonts").join(name), root.join(".test_fonts").join(name)];
+        let candidates = [root.join(".test-fonts").join(name), root.join(".test_fonts").join(name)];
         candidates.into_iter().find(|path| path.exists())
     }
 

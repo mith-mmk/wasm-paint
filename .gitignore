@@ -4,6 +4,5 @@ wasm-pack.log
 tests/sample/
 .vscode
 session.txt
-_test*
-.test/*
+.test*
 .cargo-home
