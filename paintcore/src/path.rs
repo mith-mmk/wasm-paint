@@ -369,6 +369,9 @@ impl From<fontloader::GlyphMetrics> for GlyphMetrics {
 impl From<fontloader::GlyphPaint> for GlyphPaint {
     fn from(paint: fontloader::GlyphPaint) -> Self {
         match paint {
+            // The currently published fontloader / FontReader 0.0.10 bridge only exposes
+            // solid/currentColor paints. Keep this conversion intentionally conservative until
+            // the public fontloader API carries gradient variants on the 0.0.11 line.
             fontloader::GlyphPaint::Solid(color) => Self::Solid(color),
             fontloader::GlyphPaint::CurrentColor => Self::CurrentColor,
         }
@@ -400,6 +403,10 @@ impl From<fontloader::PathGlyphLayer> for PathGlyphLayer {
     fn from(layer: fontloader::PathGlyphLayer) -> Self {
         Self {
             commands: layer.commands.into_iter().map(Into::into).collect(),
+            // The paintcore renderer already supports clip commands, but the current public
+            // fontloader 0.0.10 layer type does not expose them. Preserve safe compatibility
+            // by dropping clip data at the bridge until the upstream public API catches up on
+            // the 0.0.11 line.
             clip_commands: Vec::new(),
             paint: layer.paint.into(),
             paint_mode: layer.paint_mode.into(),
