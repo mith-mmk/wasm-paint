@@ -423,6 +423,7 @@ fn parse_js_layer(layer: &JsValue) -> Result<path::GlyphLayer, JsValue> {
 
     Ok(path::GlyphLayer::Path(path::PathGlyphLayer {
         commands,
+        clip_commands: Vec::new(),
         paint,
         paint_mode: path::PathPaintMode::Fill,
         fill_rule,

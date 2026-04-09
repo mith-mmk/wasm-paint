@@ -111,6 +111,12 @@ pub enum GradientSpread {
     Reflect,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradientUnits {
+    ObjectBoundingBox,
+    UserSpaceOnUse,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GradientStop {
     pub offset: f32,
@@ -123,6 +129,8 @@ pub struct LinearGradientPaint {
     pub y1: f32,
     pub x2: f32,
     pub y2: f32,
+    pub units: GradientUnits,
+    pub transform: [f32; 6],
     pub spread: GradientSpread,
     pub stops: Vec<GradientStop>,
 }
@@ -135,6 +143,8 @@ pub struct RadialGradientPaint {
     pub fx: f32,
     pub fy: f32,
     pub fr: f32,
+    pub units: GradientUnits,
+    pub transform: [f32; 6],
     pub spread: GradientSpread,
     pub stops: Vec<GradientStop>,
 }
@@ -369,11 +379,79 @@ impl From<fontloader::GlyphMetrics> for GlyphMetrics {
 impl From<fontloader::GlyphPaint> for GlyphPaint {
     fn from(paint: fontloader::GlyphPaint) -> Self {
         match paint {
-            // The currently published fontloader / FontReader 0.0.10 bridge only exposes
-            // solid/currentColor paints. Keep this conversion intentionally conservative until
-            // the public fontloader API carries gradient variants on the 0.0.11 line.
             fontloader::GlyphPaint::Solid(color) => Self::Solid(color),
             fontloader::GlyphPaint::CurrentColor => Self::CurrentColor,
+            fontloader::GlyphPaint::LinearGradient(gradient) => {
+                Self::LinearGradient(gradient.into())
+            }
+            fontloader::GlyphPaint::RadialGradient(gradient) => {
+                Self::RadialGradient(gradient.into())
+            }
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphGradientStop> for GradientStop {
+    fn from(stop: fontloader::GlyphGradientStop) -> Self {
+        Self {
+            offset: stop.offset,
+            color: stop.color,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphGradientSpread> for GradientSpread {
+    fn from(spread: fontloader::GlyphGradientSpread) -> Self {
+        match spread {
+            fontloader::GlyphGradientSpread::Pad => Self::Pad,
+            fontloader::GlyphGradientSpread::Repeat => Self::Repeat,
+            fontloader::GlyphGradientSpread::Reflect => Self::Reflect,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphGradientUnits> for GradientUnits {
+    fn from(units: fontloader::GlyphGradientUnits) -> Self {
+        match units {
+            fontloader::GlyphGradientUnits::ObjectBoundingBox => Self::ObjectBoundingBox,
+            fontloader::GlyphGradientUnits::UserSpaceOnUse => Self::UserSpaceOnUse,
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphLinearGradient> for LinearGradientPaint {
+    fn from(gradient: fontloader::GlyphLinearGradient) -> Self {
+        Self {
+            x1: gradient.x1,
+            y1: gradient.y1,
+            x2: gradient.x2,
+            y2: gradient.y2,
+            units: gradient.units.into(),
+            transform: gradient.transform,
+            spread: gradient.spread.into(),
+            stops: gradient.stops.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "font")]
+impl From<fontloader::GlyphRadialGradient> for RadialGradientPaint {
+    fn from(gradient: fontloader::GlyphRadialGradient) -> Self {
+        Self {
+            cx: gradient.cx,
+            cy: gradient.cy,
+            r: gradient.r,
+            fx: gradient.fx,
+            fy: gradient.fy,
+            fr: 0.0,
+            units: gradient.units.into(),
+            transform: gradient.transform,
+            spread: gradient.spread.into(),
+            stops: gradient.stops.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -403,11 +481,7 @@ impl From<fontloader::PathGlyphLayer> for PathGlyphLayer {
     fn from(layer: fontloader::PathGlyphLayer) -> Self {
         Self {
             commands: layer.commands.into_iter().map(Into::into).collect(),
-            // The paintcore renderer already supports clip commands, but the current public
-            // fontloader 0.0.10 layer type does not expose them. Preserve safe compatibility
-            // by dropping clip data at the bridge until the upstream public API catches up on
-            // the 0.0.11 line.
-            clip_commands: Vec::new(),
+            clip_commands: layer.clip_commands.into_iter().map(Into::into).collect(),
             paint: layer.paint.into(),
             paint_mode: layer.paint_mode.into(),
             fill_rule: layer.fill_rule.into(),
@@ -644,7 +718,20 @@ fn sample_gradient_stops(stops: &[GradientStop], t: f32) -> u32 {
     normalize_solid_color(stops.last().unwrap().color)
 }
 
+fn inverse_affine_point(transform: [f32; 6], x: f32, y: f32) -> (f32, f32) {
+    let [a, b, c, d, e, f] = transform;
+    let det = a * d - b * c;
+    if det.abs() <= f32::EPSILON {
+        return (x, y);
+    }
+
+    let px = x - e;
+    let py = y - f;
+    ((d * px - c * py) / det, (-b * px + a * py) / det)
+}
+
 fn sample_linear_gradient(gradient: &LinearGradientPaint, x: f32, y: f32) -> u32 {
+    let (x, y) = inverse_affine_point(gradient.transform, x, y);
     let dx = gradient.x2 - gradient.x1;
     let dy = gradient.y2 - gradient.y1;
     let denom = dx * dx + dy * dy;
@@ -700,6 +787,7 @@ fn solve_radial_gradient_t(gradient: &RadialGradientPaint, x: f32, y: f32) -> f3
 }
 
 fn sample_radial_gradient(gradient: &RadialGradientPaint, x: f32, y: f32) -> u32 {
+    let (x, y) = inverse_affine_point(gradient.transform, x, y);
     let t = solve_radial_gradient_t(gradient, x, y);
     sample_gradient_stops(&gradient.stops, gradient_spread_t(t, gradient.spread))
 }
@@ -1943,6 +2031,8 @@ mod tests {
             y1: 0.0,
             x2: 7.0,
             y2: 0.0,
+            units: GradientUnits::UserSpaceOnUse,
+            transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             spread: GradientSpread::Pad,
             stops: vec![
                 GradientStop {
@@ -2004,6 +2094,69 @@ mod tests {
 
         assert_eq!(rgba(&canvas, 2, 4), [0x00, 0x00, 0x00, 0xff]);
         assert_eq!(rgba(&canvas, 6, 4), [0x00, 0x00, 0x00, 0x00]);
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    fn from_fontloader_path_layer_keeps_clip_commands() {
+        let source = fontloader::PathGlyphLayer {
+            commands: vec![
+                fontloader::Command::MoveTo(1.0, 1.0),
+                fontloader::Command::Line(5.0, 1.0),
+                fontloader::Command::Close,
+            ],
+            clip_commands: vec![
+                fontloader::Command::MoveTo(2.0, 2.0),
+                fontloader::Command::Line(4.0, 2.0),
+                fontloader::Command::Close,
+            ],
+            paint: fontloader::GlyphPaint::CurrentColor,
+            paint_mode: fontloader::PathPaintMode::Fill,
+            fill_rule: fontloader::FillRule::NonZero,
+            stroke_width: 1.0,
+            offset_x: 0.0,
+            offset_y: 0.0,
+        };
+
+        let layer: PathGlyphLayer = source.into();
+        assert_eq!(layer.clip_commands.len(), 3);
+        assert!(matches!(layer.clip_commands[0], Command::MoveTo(2.0, 2.0)));
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    fn from_fontloader_gradient_paint_keeps_gradient_variants() {
+        let gradient = fontloader::GlyphLinearGradient {
+            x1: 1.0,
+            y1: 2.0,
+            x2: 9.0,
+            y2: 2.0,
+            units: fontloader::GlyphGradientUnits::UserSpaceOnUse,
+            transform: [1.0, 0.0, 0.0, 1.0, 3.0, 4.0],
+            spread: fontloader::GlyphGradientSpread::Reflect,
+            stops: vec![
+                fontloader::GlyphGradientStop {
+                    offset: 0.0,
+                    color: 0xffff_0000,
+                },
+                fontloader::GlyphGradientStop {
+                    offset: 1.0,
+                    color: 0xff00_00ff,
+                },
+            ],
+        };
+
+        let paint: GlyphPaint = fontloader::GlyphPaint::LinearGradient(gradient).into();
+        match paint {
+            GlyphPaint::LinearGradient(gradient) => {
+                assert_eq!(gradient.x1, 1.0);
+                assert_eq!(gradient.x2, 9.0);
+                assert!(matches!(gradient.spread, GradientSpread::Reflect));
+                assert_eq!(gradient.stops.len(), 2);
+                assert_eq!(gradient.stops[0].color, 0xffff_0000);
+            }
+            other => panic!("expected linear gradient, got {other:?}"),
+        }
     }
 
     #[cfg(feature = "font")]
@@ -2444,8 +2597,11 @@ mod tests {
                 .glyph
                 .layers
                 .iter()
-                .any(|layer| matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())),
-            "expected SVG layer from EmojiOneColor.otf"
+                .any(|layer| {
+                    matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
+                        || matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())
+                }),
+            "expected usable svg-derived layer from EmojiOneColor.otf"
         );
     }
 
@@ -2468,8 +2624,11 @@ mod tests {
                 .glyph
                 .layers
                 .iter()
-                .any(|layer| matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())),
-            "expected SVG layer from NotoColorEmoji-Regular.ttf"
+                .any(|layer| {
+                    matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
+                        || matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())
+                }),
+            "expected usable svg-derived layer from NotoColorEmoji-Regular.ttf"
         );
     }
 

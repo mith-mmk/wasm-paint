@@ -5,4 +5,5 @@ tests/sample/
 .vscode
 session.txt
 _test*
+.test/*
 .cargo-home
