@@ -19,14 +19,14 @@ use std::cmp::Ordering;
 use std::io::Cursor;
 
 #[cfg(feature = "font")]
-pub use fontloader::commands as commads;
+pub use fontcore::commands as commads;
 #[cfg(feature = "font")]
-pub use fontloader::{
+pub use fontcore::{
     load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontRef, FontStretch,
     FontStyle, FontVariant, FontWeight,
 };
 #[cfg(feature = "font")]
-pub type LoadedFont = fontloader::FontFace;
+pub type LoadedFont = fontcore::FontFace;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -314,33 +314,33 @@ impl GlyphRun {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::Command> for Command {
-    fn from(command: fontloader::Command) -> Self {
+impl From<fontcore::Command> for Command {
+    fn from(command: fontcore::Command) -> Self {
         match command {
-            fontloader::Command::Line(x, y) => Self::Line(x, y),
-            fontloader::Command::MoveTo(x, y) => Self::MoveTo(x, y),
-            fontloader::Command::Bezier(control, end) => Self::Bezier(control, end),
-            fontloader::Command::CubicBezier(control1, control2, end) => {
+            fontcore::Command::Line(x, y) => Self::Line(x, y),
+            fontcore::Command::MoveTo(x, y) => Self::MoveTo(x, y),
+            fontcore::Command::Bezier(control, end) => Self::Bezier(control, end),
+            fontcore::Command::CubicBezier(control1, control2, end) => {
                 Self::CubicBezier(control1, control2, end)
             }
-            fontloader::Command::Close => Self::Close,
+            fontcore::Command::Close => Self::Close,
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphFlow> for GlyphFlow {
-    fn from(flow: fontloader::GlyphFlow) -> Self {
+impl From<fontcore::GlyphFlow> for GlyphFlow {
+    fn from(flow: fontcore::GlyphFlow) -> Self {
         match flow {
-            fontloader::GlyphFlow::Horizontal => Self::Horizontal,
-            fontloader::GlyphFlow::Vertical => Self::Vertical,
+            fontcore::GlyphFlow::Horizontal => Self::Horizontal,
+            fontcore::GlyphFlow::Vertical => Self::Vertical,
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::FontMetrics> for FontMetrics {
-    fn from(metrics: fontloader::FontMetrics) -> Self {
+impl From<fontcore::FontMetrics> for FontMetrics {
+    fn from(metrics: fontcore::FontMetrics) -> Self {
         Self {
             ascent: metrics.ascent,
             descent: metrics.descent,
@@ -351,8 +351,8 @@ impl From<fontloader::FontMetrics> for FontMetrics {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphBounds> for GlyphBounds {
-    fn from(bounds: fontloader::GlyphBounds) -> Self {
+impl From<fontcore::GlyphBounds> for GlyphBounds {
+    fn from(bounds: fontcore::GlyphBounds) -> Self {
         Self {
             min_x: bounds.min_x,
             min_y: bounds.min_y,
@@ -363,8 +363,8 @@ impl From<fontloader::GlyphBounds> for GlyphBounds {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphMetrics> for GlyphMetrics {
-    fn from(metrics: fontloader::GlyphMetrics) -> Self {
+impl From<fontcore::GlyphMetrics> for GlyphMetrics {
+    fn from(metrics: fontcore::GlyphMetrics) -> Self {
         Self {
             advance_x: metrics.advance_x,
             advance_y: metrics.advance_y,
@@ -376,15 +376,15 @@ impl From<fontloader::GlyphMetrics> for GlyphMetrics {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphPaint> for GlyphPaint {
-    fn from(paint: fontloader::GlyphPaint) -> Self {
+impl From<fontcore::GlyphPaint> for GlyphPaint {
+    fn from(paint: fontcore::GlyphPaint) -> Self {
         match paint {
-            fontloader::GlyphPaint::Solid(color) => Self::Solid(color),
-            fontloader::GlyphPaint::CurrentColor => Self::CurrentColor,
-            fontloader::GlyphPaint::LinearGradient(gradient) => {
+            fontcore::GlyphPaint::Solid(color) => Self::Solid(color),
+            fontcore::GlyphPaint::CurrentColor => Self::CurrentColor,
+            fontcore::GlyphPaint::LinearGradient(gradient) => {
                 Self::LinearGradient(gradient.into())
             }
-            fontloader::GlyphPaint::RadialGradient(gradient) => {
+            fontcore::GlyphPaint::RadialGradient(gradient) => {
                 Self::RadialGradient(gradient.into())
             }
         }
@@ -392,8 +392,8 @@ impl From<fontloader::GlyphPaint> for GlyphPaint {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphGradientStop> for GradientStop {
-    fn from(stop: fontloader::GlyphGradientStop) -> Self {
+impl From<fontcore::GlyphGradientStop> for GradientStop {
+    fn from(stop: fontcore::GlyphGradientStop) -> Self {
         Self {
             offset: stop.offset,
             color: stop.color,
@@ -402,29 +402,29 @@ impl From<fontloader::GlyphGradientStop> for GradientStop {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphGradientSpread> for GradientSpread {
-    fn from(spread: fontloader::GlyphGradientSpread) -> Self {
+impl From<fontcore::GlyphGradientSpread> for GradientSpread {
+    fn from(spread: fontcore::GlyphGradientSpread) -> Self {
         match spread {
-            fontloader::GlyphGradientSpread::Pad => Self::Pad,
-            fontloader::GlyphGradientSpread::Repeat => Self::Repeat,
-            fontloader::GlyphGradientSpread::Reflect => Self::Reflect,
+            fontcore::GlyphGradientSpread::Pad => Self::Pad,
+            fontcore::GlyphGradientSpread::Repeat => Self::Repeat,
+            fontcore::GlyphGradientSpread::Reflect => Self::Reflect,
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphGradientUnits> for GradientUnits {
-    fn from(units: fontloader::GlyphGradientUnits) -> Self {
+impl From<fontcore::GlyphGradientUnits> for GradientUnits {
+    fn from(units: fontcore::GlyphGradientUnits) -> Self {
         match units {
-            fontloader::GlyphGradientUnits::ObjectBoundingBox => Self::ObjectBoundingBox,
-            fontloader::GlyphGradientUnits::UserSpaceOnUse => Self::UserSpaceOnUse,
+            fontcore::GlyphGradientUnits::ObjectBoundingBox => Self::ObjectBoundingBox,
+            fontcore::GlyphGradientUnits::UserSpaceOnUse => Self::UserSpaceOnUse,
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphLinearGradient> for LinearGradientPaint {
-    fn from(gradient: fontloader::GlyphLinearGradient) -> Self {
+impl From<fontcore::GlyphLinearGradient> for LinearGradientPaint {
+    fn from(gradient: fontcore::GlyphLinearGradient) -> Self {
         Self {
             x1: gradient.x1,
             y1: gradient.y1,
@@ -439,8 +439,8 @@ impl From<fontloader::GlyphLinearGradient> for LinearGradientPaint {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphRadialGradient> for RadialGradientPaint {
-    fn from(gradient: fontloader::GlyphRadialGradient) -> Self {
+impl From<fontcore::GlyphRadialGradient> for RadialGradientPaint {
+    fn from(gradient: fontcore::GlyphRadialGradient) -> Self {
         Self {
             cx: gradient.cx,
             cy: gradient.cy,
@@ -457,28 +457,28 @@ impl From<fontloader::GlyphRadialGradient> for RadialGradientPaint {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::FillRule> for FillRule {
-    fn from(rule: fontloader::FillRule) -> Self {
+impl From<fontcore::FillRule> for FillRule {
+    fn from(rule: fontcore::FillRule) -> Self {
         match rule {
-            fontloader::FillRule::NonZero => Self::NonZero,
-            fontloader::FillRule::EvenOdd => Self::EvenOdd,
+            fontcore::FillRule::NonZero => Self::NonZero,
+            fontcore::FillRule::EvenOdd => Self::EvenOdd,
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::PathPaintMode> for PathPaintMode {
-    fn from(mode: fontloader::PathPaintMode) -> Self {
+impl From<fontcore::PathPaintMode> for PathPaintMode {
+    fn from(mode: fontcore::PathPaintMode) -> Self {
         match mode {
-            fontloader::PathPaintMode::Fill => Self::Fill,
-            fontloader::PathPaintMode::Stroke => Self::Stroke,
+            fontcore::PathPaintMode::Fill => Self::Fill,
+            fontcore::PathPaintMode::Stroke => Self::Stroke,
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::PathGlyphLayer> for PathGlyphLayer {
-    fn from(layer: fontloader::PathGlyphLayer) -> Self {
+impl From<fontcore::PathGlyphLayer> for PathGlyphLayer {
+    fn from(layer: fontcore::PathGlyphLayer) -> Self {
         Self {
             commands: layer.commands.into_iter().map(Into::into).collect(),
             clip_commands: layer.clip_commands.into_iter().map(Into::into).collect(),
@@ -493,11 +493,11 @@ impl From<fontloader::PathGlyphLayer> for PathGlyphLayer {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::RasterGlyphSource> for RasterGlyphSource {
-    fn from(source: fontloader::RasterGlyphSource) -> Self {
+impl From<fontcore::RasterGlyphSource> for RasterGlyphSource {
+    fn from(source: fontcore::RasterGlyphSource) -> Self {
         match source {
-            fontloader::RasterGlyphSource::Encoded(data) => Self::Encoded(data),
-            fontloader::RasterGlyphSource::Rgba {
+            fontcore::RasterGlyphSource::Encoded(data) => Self::Encoded(data),
+            fontcore::RasterGlyphSource::Rgba {
                 width,
                 height,
                 data,
@@ -511,8 +511,8 @@ impl From<fontloader::RasterGlyphSource> for RasterGlyphSource {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::RasterGlyphLayer> for RasterGlyphLayer {
-    fn from(layer: fontloader::RasterGlyphLayer) -> Self {
+impl From<fontcore::RasterGlyphLayer> for RasterGlyphLayer {
+    fn from(layer: fontcore::RasterGlyphLayer) -> Self {
         Self {
             source: layer.source.into(),
             offset_x: layer.offset_x,
@@ -524,8 +524,8 @@ impl From<fontloader::RasterGlyphLayer> for RasterGlyphLayer {
 }
 
 #[cfg(all(feature = "font", feature = "svg-font"))]
-impl From<fontloader::SvgGlyphLayer> for SvgGlyphLayer {
-    fn from(layer: fontloader::SvgGlyphLayer) -> Self {
+impl From<fontcore::SvgGlyphLayer> for SvgGlyphLayer {
+    fn from(layer: fontcore::SvgGlyphLayer) -> Self {
         Self {
             document: layer.document,
             view_box_min_x: layer.view_box_min_x,
@@ -541,20 +541,20 @@ impl From<fontloader::SvgGlyphLayer> for SvgGlyphLayer {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphLayer> for GlyphLayer {
-    fn from(layer: fontloader::GlyphLayer) -> Self {
+impl From<fontcore::GlyphLayer> for GlyphLayer {
+    fn from(layer: fontcore::GlyphLayer) -> Self {
         match layer {
-            fontloader::GlyphLayer::Path(path) => Self::Path(path.into()),
-            fontloader::GlyphLayer::Raster(raster) => Self::Raster(raster.into()),
+            fontcore::GlyphLayer::Path(path) => Self::Path(path.into()),
+            fontcore::GlyphLayer::Raster(raster) => Self::Raster(raster.into()),
             #[cfg(feature = "svg-font")]
-            fontloader::GlyphLayer::Svg(svg) => Self::Svg(svg.into()),
+            fontcore::GlyphLayer::Svg(svg) => Self::Svg(svg.into()),
         }
     }
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::Glyph> for Glyph {
-    fn from(glyph: fontloader::Glyph) -> Self {
+impl From<fontcore::Glyph> for Glyph {
+    fn from(glyph: fontcore::Glyph) -> Self {
         Self {
             font: glyph.font.map(Into::into),
             metrics: glyph.metrics.into(),
@@ -564,8 +564,8 @@ impl From<fontloader::Glyph> for Glyph {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::PositionedGlyph> for PositionedGlyph {
-    fn from(glyph: fontloader::PositionedGlyph) -> Self {
+impl From<fontcore::PositionedGlyph> for PositionedGlyph {
+    fn from(glyph: fontcore::PositionedGlyph) -> Self {
         Self {
             glyph: glyph.glyph.into(),
             x: glyph.x,
@@ -575,8 +575,8 @@ impl From<fontloader::PositionedGlyph> for PositionedGlyph {
 }
 
 #[cfg(feature = "font")]
-impl From<fontloader::GlyphRun> for GlyphRun {
-    fn from(run: fontloader::GlyphRun) -> Self {
+impl From<fontcore::GlyphRun> for GlyphRun {
+    fn from(run: fontcore::GlyphRun) -> Self {
         Self {
             glyphs: run.glyphs.into_iter().map(Into::into).collect(),
         }
@@ -1692,7 +1692,7 @@ pub fn glyph_renderer_info() -> String {
 
 #[cfg(feature = "font")]
 pub fn layout_text(text: &str, options: FontOptions<'_>) -> Result<GlyphRun, Error> {
-    fontloader::text2commands(text, options)
+    fontcore::text2commands(text, options)
         .map(Into::into)
         .map_err(|error| Box::new(error) as Error)
 }
@@ -1772,7 +1772,7 @@ mod tests {
     use crate::canvas::Canvas;
     use crate::clear::fillrect;
     #[cfg(feature = "font")]
-    use fontloader::load_font_from_buffer;
+    use fontcore::load_font_from_buffer;
     #[cfg(feature = "font")]
     use std::path::{Path, PathBuf};
 
@@ -2098,21 +2098,21 @@ mod tests {
 
     #[cfg(feature = "font")]
     #[test]
-    fn from_fontloader_path_layer_keeps_clip_commands() {
-        let source = fontloader::PathGlyphLayer {
+    fn from_fontcore_path_layer_keeps_clip_commands() {
+        let source = fontcore::PathGlyphLayer {
             commands: vec![
-                fontloader::Command::MoveTo(1.0, 1.0),
-                fontloader::Command::Line(5.0, 1.0),
-                fontloader::Command::Close,
+                fontcore::Command::MoveTo(1.0, 1.0),
+                fontcore::Command::Line(5.0, 1.0),
+                fontcore::Command::Close,
             ],
             clip_commands: vec![
-                fontloader::Command::MoveTo(2.0, 2.0),
-                fontloader::Command::Line(4.0, 2.0),
-                fontloader::Command::Close,
+                fontcore::Command::MoveTo(2.0, 2.0),
+                fontcore::Command::Line(4.0, 2.0),
+                fontcore::Command::Close,
             ],
-            paint: fontloader::GlyphPaint::CurrentColor,
-            paint_mode: fontloader::PathPaintMode::Fill,
-            fill_rule: fontloader::FillRule::NonZero,
+            paint: fontcore::GlyphPaint::CurrentColor,
+            paint_mode: fontcore::PathPaintMode::Fill,
+            fill_rule: fontcore::FillRule::NonZero,
             stroke_width: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,
@@ -2125,28 +2125,28 @@ mod tests {
 
     #[cfg(feature = "font")]
     #[test]
-    fn from_fontloader_gradient_paint_keeps_gradient_variants() {
-        let gradient = fontloader::GlyphLinearGradient {
+    fn from_fontcore_gradient_paint_keeps_gradient_variants() {
+        let gradient = fontcore::GlyphLinearGradient {
             x1: 1.0,
             y1: 2.0,
             x2: 9.0,
             y2: 2.0,
-            units: fontloader::GlyphGradientUnits::UserSpaceOnUse,
+            units: fontcore::GlyphGradientUnits::UserSpaceOnUse,
             transform: [1.0, 0.0, 0.0, 1.0, 3.0, 4.0],
-            spread: fontloader::GlyphGradientSpread::Reflect,
+            spread: fontcore::GlyphGradientSpread::Reflect,
             stops: vec![
-                fontloader::GlyphGradientStop {
+                fontcore::GlyphGradientStop {
                     offset: 0.0,
                     color: 0xffff_0000,
                 },
-                fontloader::GlyphGradientStop {
+                fontcore::GlyphGradientStop {
                     offset: 1.0,
                     color: 0xff00_00ff,
                 },
             ],
         };
 
-        let paint: GlyphPaint = fontloader::GlyphPaint::LinearGradient(gradient).into();
+        let paint: GlyphPaint = fontcore::GlyphPaint::LinearGradient(gradient).into();
         match paint {
             GlyphPaint::LinearGradient(gradient) => {
                 assert_eq!(gradient.x1, 1.0);
@@ -2188,7 +2188,7 @@ mod tests {
     }
 
     #[cfg(feature = "font")]
-    fn into_local_run(run: fontloader::GlyphRun) -> GlyphRun {
+    fn into_local_run(run: fontcore::GlyphRun) -> GlyphRun {
         run.into()
     }
 
@@ -2226,7 +2226,7 @@ mod tests {
         };
 
         let run = into_local_run(font
-            .text2glyph_run("CGOQ", fontloader::FontOptions::new(&font).with_font_size(64.0))
+            .text2glyph_run("CGOQ", fontcore::FontOptions::new(&font).with_font_size(64.0))
             .expect("glyph run"));
 
         for (index, glyph) in run.glyphs.iter().enumerate() {
@@ -2250,7 +2250,7 @@ mod tests {
 
     #[cfg(feature = "font")]
     #[test]
-    #[ignore = "diagnostic: currently fails on fontloader outline extraction for FiraSans-Black"]
+    #[ignore = "diagnostic: currently fails on fontcore outline extraction for FiraSans-Black"]
     fn font_reader_fira_black_text2command_still_has_commands() {
         let Some(font) = load_test_font("FiraSans-Black.ttf") else {
             return;
@@ -2260,7 +2260,7 @@ mod tests {
             let commands = into_local_run(
                 font.text2glyph_run(
                     &ch.to_string(),
-                    fontloader::FontOptions::new(&font).with_font_size(64.0),
+                    fontcore::FontOptions::new(&font).with_font_size(64.0),
                 )
                 .expect("text2glyph_run should succeed"),
             );
@@ -2279,13 +2279,13 @@ mod tests {
 
     #[cfg(feature = "font")]
     #[test]
-    #[ignore = "diagnostic: currently fails on fontloader glyph_run output for FiraSans-Black"]
+    #[ignore = "diagnostic: currently fails on fontcore glyph_run output for FiraSans-Black"]
     fn font_reader_fira_black_i_and_j_have_outline_layers() {
         let Some(font) = load_test_font("FiraSans-Black.ttf") else {
             return;
         };
 
-        let mut options = fontloader::FontOptions::new(&font);
+        let mut options = fontcore::FontOptions::new(&font);
         options.font_size = 64.0;
         let run = into_local_run(font.text2glyph_run("ij", options).expect("glyph run"));
 
@@ -2322,13 +2322,13 @@ mod tests {
 
     #[cfg(feature = "font")]
     #[test]
-    #[ignore = "diagnostic: currently fails on fontloader glyph_run output for seguiemj"]
+    #[ignore = "diagnostic: currently fails on fontcore glyph_run output for seguiemj"]
     fn font_reader_segoe_emoji_has_colr_path_layers() {
         let Some(font) = load_test_font("seguiemj.ttf") else {
             return;
         };
 
-        let mut options = fontloader::FontOptions::new(&font);
+        let mut options = fontcore::FontOptions::new(&font);
         options.font_size = 64.0;
         let run = into_local_run(font.text2glyph_run("🥺", options).expect("glyph run"));
 
@@ -2356,7 +2356,7 @@ mod tests {
             return;
         };
 
-        let mut options = fontloader::FontOptions::new(&font);
+        let mut options = fontcore::FontOptions::new(&font);
         options.font_size = 64.0;
         let run = into_local_run(font.text2glyph_run("🥺", options).expect("glyph run"));
 
@@ -2425,7 +2425,7 @@ mod tests {
         };
 
         let direct = into_local_run(font
-            .text2glyph_run("CGO", fontloader::FontOptions::new(&font).with_font_size(64.0))
+            .text2glyph_run("CGO", fontcore::FontOptions::new(&font).with_font_size(64.0))
             .expect("direct glyph run"));
 
         let mut family_auto = FontFamily::new("Yu Gothic");
@@ -2495,7 +2495,7 @@ mod tests {
         let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
 
         let run = into_local_run(font
-            .text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(96.0))
+            .text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(96.0))
             .expect("build glyph run for sbix font"));
 
         assert!(
@@ -2567,7 +2567,7 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
         let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
         let run = into_local_run(font
-            .text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(96.0))
+            .text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(96.0))
             .expect("build glyph run for sbix font"));
 
         let mut canvas = Canvas::new(256, 256);
@@ -2587,7 +2587,7 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read EmojiOneColor.otf");
         let font = load_font_from_buffer(&bytes).expect("load EmojiOneColor.otf");
         let run = into_local_run(
-            font.text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(32.0))
+            font.text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(32.0))
                 .expect("glyph run for EmojiOneColor.otf"),
         );
 
@@ -2614,7 +2614,7 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read NotoColorEmoji-Regular.ttf");
         let font = load_font_from_buffer(&bytes).expect("load NotoColorEmoji-Regular.ttf");
         let run = into_local_run(
-            font.text2glyph_run("😀", fontloader::FontOptions::new(&font).with_font_size(32.0))
+            font.text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(32.0))
                 .expect("glyph run for NotoColorEmoji-Regular.ttf"),
         );
 
@@ -2640,7 +2640,7 @@ mod tests {
             return;
         };
 
-        let mut options = fontloader::FontOptions::new(&font);
+        let mut options = fontcore::FontOptions::new(&font);
         options.font_size = 64.0;
         let run = into_local_run(font.text2glyph_run("ij", options).expect("glyph run"));
 

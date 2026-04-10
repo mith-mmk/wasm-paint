@@ -1,6 +1,6 @@
 # SVFONTSPEC
 
-この文書は、`FontReader` が `paintcore` に渡すべき SVG glyph 情報を固定するための受け渡し仕様です。あわせて、`fontloader` 側で `features = ["svg-fonts"]` 有効時にどこまで解決してから渡すかも定義します。
+この文書は、`FontReader` が `paintcore` に渡すべき SVG glyph 情報を固定するための受け渡し仕様です。あわせて、`fontcore` 側で `features = ["svg-fonts"]` 有効時にどこまで解決してから渡すかも定義します。
 
 目的は 2 つです。
 
@@ -149,7 +149,7 @@ raw SVG payload を保持したい場合は `SvgGlyphLayer` を渡す。
 - 対応 transform の適用結果
 - shape 要素の path 化
 
-現状の `fontloader` 実装では、少なくとも次の対応範囲については `paintcore` に未解決状態で渡さないこと。
+現状の `fontcore` 実装では、少なくとも次の対応範囲については `paintcore` に未解決状態で渡さないこと。
 
 - 要素
   - `path`
@@ -223,7 +223,7 @@ gradient は `Command` ではなく `GlyphPaint` の責務とする。
 - stroke/fill と同じく「描画スタイル」であり「形状」ではないため
 - raw SVG と path 化 SVG の両方で同じ paint モデルを共有しやすいため
 
-現状の `fontloader` 実装では、少なくとも `linearGradient` / `radialGradient` / `stop` を path layer の paint として解決できる。`FontReader` が gradient を path layer として渡す場合、少なくとも次を確定済みで渡すこと。
+現状の `fontcore` 実装では、少なくとも `linearGradient` / `radialGradient` / `stop` を path layer の paint として解決できる。`FontReader` が gradient を path layer として渡す場合、少なくとも次を確定済みで渡すこと。
 
 - gradient 種別
 - gradient units
@@ -294,7 +294,7 @@ stroke は `Command` ではなく `PathGlyphLayer` の責務とする。
 
 ## 現状の未対応
 
-`fontloader` / `paintcore` 境界の現状未対応は次です。
+`fontcore` / `paintcore` 境界の現状未対応は次です。
 
 - gradient
 - pattern

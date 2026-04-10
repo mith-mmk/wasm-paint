@@ -14,8 +14,8 @@ crate-type = ["cdylib"]
 [features]
 default = ["console_error_panic_hook"]
 stdweb = [ "instant/stdweb" ]
-font = ["dep:fontloader", "paintcore/font"]
-svg-font = ["font", "fontloader/svg-fonts", "paintcore/svg-font"]
+font = ["dep:fontcore", "paintcore/font"]
+svg-font = ["font", "fontcore/svg-fonts", "paintcore/svg-font"]
 
 [dependencies]
 paintcore = { path="../paintcore" }
@@ -24,7 +24,7 @@ js-sys = "0.3"
 instant = "0.1"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
-fontloader = {workspace = true, optional = true}
+fontcore = {workspace = true, optional = true}
 
 
 wml2.workspace = true

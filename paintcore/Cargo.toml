@@ -8,10 +8,10 @@ repository = "https://github.com/mith-mmk/wasm-paint"
 [lib]
 
 [features]
-font = ["dep:fontloader"]
-svg-font = ["font", "fontloader/svg-fonts"]
+font = ["dep:fontcore"]
+svg-font = ["font", "fontcore/svg-fonts"]
 
 [dependencies]
 wml2.workspace = true
-fontloader = {workspace = true, optional = true}
+fontcore = {workspace = true, optional = true}
 png = "0.17"
