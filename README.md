@@ -1,8 +1,6 @@
-# 注意
-FireFoxではブラウザの制限でほとんど動きません。
-
- https://github.com/rustwasm/wasm-bindgen/issues/2549
-
+# what's it
+- The paintcore is raster image tools
+- The wasm-paint is browser painting demo.
 
 # WebAssembly Test
 
