@@ -810,10 +810,6 @@ fn push_point(points: &mut Vec<(f32, f32)>, point: (f32, f32)) {
     points.push(point);
 }
 
-fn midpoint(a: (f32, f32), b: (f32, f32)) -> (f32, f32) {
-    ((a.0 + b.0) * 0.5, (a.1 + b.1) * 0.5)
-}
-
 fn point_segment_distance_sq(point: (f32, f32), start: (f32, f32), end: (f32, f32)) -> f32 {
     let dx = end.0 - start.0;
     let dy = end.1 - start.1;
@@ -831,37 +827,70 @@ fn point_segment_distance_sq(point: (f32, f32), start: (f32, f32), end: (f32, f3
     px * px + py * py
 }
 
-// Font outlines already arrive in device space. Keep curve error comfortably below a pixel edge
-// so rounded TrueType glyphs stay visually close to browser SVG rendering.
-const CURVE_FLATNESS_TOLERANCE_SQ: f32 = 0.0009765625;
-const CURVE_MAX_RECURSION_DEPTH: usize = 16;
-const CURVE_MAX_SEGMENT_LENGTH_SQ: f32 = 0.25;
+// Font outlines already arrive in device space. Estimate a bounded segment count once, then
+// sample the curve directly. This avoids recursive half-pixel subdivision on long smooth curves.
+const CURVE_FLATNESS_TOLERANCE_SQ: f32 = 0.25;
+const CURVE_MAX_SEGMENTS: usize = 64;
+const CURVE_SEGMENT_LENGTH: f32 = 4.0;
+
+fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
+    let dx = b.0 - a.0;
+    let dy = b.1 - a.1;
+    (dx * dx + dy * dy).sqrt()
+}
+
+fn curve_segment_count(control_polygon_length: f32, flatness_sq: f32) -> usize {
+    let length_steps = (control_polygon_length / CURVE_SEGMENT_LENGTH).ceil() as usize;
+    let flatness_steps = (flatness_sq / CURVE_FLATNESS_TOLERANCE_SQ).sqrt().ceil() as usize;
+    length_steps
+        .max(flatness_steps)
+        .max(1)
+        .min(CURVE_MAX_SEGMENTS)
+}
+
+fn quadratic_point(start: (f32, f32), control: (f32, f32), end: (f32, f32), t: f32) -> (f32, f32) {
+    let mt = 1.0 - t;
+    let a = mt * mt;
+    let b = 2.0 * mt * t;
+    let c = t * t;
+    (
+        a * start.0 + b * control.0 + c * end.0,
+        a * start.1 + b * control.1 + c * end.1,
+    )
+}
+
+fn cubic_point(
+    start: (f32, f32),
+    control1: (f32, f32),
+    control2: (f32, f32),
+    end: (f32, f32),
+    t: f32,
+) -> (f32, f32) {
+    let mt = 1.0 - t;
+    let a = mt * mt * mt;
+    let b = 3.0 * mt * mt * t;
+    let c = 3.0 * mt * t * t;
+    let d = t * t * t;
+    (
+        a * start.0 + b * control1.0 + c * control2.0 + d * end.0,
+        a * start.1 + b * control1.1 + c * control2.1 + d * end.1,
+    )
+}
 
 fn flatten_quadratic_segment(
     points: &mut Vec<(f32, f32)>,
     start: (f32, f32),
     control: (f32, f32),
     end: (f32, f32),
-    depth: usize,
 ) {
     let flatness = point_segment_distance_sq(control, start, end);
-    let dx = end.0 - start.0;
-    let dy = end.1 - start.1;
-    let segment_length_sq = dx * dx + dy * dy;
-    if depth >= CURVE_MAX_RECURSION_DEPTH
-        || (flatness <= CURVE_FLATNESS_TOLERANCE_SQ
-            && segment_length_sq <= CURVE_MAX_SEGMENT_LENGTH_SQ)
-    {
-        push_point(points, end);
-        return;
+    let control_polygon_length = distance(start, control) + distance(control, end);
+    let segment_count = curve_segment_count(control_polygon_length, flatness);
+    for step in 1..segment_count {
+        let t = step as f32 / segment_count as f32;
+        push_point(points, quadratic_point(start, control, end, t));
     }
-
-    let start_control = midpoint(start, control);
-    let control_end = midpoint(control, end);
-    let mid = midpoint(start_control, control_end);
-
-    flatten_quadratic_segment(points, start, start_control, mid, depth + 1);
-    flatten_quadratic_segment(points, mid, control_end, end, depth + 1);
+    push_point(points, end);
 }
 
 fn flatten_cubic_segment(
@@ -870,30 +899,17 @@ fn flatten_cubic_segment(
     control1: (f32, f32),
     control2: (f32, f32),
     end: (f32, f32),
-    depth: usize,
 ) {
     let flatness = point_segment_distance_sq(control1, start, end)
         .max(point_segment_distance_sq(control2, start, end));
-    let dx = end.0 - start.0;
-    let dy = end.1 - start.1;
-    let segment_length_sq = dx * dx + dy * dy;
-    if depth >= CURVE_MAX_RECURSION_DEPTH
-        || (flatness <= CURVE_FLATNESS_TOLERANCE_SQ
-            && segment_length_sq <= CURVE_MAX_SEGMENT_LENGTH_SQ)
-    {
-        push_point(points, end);
-        return;
+    let control_polygon_length =
+        distance(start, control1) + distance(control1, control2) + distance(control2, end);
+    let segment_count = curve_segment_count(control_polygon_length, flatness);
+    for step in 1..segment_count {
+        let t = step as f32 / segment_count as f32;
+        push_point(points, cubic_point(start, control1, control2, end, t));
     }
-
-    let start_control1 = midpoint(start, control1);
-    let control1_control2 = midpoint(control1, control2);
-    let control2_end = midpoint(control2, end);
-    let left_control2 = midpoint(start_control1, control1_control2);
-    let right_control1 = midpoint(control1_control2, control2_end);
-    let mid = midpoint(left_control2, right_control1);
-
-    flatten_cubic_segment(points, start, start_control1, left_control2, mid, depth + 1);
-    flatten_cubic_segment(points, mid, right_control1, control2_end, end, depth + 1);
+    push_point(points, end);
 }
 
 fn flush_subpath(
@@ -942,7 +958,7 @@ fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<F
                     if points.is_empty() {
                         points.push(start);
                     }
-                    flatten_quadratic_segment(&mut points, start, control, end, 0);
+                    flatten_quadratic_segment(&mut points, start, control, end);
                     current_point = Some(end);
                 }
             }
@@ -954,7 +970,7 @@ fn flatten_commands(commands: &[Command], offset_x: f32, offset_y: f32) -> Vec<F
                     if points.is_empty() {
                         points.push(start);
                     }
-                    flatten_cubic_segment(&mut points, start, control1, control2, end, 0);
+                    flatten_cubic_segment(&mut points, start, control1, control2, end);
                     current_point = Some(end);
                 }
             }
@@ -1682,10 +1698,10 @@ pub fn draw_glyphs(
 
 pub fn glyph_renderer_info() -> String {
     format!(
-        "curve_tol_sq={:.10};max_depth={};max_seg_sq={:.4};aa_rows={}",
+        "curve_tol_sq={:.10};max_segments={};segment_length={:.4};aa_rows={}",
         CURVE_FLATNESS_TOLERANCE_SQ,
-        CURVE_MAX_RECURSION_DEPTH,
-        CURVE_MAX_SEGMENT_LENGTH_SQ,
+        CURVE_MAX_SEGMENTS,
+        CURVE_SEGMENT_LENGTH,
         GLYPH_AA_SUBPIXEL_ROW_COUNT
     )
 }
@@ -1963,6 +1979,21 @@ mod tests {
     }
 
     #[test]
+    fn flatten_commands_does_not_subdivide_straight_cubic_per_half_pixel() {
+        let commands = vec![
+            Command::MoveTo(0.0, 0.0),
+            Command::CubicBezier((40.0, 0.0), (80.0, 0.0), (120.0, 0.0)),
+        ];
+
+        let subpaths = flatten_commands(&commands, 0.0, 0.0);
+
+        assert_eq!(subpaths.len(), 1);
+        assert!(subpaths[0].points.len() <= 32);
+        assert_eq!(subpaths[0].points.first(), Some(&(0.0, 0.0)));
+        assert_eq!(subpaths[0].points.last(), Some(&(120.0, 0.0)));
+    }
+
+    #[test]
     fn draw_glyphs_keeps_argb_path_colors() {
         let commands = vec![
             Command::MoveTo(1.0, 1.0),
@@ -2195,7 +2226,10 @@ mod tests {
     #[cfg(all(feature = "font", feature = "svg-font"))]
     fn find_svg_test_font(name: &str) -> Option<PathBuf> {
         let root = workspace_root();
-        let candidates = [root.join(".test-fonts").join(name), root.join(".test_fonts").join(name)];
+        let candidates = [
+            root.join(".test-fonts").join(name),
+            root.join(".test_fonts").join(name),
+        ];
         candidates.into_iter().find(|path| path.exists())
     }
 
@@ -2221,19 +2255,29 @@ mod tests {
     #[test]
     #[ignore = "diagnostic: inspect Yu Gothic round glyph flattening density"]
     fn inspect_yu_gothic_round_glyph_flattening() {
-        let Some(font) = load_test_font("YuGothB.ttc").or_else(|| load_test_font("YuGothB.ttf")) else {
+        let Some(font) = load_test_font("YuGothB.ttc").or_else(|| load_test_font("YuGothB.ttf"))
+        else {
             return;
         };
 
-        let run = into_local_run(font
-            .text2glyph_run("CGOQ", fontcore::FontOptions::new(&font).with_font_size(64.0))
-            .expect("glyph run"));
+        let run = into_local_run(
+            font.text2glyph_run(
+                "CGOQ",
+                fontcore::FontOptions::new(&font).with_font_size(64.0),
+            )
+            .expect("glyph run"),
+        );
 
         for (index, glyph) in run.glyphs.iter().enumerate() {
             for (layer_index, layer) in glyph.glyph.layers.iter().enumerate() {
                 if let GlyphLayer::Path(path) = layer {
-                    let contours = flatten_commands(&path.commands, glyph.x + path.offset_x, glyph.y + path.offset_y);
-                    let point_count: usize = contours.iter().map(|contour| contour.points.len()).sum();
+                    let contours = flatten_commands(
+                        &path.commands,
+                        glyph.x + path.offset_x,
+                        glyph.y + path.offset_y,
+                    );
+                    let point_count: usize =
+                        contours.iter().map(|contour| contour.points.len()).sum();
                     eprintln!(
                         "glyph {} layer {} commands={} contours={} points={} bounds={:?}",
                         index,
@@ -2266,11 +2310,9 @@ mod tests {
             );
             assert_eq!(commands.glyphs.len(), 1, "expected one glyph for {}", ch);
             assert!(
-                commands.glyphs[0]
-                    .glyph
-                    .layers
-                    .iter()
-                    .any(|layer| matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())),
+                commands.glyphs[0].glyph.layers.iter().any(
+                    |layer| matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
+                ),
                 "text2glyph_run returned no commands for {}",
                 ch
             );
@@ -2420,37 +2462,46 @@ mod tests {
     #[test]
     #[ignore = "diagnostic: compare direct loaded font against FontFamily face resolution"]
     fn compare_direct_font_and_family_yugothb() {
-        let Some(font) = load_test_font("YuGothB.ttc").or_else(|| load_test_font("YuGothB.ttf")) else {
+        let Some(font) = load_test_font("YuGothB.ttc").or_else(|| load_test_font("YuGothB.ttf"))
+        else {
             return;
         };
 
-        let direct = into_local_run(font
-            .text2glyph_run("CGO", fontcore::FontOptions::new(&font).with_font_size(64.0))
-            .expect("direct glyph run"));
+        let direct = into_local_run(
+            font.text2glyph_run(
+                "CGO",
+                fontcore::FontOptions::new(&font).with_font_size(64.0),
+            )
+            .expect("direct glyph run"),
+        );
 
         let mut family_auto = FontFamily::new("Yu Gothic");
         family_auto.add_font_face(font.clone());
-        let auto = into_local_run(family_auto
-            .text2glyph_run(
-                "CGO",
-                FontOptions::from_family(&family_auto)
-                    .with_font_family("Yu Gothic")
-                    .with_font_size(64.0)
-                    .with_font_weight(FontWeight::BOLD),
-            )
-            .expect("auto family glyph run"));
+        let auto = into_local_run(
+            family_auto
+                .text2glyph_run(
+                    "CGO",
+                    FontOptions::from_family(&family_auto)
+                        .with_font_family("Yu Gothic")
+                        .with_font_size(64.0)
+                        .with_font_weight(FontWeight::BOLD),
+                )
+                .expect("auto family glyph run"),
+        );
 
         let mut family_face = FontFamily::new("Yu Gothic");
         family_face.add_face(FontFaceDescriptor::from_face(&font), font);
-        let face = into_local_run(family_face
-            .text2glyph_run(
-                "CGO",
-                FontOptions::from_family(&family_face)
-                    .with_font_family("Yu Gothic")
-                    .with_font_size(64.0)
-                    .with_font_weight(FontWeight::BOLD),
-            )
-            .expect("descriptor family glyph run"));
+        let face = into_local_run(
+            family_face
+                .text2glyph_run(
+                    "CGO",
+                    FontOptions::from_family(&family_face)
+                        .with_font_family("Yu Gothic")
+                        .with_font_size(64.0)
+                        .with_font_weight(FontWeight::BOLD),
+                )
+                .expect("descriptor family glyph run"),
+        );
 
         fn summarize(run: &GlyphRun) -> Vec<(usize, usize, usize, Option<(i32, i32, i32, i32)>)> {
             run.glyphs
@@ -2494,18 +2545,20 @@ mod tests {
         let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
         let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
 
-        let run = into_local_run(font
-            .text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(96.0))
-            .expect("build glyph run for sbix font"));
+        let run = into_local_run(
+            font.text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(96.0))
+                .expect("build glyph run for sbix font"),
+        );
 
         assert!(
             !run.glyphs.is_empty(),
             "expected at least one glyph from TwemojiMozilla-sbix.woff2"
         );
         assert!(
-            run.glyphs.iter().flat_map(|glyph| glyph.glyph.layers.iter()).any(
-                |layer| matches!(layer, GlyphLayer::Raster(_))
-            ),
+            run.glyphs
+                .iter()
+                .flat_map(|glyph| glyph.glyph.layers.iter())
+                .any(|layer| matches!(layer, GlyphLayer::Raster(_))),
             "expected sbix font to emit raster glyph layers"
         );
     }
@@ -2544,16 +2597,16 @@ mod tests {
             .expect("finalize chunked sbix face");
         assert_eq!(family.cached_faces_len(), 1);
 
-        let run = into_local_run(family
-            .text2glyph_run(
-                "😀",
-                FontOptions::from_family(&family).with_font_size(96.0),
-            )
-            .expect("layout sbix glyph from chunked family"));
+        let run = into_local_run(
+            family
+                .text2glyph_run("😀", FontOptions::from_family(&family).with_font_size(96.0))
+                .expect("layout sbix glyph from chunked family"),
+        );
         assert!(
-            run.glyphs.iter().flat_map(|glyph| glyph.glyph.layers.iter()).any(
-                |layer| matches!(layer, GlyphLayer::Raster(_))
-            ),
+            run.glyphs
+                .iter()
+                .flat_map(|glyph| glyph.glyph.layers.iter())
+                .any(|layer| matches!(layer, GlyphLayer::Raster(_))),
             "expected chunked sbix family load to keep raster glyph layers"
         );
     }
@@ -2566,9 +2619,10 @@ mod tests {
         };
         let bytes = std::fs::read(&path).expect("read TwemojiMozilla-sbix.woff2");
         let font = load_font_from_buffer(&bytes).expect("load TwemojiMozilla-sbix.woff2");
-        let run = into_local_run(font
-            .text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(96.0))
-            .expect("build glyph run for sbix font"));
+        let run = into_local_run(
+            font.text2glyph_run("😀", fontcore::FontOptions::new(&font).with_font_size(96.0))
+                .expect("build glyph run for sbix font"),
+        );
 
         let mut canvas = Canvas::new(256, 256);
         fillrect(&mut canvas, 0x00ff_ffff);
@@ -2593,14 +2647,10 @@ mod tests {
 
         assert_eq!(run.glyphs.len(), 1);
         assert!(
-            run.glyphs[0]
-                .glyph
-                .layers
-                .iter()
-                .any(|layer| {
-                    matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
-                        || matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())
-                }),
+            run.glyphs[0].glyph.layers.iter().any(|layer| {
+                matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
+                    || matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())
+            }),
             "expected usable svg-derived layer from EmojiOneColor.otf"
         );
     }
@@ -2620,14 +2670,10 @@ mod tests {
 
         assert_eq!(run.glyphs.len(), 1);
         assert!(
-            run.glyphs[0]
-                .glyph
-                .layers
-                .iter()
-                .any(|layer| {
-                    matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
-                        || matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())
-                }),
+            run.glyphs[0].glyph.layers.iter().any(|layer| {
+                matches!(layer, GlyphLayer::Path(path) if !path.commands.is_empty())
+                    || matches!(layer, GlyphLayer::Svg(svg) if !svg.document.is_empty())
+            }),
             "expected usable svg-derived layer from NotoColorEmoji-Regular.ttf"
         );
     }

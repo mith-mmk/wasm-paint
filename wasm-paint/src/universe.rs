@@ -1,12 +1,12 @@
 type Error = Box<dyn std::error::Error>;
 
 use js_sys::{Array, Reflect};
-use paintcore::{path, prelude::*};
 #[cfg(feature = "font")]
 use paintcore::path::{
-    load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle,
-    FontWeight, LoadedFont,
+    FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle, FontWeight, LoadedFont,
+    load_font_from_buffer,
 };
+use paintcore::{path, prelude::*};
 use std::sync::{Arc, RwLock};
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
@@ -77,11 +77,7 @@ fn js_error(message: &str) -> JsValue {
 }
 
 #[cfg(feature = "font")]
-fn extend_bounds(
-    bounds: &mut Option<paintcore::path::GlyphBounds>,
-    x: f32,
-    y: f32,
-) {
+fn extend_bounds(bounds: &mut Option<paintcore::path::GlyphBounds>, x: f32, y: f32) {
     if let Some(bounds) = bounds.as_mut() {
         bounds.min_x = bounds.min_x.min(x);
         bounds.min_y = bounds.min_y.min(y);
@@ -103,8 +99,16 @@ fn glyph_run_bounds(run: &path::GlyphRun) -> Option<paintcore::path::GlyphBounds
 
     for glyph in &run.glyphs {
         if let Some(glyph_bounds) = glyph.glyph.metrics.bounds {
-            extend_bounds(&mut bounds, glyph_bounds.min_x + glyph.x, glyph_bounds.min_y + glyph.y);
-            extend_bounds(&mut bounds, glyph_bounds.max_x + glyph.x, glyph_bounds.max_y + glyph.y);
+            extend_bounds(
+                &mut bounds,
+                glyph_bounds.min_x + glyph.x,
+                glyph_bounds.min_y + glyph.y,
+            );
+            extend_bounds(
+                &mut bounds,
+                glyph_bounds.max_x + glyph.x,
+                glyph_bounds.max_y + glyph.y,
+            );
             continue;
         }
 
@@ -169,11 +173,7 @@ fn glyph_run_bounds(run: &path::GlyphRun) -> Option<paintcore::path::GlyphBounds
                 }
                 #[cfg(feature = "svg-font")]
                 path::GlyphLayer::Svg(svg) => {
-                    extend_bounds(
-                        &mut bounds,
-                        glyph.x + svg.offset_x,
-                        glyph.y + svg.offset_y,
-                    );
+                    extend_bounds(&mut bounds, glyph.x + svg.offset_x, glyph.y + svg.offset_y);
                     extend_bounds(
                         &mut bounds,
                         glyph.x + svg.offset_x + svg.width,
@@ -207,7 +207,12 @@ fn format_glyph_run_bounds(run: &path::GlyphRun) -> String {
 
 #[cfg(feature = "font")]
 fn parse_font_style(style: Option<&str>) -> Result<FontStyle, JsValue> {
-    match style.unwrap_or("normal").trim().to_ascii_lowercase().as_str() {
+    match style
+        .unwrap_or("normal")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "normal" => Ok(FontStyle::Normal),
         "italic" => Ok(FontStyle::Italic),
         "oblique" => Ok(FontStyle::Oblique),
@@ -920,8 +925,7 @@ impl Universe {
             .font_family
             .as_mut()
             .ok_or_else(|| js_error("font family is not initialized"))?;
-        let font =
-            load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
+        let font = load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
         family.add_font_face(font);
         Ok(())
     }
@@ -944,8 +948,7 @@ impl Universe {
             .font_family
             .as_mut()
             .ok_or_else(|| js_error("font family is not initialized"))?;
-        let font =
-            load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
+        let font = load_font_from_buffer(&buffer).map_err(|error| js_error(&error.to_string()))?;
         let mut descriptor = FontFaceDescriptor::from_face(&font);
         if let Some(font_name) = font_name {
             let font_name = font_name.trim();
