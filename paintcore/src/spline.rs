@@ -258,10 +258,10 @@ fn draw_cubic_bezier(
 }
 
 /// draw n bezier curve
-/// - p = [x,y].to_vec() -> point
-/// - p = [[x0,y0],[x1,y1]].to_vec() Linear Bézier curves = Strait line
-/// - p = [[x0,y0],[x1,y1],[x2,y2]].to_vec() Quadratic Bézier curve
-/// - p = [[x0,y0],[x1,y1],[x2,y2],[x3,y3]].to_vec() Cubic Bézier curve
+/// - p = [(p0)].to_vec() -> point
+/// - p = [(p0),(p1)].to_vec() Linear Bézier curves = Strait line
+/// - p = [(p0),(p1),(p2)].to_vec() Quadratic Bézier curve
+/// - p = [(p0),(p1),(p2),(p3)].to_vec() Cubic Bézier curve
 ///     and Poly Bézier curves
 pub fn bezier_curve(screen: &mut dyn Screen, p: Vec<(f32, f32)>, color: u32) {
     bezier_curve_with_alpha(screen, p, color, 0xff, false, None)
