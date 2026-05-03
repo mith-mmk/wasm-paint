@@ -1,4 +1,8 @@
 use crate::canvas::*;
+use crate::color::{
+    auto_brightness, brightness_control, color_curve, gamma_control, invert_crcb,
+    saturation_control,
+};
 use crate::grayscale::to_grayscale;
 use crate::layer::Layer;
 use std::{
@@ -28,6 +32,15 @@ enum FilterType {
     Emboss,
     Outline,
     Grayscale,
+    ObjectExtract,
+    CornerDetect,
+    Harris,
+    Gamma,
+    ColorCurve,
+    InvertCrCb,
+    Saturation,
+    Brightness,
+    AutoBrightness,
     RGBCustom(Kernel),
     LUMCustom(Kernel),
     Unknown,
@@ -56,6 +69,17 @@ impl From<&str> for FilterType {
             "emboss" => FilterType::Emboss,
             "outline" => FilterType::Outline,
             "grayscale" => FilterType::Grayscale,
+            "objectExtract" | "object_extract" => FilterType::ObjectExtract,
+            "cornerDetect" | "corner_detect" => FilterType::CornerDetect,
+            "harris" | "harrisEdge" | "harris_edge" => FilterType::Harris,
+            "gamma" | "gammaControl" | "gamma_control" => FilterType::Gamma,
+            "colorCurve" | "color_curve" => FilterType::ColorCurve,
+            "invertCrCb" | "invert_crcb" => FilterType::InvertCrCb,
+            "saturation" | "saturationControl" | "saturation_control" => FilterType::Saturation,
+            "brightness" | "brightnessControl" | "brightness_control" => FilterType::Brightness,
+            "autoBrightness" | "auto_brightness" | "autoLevels" | "auto_levels" => {
+                FilterType::AutoBrightness
+            }
             "custom" => FilterType::RGBCustom(Kernel::empty()),
             "lumCustom" => FilterType::LUMCustom(Kernel::empty()),
             _ => FilterType::Unknown,
@@ -803,6 +827,9 @@ fn edge_filter_f32(src: &dyn Screen) -> (Vec<f32>, Vec<f32>) {
 }
 
 pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
     let src_width = src.width() as usize;
     let src_height = src.height() as usize;
     // ガウシアン
@@ -832,6 +859,153 @@ pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+pub fn object_extract(
+    src: &dyn Screen,
+    dest: &mut dyn Screen,
+    threshold: f32,
+) -> Result<(), Error> {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+
+    let width = src.width() as usize;
+    let height = src.height() as usize;
+    let dest_width = dest.width() as usize;
+    let dest_height = dest.height() as usize;
+    if width == 0 || height == 0 {
+        return Ok(());
+    }
+
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+    let corner_indices = [
+        0,
+        (width - 1) * 4,
+        (height - 1) * width * 4,
+        ((height - 1) * width + width - 1) * 4,
+    ];
+    let mut background = (0.0, 0.0, 0.0);
+    for i in corner_indices {
+        background.0 += src_buffer[i] as f32;
+        background.1 += src_buffer[i + 1] as f32;
+        background.2 += src_buffer[i + 2] as f32;
+    }
+    background.0 /= 4.0;
+    background.1 /= 4.0;
+    background.2 /= 4.0;
+
+    for y in 0..height.min(dest_height) {
+        for x in 0..width.min(dest_width) {
+            let i = (y * width + x) * 4;
+            let dest_i = (y * dest_width + x) * 4;
+            let dr = src_buffer[i] as f32 - background.0;
+            let dg = src_buffer[i + 1] as f32 - background.1;
+            let db = src_buffer[i + 2] as f32 - background.2;
+            let distance = (dr * dr + dg * dg + db * db).sqrt();
+            dest_buffer[dest_i] = src_buffer[i];
+            dest_buffer[dest_i + 1] = src_buffer[i + 1];
+            dest_buffer[dest_i + 2] = src_buffer[i + 2];
+            dest_buffer[dest_i + 3] = if distance >= threshold {
+                src_buffer[i + 3]
+            } else {
+                0
+            };
+        }
+    }
+
+    Ok(())
+}
+
+pub fn harris(
+    src: &dyn Screen,
+    dest: &mut dyn Screen,
+    threshold: f32,
+    k: f32,
+) -> Result<(), Error> {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+    }
+
+    let width = src.width() as usize;
+    let height = src.height() as usize;
+    let dest_width = dest.width() as usize;
+    let dest_height = dest.height() as usize;
+    if width < 3 || height < 3 {
+        return copy_to(src, dest);
+    }
+
+    let (gx, gy) = edge_filter_f32(src);
+    let mut responses = vec![0.0f32; width * height];
+    let mut max_response = 0.0f32;
+
+    for y in 1..height - 1 {
+        for x in 1..width - 1 {
+            let mut ix2 = 0.0;
+            let mut iy2 = 0.0;
+            let mut ixy = 0.0;
+            for yy in y - 1..=y + 1 {
+                for xx in x - 1..=x + 1 {
+                    let i = yy * width + xx;
+                    ix2 += gx[i] * gx[i];
+                    iy2 += gy[i] * gy[i];
+                    ixy += gx[i] * gy[i];
+                }
+            }
+            let det = ix2 * iy2 - ixy * ixy;
+            let trace = ix2 + iy2;
+            let response = det - k * trace * trace;
+            let i = y * width + x;
+            responses[i] = response;
+            max_response = max_response.max(response);
+        }
+    }
+
+    let src_buffer = src.buffer();
+    let dest_buffer = dest.buffer_mut();
+    let cutoff = max_response * threshold;
+    for y in 0..height.min(dest_height) {
+        for x in 0..width.min(dest_width) {
+            let i = (y * width + x) * 4;
+            let dest_i = (y * dest_width + x) * 4;
+            let response_index = y * width + x;
+            let is_corner = responses[response_index] > cutoff
+                && is_local_maximum(&responses, width, height, x, y);
+            let v = if is_corner { 255 } else { 0 };
+            dest_buffer[dest_i] = v;
+            dest_buffer[dest_i + 1] = v;
+            dest_buffer[dest_i + 2] = v;
+            dest_buffer[dest_i + 3] = src_buffer[i + 3];
+        }
+    }
+
+    Ok(())
+}
+
+#[inline]
+fn is_local_maximum(values: &[f32], width: usize, height: usize, x: usize, y: usize) -> bool {
+    if x == 0 || y == 0 || x + 1 >= width || y + 1 >= height {
+        return false;
+    }
+    let center = values[y * width + x];
+    for yy in y - 1..=y + 1 {
+        for xx in x - 1..=x + 1 {
+            if (xx != x || yy != y) && values[yy * width + xx] > center {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+#[inline]
+fn option_or(options: &Option<HashMap<&str, f32>>, name: &str, default_value: f32) -> f32 {
+    options
+        .as_ref()
+        .and_then(|options| options.get(name))
+        .copied()
+        .unwrap_or(default_value)
 }
 
 pub fn filter(src: &dyn Screen, dest: &mut dyn Screen, filter_name: &str) -> Result<(), Error> {
@@ -966,6 +1140,32 @@ fn _filter(
             to_grayscale(src, dest, 0);
             Ok(())
         }
+        FilterType::ObjectExtract => {
+            object_extract(src, dest, option_or(&options, "threshold", 40.0))
+        }
+        FilterType::CornerDetect => harris(src, dest, option_or(&options, "threshold", 0.12), 0.04),
+        FilterType::Harris => harris(
+            src,
+            dest,
+            option_or(&options, "threshold", 0.10),
+            option_or(&options, "k", 0.04),
+        ),
+        FilterType::Gamma => gamma_control(src, dest, option_or(&options, "gamma", 2.2)),
+        FilterType::ColorCurve => color_curve(
+            src,
+            dest,
+            option_or(&options, "shadows", 0.0),
+            option_or(&options, "midtones", 24.0),
+            option_or(&options, "highlights", 0.0),
+        ),
+        FilterType::InvertCrCb => invert_crcb(src, dest),
+        FilterType::Saturation => {
+            saturation_control(src, dest, option_or(&options, "saturation", 1.25))
+        }
+        FilterType::Brightness => {
+            brightness_control(src, dest, option_or(&options, "brightness", 24.0))
+        }
+        FilterType::AutoBrightness => auto_brightness(src, dest),
         FilterType::RGBCustom(kernel) => rgb_filter(src, dest, &kernel),
         FilterType::LUMCustom(kernel) => lum_filter(src, dest, &kernel),
         FilterType::Unknown => Err(std::io::Error::new(

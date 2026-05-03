@@ -1271,6 +1271,123 @@ impl Universe {
         }
     }
 
+    #[wasm_bindgen(js_name = gammaControl)]
+    pub fn gamma_control(&mut self, canvas_in: usize, canvas_out: usize, gamma: f32) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::gamma_control(&self.canvas, output_canvas, gamma);
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ = paintcore::color::gamma_control(input_canvas, &mut self.canvas, gamma);
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::gamma_control(input_canvas, output_canvas, gamma);
+        }
+    }
+
+    #[wasm_bindgen(js_name = colorCurve)]
+    pub fn color_curve(
+        &mut self,
+        canvas_in: usize,
+        canvas_out: usize,
+        shadows: f32,
+        midtones: f32,
+        highlights: f32,
+    ) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::color_curve(
+                &self.canvas,
+                output_canvas,
+                shadows,
+                midtones,
+                highlights,
+            );
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ = paintcore::color::color_curve(
+                input_canvas,
+                &mut self.canvas,
+                shadows,
+                midtones,
+                highlights,
+            );
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::color_curve(
+                input_canvas,
+                output_canvas,
+                shadows,
+                midtones,
+                highlights,
+            );
+        }
+    }
+
+    #[wasm_bindgen(js_name = invertCrCb)]
+    pub fn invert_crcb(&mut self, canvas_in: usize, canvas_out: usize) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::invert_crcb(&self.canvas, output_canvas);
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ = paintcore::color::invert_crcb(input_canvas, &mut self.canvas);
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::invert_crcb(input_canvas, output_canvas);
+        }
+    }
+
+    #[wasm_bindgen(js_name = saturationControl)]
+    pub fn saturation_control(&mut self, canvas_in: usize, canvas_out: usize, saturation: f32) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::saturation_control(&self.canvas, output_canvas, saturation);
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ =
+                paintcore::color::saturation_control(input_canvas, &mut self.canvas, saturation);
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::saturation_control(input_canvas, output_canvas, saturation);
+        }
+    }
+
+    #[wasm_bindgen(js_name = brightnessControl)]
+    pub fn brightness_control(&mut self, canvas_in: usize, canvas_out: usize, brightness: f32) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::brightness_control(&self.canvas, output_canvas, brightness);
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ =
+                paintcore::color::brightness_control(input_canvas, &mut self.canvas, brightness);
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::brightness_control(input_canvas, output_canvas, brightness);
+        }
+    }
+
+    #[wasm_bindgen(js_name = autoBrightness)]
+    pub fn auto_brightness(&mut self, canvas_in: usize, canvas_out: usize) {
+        if canvas_in == 0 {
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::auto_brightness(&self.canvas, output_canvas);
+        } else if canvas_out == 0 {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let _ = paintcore::color::auto_brightness(input_canvas, &mut self.canvas);
+        } else {
+            let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
+            let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
+            let _ = paintcore::color::auto_brightness(input_canvas, output_canvas);
+        }
+    }
+
     #[wasm_bindgen(js_name = affineTest2)]
     pub fn affine_test2(
         &mut self,

@@ -56,6 +56,8 @@ Color model ABGR uint32LE
 
 2026/03/24 0.0.26 FontAPIの実装
 
+2026/05/03 0.0.27 Color filter、Math libの実装
+
 Todo
 - organize Functions
 - border
