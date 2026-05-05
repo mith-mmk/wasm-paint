@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WASM Math Sample</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta viewport="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 16px;
+    }
+
+    main {
+      display: grid;
+      gap: 12px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 8px;
+      max-width: 960px;
+    }
+
+    .controls label {
+      display: grid;
+      gap: 4px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    textarea,
+    input,
+    button {
+      font: inherit;
+      padding: 8px;
+    }
+
+    #summary {
+      min-height: 1.5em;
+      white-space: pre-wrap;
+    }
+
+    canvas {
+      border: 1px solid #999;
+      max-width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>数式テキストサンプル</h1>
+  <p>`wasm-pack build -t web --features font` 後に利用してください。</p>
+</header>
+<main>
+  <div class="controls">
+    <label>
+      Font URL
+      <input id="font-url" type="text" placeholder="./sample/your-font.ttf">
+    </label>
+    <label>
+      Font File
+      <input id="font-file" type="file" accept=".ttf,.otf,.ttc,.woff,.woff2">
+    </label>
+    <label>
+      TeX-like Text
+      <textarea id="math-text" rows="4">E = mc^{2}
+H_{2}O + x^{2}_{i}</textarea>
+    </label>
+    <label>
+      Font Size
+      <input id="font-size" type="number" min="8" max="256" step="1" value="48">
+    </label>
+    <div class="actions">
+      <button id="load-font" type="button">Load Font</button>
+      <button id="render-math" type="button">Render</button>
+      <button id="run-smoke" type="button">Smoke Test</button>
+    </div>
+  </div>
+  <div id="summary"></div>
+  <canvas id="canvas" width="960" height="360"></canvas>
+  <script type="module" src="./js/math.js"></script>
+</main>
+</body>
+</html>

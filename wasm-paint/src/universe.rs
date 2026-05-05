@@ -2,6 +2,8 @@ type Error = Box<dyn std::error::Error>;
 
 use js_sys::{Array, Reflect};
 #[cfg(feature = "font")]
+use paintcore::math;
+#[cfg(feature = "font")]
 use paintcore::path::{
     FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle, FontWeight, LoadedFont,
     load_font_from_buffer,
@@ -1069,6 +1071,37 @@ impl Universe {
 
         path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
             .map_err(|error| js_error(&error.to_string()))
+    }
+
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = drawTexLike)]
+    pub fn draw_tex_like(
+        &mut self,
+        text: String,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: u32,
+    ) -> Result<(), JsValue> {
+        if !font_size.is_finite() || font_size <= 0.0 {
+            return Err(js_error("font_size must be a positive finite value"));
+        }
+
+        let font = self
+            .font
+            .clone()
+            .ok_or_else(|| js_error("font is not loaded"))?;
+        let glyphs = {
+            let mut options = FontOptions::new(&font);
+            options.font_size = font_size;
+            math::draw_tex_like(self.layer_mut(), &text, options, x, y, color)
+                .map_err(|error| js_error(&error.to_string()))?
+        };
+
+        if glyphs.glyphs.is_empty() {
+            return Err(js_error("tex-like text produced no glyphs"));
+        }
+        Ok(())
     }
 
     #[cfg(feature = "font")]

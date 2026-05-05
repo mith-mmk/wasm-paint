@@ -82,8 +82,14 @@ pub fn draw_tex_like(
             MathScript::Subscript => (script_size, base_size * 0.25),
         };
         options.font_size = font_size;
-        let run =
-            draw_text_with_options(screen, &token.text, options.clone(), cursor_x, y + dy, color)?;
+        let run = draw_text_with_options(
+            screen,
+            &token.text,
+            options.clone(),
+            cursor_x,
+            y + dy,
+            color,
+        )?;
         let advance = run
             .glyphs
             .iter()
