@@ -21,7 +21,7 @@ use std::cmp::Ordering;
 use std::io::Cursor;
 
 #[cfg(feature = "font")]
-pub use fontcore::commands as commads;
+pub use fontcore::commands;
 #[cfg(feature = "font")]
 pub use fontcore::{
     load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontRef, FontStretch,
