@@ -5,10 +5,7 @@ use crate::color::{
 };
 use crate::grayscale::to_grayscale;
 use crate::layer::Layer;
-use std::{
-    collections::HashMap,
-    io::{Error, ErrorKind},
-};
+use std::{collections::HashMap, io::Error};
 
 #[derive(Clone)]
 enum FilterType {
@@ -177,8 +174,8 @@ fn rgb_to_y(r: u8, g: u8, b: u8) -> f32 {
 
 #[inline]
 fn check_kernel_size(size: usize) -> Result<(), Error> {
-    if size % 2 == 0 {
-        Err(Error::new(ErrorKind::Other, "not support even kernel size"))
+    if size.is_multiple_of(2) {
+        Err(Error::other("not support even kernel size"))
     } else {
         Ok(())
     }
@@ -679,15 +676,15 @@ struct Grad {
 }
 
 fn calc_grad(gx: Vec<f32>, gy: Vec<f32>, w: usize, h: usize) -> Vec<Grad> {
-    let mut out = vec![Grad { mag: 0.0, dir: 0 }; w as usize * h as usize];
+    let mut out = vec![Grad { mag: 0.0, dir: 0 }; w * h];
 
     for y in 0..h {
-        let stride = (y * w) as usize;
+        let stride = y * w;
 
-        for x in 0..w as usize {
+        for x in 0..w {
             let offset = stride + x;
-            let g_x = gx[offset] as f32;
-            let g_y = gy[offset] as f32;
+            let g_x = gx[offset];
+            let g_y = gy[offset];
 
             let mag = (g_x * g_x + g_y * g_y).sqrt();
 
@@ -703,7 +700,7 @@ fn calc_grad(gx: Vec<f32>, gy: Vec<f32>, w: usize, h: usize) -> Vec<Grad> {
                 3 // ＼
             };
 
-            out[y as usize * w as usize + x as usize] = Grad { mag, dir };
+            out[y * w + x] = Grad { mag, dir };
         }
     }
 
@@ -1103,7 +1100,7 @@ fn _filter(
         FilterType::Gaussian => {
             let kernel = if let Some(options) = &options {
                 let sigma: f32 = if let Some(sigma) = options.get("sigma") {
-                    sigma.clone()
+                    *sigma
                 } else {
                     1.0
                 };
@@ -1168,10 +1165,7 @@ fn _filter(
         FilterType::AutoBrightness => auto_brightness(src, dest),
         FilterType::RGBCustom(kernel) => rgb_filter(src, dest, &kernel),
         FilterType::LUMCustom(kernel) => lum_filter(src, dest, &kernel),
-        FilterType::Unknown => Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Unknown filter",
-        )),
+        FilterType::Unknown => Err(std::io::Error::other("Unknown filter")),
     };
     result
 }
@@ -1198,14 +1192,14 @@ pub fn filters(
     copy_to(src, &mut intermediate_src)?;
 
     for (i, filter_name) in filter_names.iter().enumerate() {
-        if i % 2 == 0 {
+        if i.is_multiple_of(2) {
             filter(&intermediate_src, &mut intermediate_dest, filter_name)?;
         } else {
             filter(&intermediate_dest, &mut intermediate_src, filter_name)?;
         }
     }
 
-    if filter_names.len() % 2 == 0 {
+    if filter_names.len().is_multiple_of(2) {
         copy_to(&intermediate_src, dest)?;
     } else {
         copy_to(&intermediate_dest, dest)?;

@@ -32,6 +32,12 @@ pub struct Affine {
     affine: [[f32; 3]; 3], // 3*3
 }
 
+impl Default for Affine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Affine {
     pub fn new() -> Self {
         let affine = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -274,15 +280,9 @@ impl Affine {
         let mut alpha = -0.5; // -0.5 - -1.0
         let mut lanczos_n = 3;
         match algorithm {
-            InterpolationAlgorithm::BicubicAlpha(a) => {
-                if a.is_some() {
-                    alpha = a.unwrap()
-                }
-            }
-            InterpolationAlgorithm::Lanczos(n) | InterpolationAlgorithm::Lanzcos(n) => {
-                if n.is_some() {
-                    lanczos_n = n.unwrap();
-                }
+            InterpolationAlgorithm::BicubicAlpha(Some(a)) => alpha = a,
+            InterpolationAlgorithm::Lanczos(Some(n)) | InterpolationAlgorithm::Lanzcos(Some(n)) => {
+                lanczos_n = n;
             }
 
             _ => {}

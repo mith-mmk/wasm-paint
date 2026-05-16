@@ -58,6 +58,8 @@ Color model ABGR uint32LE
 
 2026/05/03 0.0.27 Color filter、Math libの実装
 
+2026/05/16 0.0.28 refatoring code 
+
 Todo
 - organize Functions
 - border

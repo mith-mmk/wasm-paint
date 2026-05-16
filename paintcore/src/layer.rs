@@ -179,7 +179,7 @@ impl DrawCallback for Layer {
         height: usize,
         _: Option<InitOptions>,
     ) -> Result<Option<CallbackResponse>, Error> {
-        if width <= 0 || height <= 0 {
+        if width == 0 || height == 0 {
             return Err(Box::new(ImgError::new_const(
                 ImgErrorKind::SizeZero,
                 "image size zero or minus".to_string(),

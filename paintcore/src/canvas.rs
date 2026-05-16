@@ -63,7 +63,6 @@ impl AnimationLayer {
         }
     }
 
-    #[warn(unused)]
     pub fn new_in(label: String, buffer: Vec<u8>, width: u32, height: u32) -> Self {
         let layer = Layer::new_in(label.to_string(), buffer, width, height);
         let layers = vec![layer];
@@ -159,15 +158,8 @@ impl AnimationLayer {
             let y = layer.y;
             if layer.enable() {
                 if let Some(control) = &layer.control {
-                    if let Some(blend) = &control.blend {
-                        match blend {
-                            NextBlend::Source => {
-                                draw_over_screen_with_alpha(layer, &mut self.layer, x, y);
-                            }
-                            _ => {
-                                draw_over_screen(layer, &mut self.layer, x, y);
-                            }
-                        }
+                    if let Some(NextBlend::Source) = &control.blend {
+                        draw_over_screen_with_alpha(layer, &mut self.layer, x, y);
                     } else {
                         draw_over_screen(layer, &mut self.layer, x, y);
                     }
@@ -231,7 +223,7 @@ impl PackedLayers {
     fn sort(&mut self) {
         let mut vector: Vec<(&String, i32)> =
             self.layers.iter().map(|(k, v)| (k, v.z_index())).collect();
-        vector.sort_by(|a, b| a.1.cmp(&b.1));
+        vector.sort_by_key(|a| a.1);
         let sorted: Vec<String> = vector.iter().map(|x| x.0.to_string()).collect();
         self.sorted = sorted;
     }
@@ -250,14 +242,11 @@ impl PackedLayers {
     }
 
     fn add(&mut self, label: String, width: u32, height: u32, x: i32, y: i32) -> Result<(), Error> {
-        match self.layers.get(&label) {
-            Some(..) => {
-                return Err(Box::new(crate::error::Error {
-                    message: "Exist Layer name".to_string(),
-                }))
-            }
-            _ => {}
-        };
+        if self.layers.contains_key(&label) {
+            return Err(Box::new(crate::error::Error {
+                message: "Exist Layer name".to_string(),
+            }));
+        }
         let mut layer = AnimationLayer::new(label.clone(), width, height);
         layer.set_z_index(self.layers.len() as i32);
         layer.x = x;
@@ -270,14 +259,11 @@ impl PackedLayers {
 
     fn add_layer(&mut self, mut layer: AnimationLayer) -> Result<(), Error> {
         let label = layer.layer().label.to_string();
-        match self.layers.get(&label) {
-            Some(..) => {
-                return Err(Box::new(crate::error::Error {
-                    message: "Exist Layer name".to_string(),
-                }))
-            }
-            _ => {}
-        };
+        if self.layers.contains_key(&label) {
+            return Err(Box::new(crate::error::Error {
+                message: "Exist Layer name".to_string(),
+            }));
+        }
         self.layers.insert(label.to_string(), layer);
         self.sorted.push(label.to_string());
         self.sort();
@@ -771,10 +757,7 @@ impl Canvas {
     }
 
     pub fn line_antialias(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: u32, size: f32) {
-        let alpha = match self.alpha() {
-            Some(alpha) => alpha,
-            _ => 0xff,
-        };
+        let alpha = self.alpha().unwrap_or(0xff);
         line::line_antialias(self, x0, y0, x1, y1, color, alpha, size)
     }
 
@@ -792,10 +775,7 @@ impl Canvas {
         y2: f32,
         color: u32,
     ) {
-        let mut p = Vec::new();
-        p.push((x0, y0));
-        p.push((x1, y1));
-        p.push((x2, y2));
+        let p = vec![(x0, y0), (x1, y1), (x2, y2)];
         spline::bezier_curve_with_alpha(self, p, color, 0xff, false, None)
     }
 
@@ -811,11 +791,7 @@ impl Canvas {
         y3: f32,
         color: u32,
     ) {
-        let mut p = Vec::new();
-        p.push((x0, y0));
-        p.push((x1, y1));
-        p.push((x2, y2));
-        p.push((x3, y3));
+        let p = vec![(x0, y0), (x1, y1), (x2, y2), (x3, y3)];
         spline::bezier_curve_with_alpha(self, p, color, 0xff, false, None)
     }
 }
@@ -874,7 +850,7 @@ impl DrawCallback for Canvas {
         height: usize,
         opt: Option<InitOptions>,
     ) -> Result<Option<CallbackResponse>, Error> {
-        if width <= 0 || height <= 0 {
+        if width == 0 || height == 0 {
             return Err(Box::new(ImgError::new_const(
                 ImgErrorKind::SizeZero,
                 "image size zero or minus".to_string(),

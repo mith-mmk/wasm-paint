@@ -837,8 +837,7 @@ fn curve_segment_count(control_polygon_length: f32, flatness_sq: f32) -> usize {
     let flatness_steps = (flatness_sq / CURVE_FLATNESS_TOLERANCE_SQ).sqrt().ceil() as usize;
     length_steps
         .max(flatness_steps)
-        .max(1)
-        .min(CURVE_MAX_SEGMENTS)
+        .clamp(1, CURVE_MAX_SEGMENTS)
 }
 
 fn quadratic_point(start: (f32, f32), control: (f32, f32), end: (f32, f32), t: f32) -> (f32, f32) {
@@ -1706,7 +1705,7 @@ pub fn draw_text_with_family<'a>(
     draw_text_with_options(screen, text, options, offset_x, offset_y, default_color)
 }
 
-pub fn draw(screen: &mut dyn Screen, commands: &Vec<Command>, color: u32) {
+pub fn draw(screen: &mut dyn Screen, commands: &[Command], color: u32) {
     let mut current_point = (0.0, 0.0);
     let mut start_point = (0.0, 0.0);
     for command in commands.iter() {

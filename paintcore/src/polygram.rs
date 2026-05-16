@@ -138,7 +138,7 @@ pub fn polygram_with_alpha(
     is_antialias: bool,
     size: Option<f32>,
 ) {
-    let ss = if let Some(_s) = size { _s } else { 1.0 };
+    let ss = size.unwrap_or(1.0);
 
     if r < 0.0 || p <= 2 {
         return;

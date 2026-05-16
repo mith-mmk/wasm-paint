@@ -1,3 +1,12 @@
+#![allow(
+    dead_code,
+    clippy::doc_overindented_list_items,
+    clippy::enum_variant_names,
+    clippy::explicit_counter_loop,
+    clippy::needless_range_loop,
+    clippy::too_many_arguments
+)]
+
 pub fn test() {}
 
 pub mod affine;

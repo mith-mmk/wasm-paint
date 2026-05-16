@@ -599,7 +599,7 @@ impl Universe {
     pub fn layer_alpha(&mut self, label: String) -> u8 {
         let r = self.canvas.get_layer_alpha(label);
         if let Ok(alpha) = r {
-            if let Some(alpha) = alpha { alpha } else { 0xff }
+            alpha.unwrap_or(0xff)
         } else {
             0
         }
@@ -613,7 +613,7 @@ impl Universe {
     #[wasm_bindgen(js_name = getEnable)]
     pub fn enable(&self, label: String) -> bool {
         let r = self.canvas.enable(label);
-        if let Ok(enable) = r { enable } else { false }
+        r.unwrap_or_default()
     }
 
     #[wasm_bindgen(js_name = setCurrentLayer)]
@@ -719,11 +719,8 @@ impl Universe {
     #[wasm_bindgen(js_name = addLayer)]
     pub fn add_layer(&mut self, label: String, width: u32, height: u32) {
         let ret = self.canvas.add_layer(label, width, height, 0, 0);
-        match ret {
-            Err(err) => {
-                log(&format!("{:?}", err));
-            }
-            _ => {}
+        if let Err(err) = ret {
+            log(&format!("{:?}", err));
         }
     }
 
@@ -1241,11 +1238,8 @@ impl Universe {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             res = filter(input_canvas, output_canvas, filter_name);
         }
-        match res {
-            Err(err) => {
-                log(&format!("{:?}", err));
-            }
-            _ => {}
+        if let Err(err) = res {
+            log(&format!("{:?}", err));
         }
     }
 

@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 mod utils;
 
 use wasm_bindgen::prelude::*;
@@ -32,5 +34,11 @@ impl Rnd {
         self.seed = seed ^ (seed >> 8);
 
         (seed % range as u64) as u32
+    }
+}
+
+impl Default for Rnd {
+    fn default() -> Self {
+        Self::new()
     }
 }

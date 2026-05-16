@@ -22,9 +22,7 @@ fn polyline_length(points: &[(f32, f32)]) -> f32 {
 
 fn curve_steps(points: &[(f32, f32)]) -> usize {
     let length = polyline_length(points);
-    ((length / CURVE_STEP_PIXELS).ceil() as usize)
-        .max(1)
-        .min(CURVE_MAX_STEPS)
+    ((length / CURVE_STEP_PIXELS).ceil() as usize).clamp(1, CURVE_MAX_STEPS)
 }
 
 fn draw_curve_segment(
@@ -75,7 +73,7 @@ pub fn quadratic_curve_with_alpha(
     is_antialias: bool,
     size: Option<f32>,
 ) {
-    let s = if let Some(_s) = size { _s } else { 1.0 };
+    let s = size.unwrap_or(1.0);
     if p.is_empty() {
         return;
     }
@@ -275,7 +273,7 @@ pub fn bezier_curve_with_alpha(
     is_antialias: bool,
     size: Option<f32>,
 ) {
-    let s = if let Some(_s) = size { _s } else { 1.0 };
+    let s = size.unwrap_or(1.0);
     if p.is_empty() {
         return;
     }
