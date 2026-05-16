@@ -309,7 +309,7 @@ pub fn arc_tilde_with_alpha(
 
         if (ts <= theta && theta <= te) || (ts <= thetam && thetam <= te) {
             // arc check
-            // afin transration
+            // affine transformation
             /*          shift         tilde      rev y
              * |x'|  | 1 0 ox|| cosθ -sinθ  0||1  0  0|
              * |y'| =| 0 1 oy|| sinθ  cosθ  0||0 -1  0||x y 1|

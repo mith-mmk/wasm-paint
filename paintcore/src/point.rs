@@ -5,7 +5,7 @@
  */
 
 use crate::canvas::Screen;
-use crate::utils::color_taple;
+use crate::utils::color_tuple;
 
 fn _point(
     screen: &mut dyn Screen,
@@ -60,17 +60,17 @@ pub(crate) fn point_for_line(screen: &mut dyn Screen, x: i32, y: i32, r: u8, g: 
 }
 
 pub fn point(screen: &mut dyn Screen, x: i32, y: i32, color: u32) {
-    let (red, green, blue, _) = color_taple(color);
+    let (red, green, blue, _) = color_tuple(color);
     _point(screen, x, y, red, green, blue, 0xff, 1.0);
 }
 
 pub fn point_with_alpha(screen: &mut dyn Screen, x: i32, y: i32, color: u32, alpha: u8) {
-    let (red, green, blue, _) = color_taple(color);
+    let (red, green, blue, _) = color_tuple(color);
     _point(screen, x, y, red, green, blue, alpha, 1.0);
 }
 
 pub fn point_with_weight(screen: &mut dyn Screen, x: i32, y: i32, color: u32, weight: f32) {
-    let (red, green, blue, _) = color_taple(color);
+    let (red, green, blue, _) = color_tuple(color);
     _point(screen, x, y, red, green, blue, 0xff, weight);
 }
 
@@ -81,7 +81,7 @@ pub fn point_with_weight_from_alpha(
     color: u32,
     alpha: u8,
 ) {
-    let (red, green, blue, _) = color_taple(color);
+    let (red, green, blue, _) = color_tuple(color);
     _point(screen, x, y, red, green, blue, 0xff, alpha as f32 / 255.0);
 }
 
@@ -89,7 +89,7 @@ pub fn point_antialias(screen: &mut dyn Screen, x: f32, y: f32, color: u32, alph
     if size <= 0.0 {
         return;
     };
-    let (red, green, blue, _) = color_taple(color);
+    let (red, green, blue, _) = color_tuple(color);
     let alpha = alpha as f32 / 255.0_f32;
     // x = 4.5 y = 5.0size= 4.5
     let sx: f32 = (x + 0.5 - size / 2.0).floor(); // sx : 2

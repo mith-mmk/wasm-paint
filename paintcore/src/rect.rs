@@ -1,4 +1,4 @@
-//! draw a recty1
+//! Draw rectangles.
 use crate::canvas::*;
 use crate::utils::*;
 
@@ -23,7 +23,7 @@ pub fn rect_with_alpha(
 
     let buf = &mut screen.buffer_mut();
     // Color model u32 LE (ARGB)  -> u8 BGRA
-    let (red, green, blue, _) = color_taple(color);
+    let (red, green, blue, _) = color_tuple(color);
 
     for y in sy..ey + 1 {
         let pos = ((y * width + sx) * 4) as usize;

@@ -1,4 +1,4 @@
-//! Affine trasration
+//! Affine transformation.
 //!
 /*
  * affine.rs  Mith@mmk (C) 2022
@@ -14,11 +14,17 @@ use std::cmp::Ordering;
 
 #[derive(Clone)]
 pub enum InterpolationAlgorithm {
+    NearestNeighbor,
+    #[deprecated(note = "use NearestNeighbor")]
     NearestNeighber,
     Bilinear,
     Bicubic,
     BicubicAlpha(Option<f32>),
+    Lanczos3,
+    Lanczos(Option<usize>),
+    #[deprecated(note = "use Lanczos3")]
     Lanzcos3,
+    #[deprecated(note = "use Lanczos")]
     Lanzcos(Option<usize>),
 }
 
@@ -44,7 +50,7 @@ impl Affine {
         self.affine = result;
     }
 
-    /// transration image (x,y) position
+    /// Translates an image position.
     pub fn translation(&mut self, x: f32, y: f32) {
         self.matrix(&[[1.0, 0.0, x], [0.0, 1.0, y], [0.0, 0.0, 1.0]]);
     }
@@ -69,13 +75,18 @@ impl Affine {
         self.matrix(&[[x, 0.0, 0.0], [0.0, y, 0.0], [0.0, 0.0, 1.0]]);
     }
 
-    /// rotate by dgree
-    pub fn rotate_by_dgree(&mut self, theta: f32) {
+    /// Rotates by degree.
+    pub fn rotate_by_degree(&mut self, theta: f32) {
         let theta = PI * theta / 180.0;
         self.rotate(theta);
     }
 
-    /// rotate by radian
+    #[deprecated(note = "use rotate_by_degree")]
+    pub fn rotate_by_dgree(&mut self, theta: f32) {
+        self.rotate_by_degree(theta);
+    }
+
+    /// Rotates by radian.
     pub fn rotate(&mut self, theta: f32) {
         let c = theta.cos();
         let s = theta.sin();
@@ -113,7 +124,43 @@ impl Affine {
         (x * PI).sin() / (x * PI)
     }
 
-    /// conversion no implement interpolations
+    #[inline]
+    fn add_weighted_premultiplied_sample(
+        input_buffer: &[u8],
+        offset: usize,
+        weight: f32,
+        color: &mut [f32; 3],
+        alpha: &mut f32,
+    ) {
+        let sample_alpha = input_buffer[offset + 3] as f32 * weight;
+        color[0] += input_buffer[offset] as f32 * sample_alpha;
+        color[1] += input_buffer[offset + 1] as f32 * sample_alpha;
+        color[2] += input_buffer[offset + 2] as f32 * sample_alpha;
+        *alpha += sample_alpha;
+    }
+
+    #[inline]
+    fn write_unpremultiplied_sample(
+        output_buffer: &mut [u8],
+        output_offset: usize,
+        color: [f32; 3],
+        alpha: f32,
+    ) {
+        if alpha <= f32::EPSILON {
+            output_buffer[output_offset] = 0;
+            output_buffer[output_offset + 1] = 0;
+            output_buffer[output_offset + 2] = 0;
+            output_buffer[output_offset + 3] = 0;
+            return;
+        }
+
+        output_buffer[output_offset] = (color[0] / alpha).round().clamp(0.0, 255.0) as u8;
+        output_buffer[output_offset + 1] = (color[1] / alpha).round().clamp(0.0, 255.0) as u8;
+        output_buffer[output_offset + 2] = (color[2] / alpha).round().clamp(0.0, 255.0) as u8;
+        output_buffer[output_offset + 3] = alpha.round().clamp(0.0, 255.0) as u8;
+    }
+
+    /// Converts without interpolation.
     pub fn _conversion(&mut self, input_screen: &dyn Screen, output_screen: &mut dyn Screen) {
         let min_x = 0;
         let max_x = output_screen.width() as i32;
@@ -168,7 +215,7 @@ impl Affine {
         }
     }
 
-    /// conversion implement interpolations
+    /// Converts with interpolation.
     pub fn conversion(
         &mut self,
         input_screen: &dyn Screen,
@@ -198,6 +245,7 @@ impl Affine {
         );
     }
 
+    #[allow(deprecated)]
     pub fn conversion_with_area_center(
         &mut self,
         input_screen: &dyn Screen,
@@ -224,16 +272,16 @@ impl Affine {
         let input_buffer = input_screen.buffer();
 
         let mut alpha = -0.5; // -0.5 - -1.0
-        let mut lanzcos_n = 3;
+        let mut lanczos_n = 3;
         match algorithm {
             InterpolationAlgorithm::BicubicAlpha(a) => {
                 if a.is_some() {
                     alpha = a.unwrap()
                 }
             }
-            InterpolationAlgorithm::Lanzcos(n) => {
+            InterpolationAlgorithm::Lanczos(n) | InterpolationAlgorithm::Lanzcos(n) => {
                 if n.is_some() {
-                    lanzcos_n = n.unwrap();
+                    lanczos_n = n.unwrap();
                 }
             }
 
@@ -403,7 +451,8 @@ impl Affine {
                     let input_offset =
                         (yy as usize * input_screen.width() as usize + xx as usize) * 4;
                     match algorithm {
-                        InterpolationAlgorithm::NearestNeighber => {
+                        InterpolationAlgorithm::NearestNeighbor
+                        | InterpolationAlgorithm::NearestNeighber => {
                             output_buffer[output_offset] = input_buffer[input_offset];
                             output_buffer[output_offset + 1] = input_buffer[input_offset + 1];
                             output_buffer[output_offset + 2] = input_buffer[input_offset + 2];
@@ -422,34 +471,29 @@ impl Affine {
                                 input_screen.width() as usize * 4
                             };
 
-                            let r = (input_buffer[input_offset] as f32 * (1.0 - dx) * (1.0 - dy)
-                                + input_buffer[input_offset + nx] as f32 * dx * (1.0 - dy)
-                                + input_buffer[input_offset + ny] as f32 * (1.0 - dx) * dy
-                                + input_buffer[input_offset + nx + ny] as f32 * dx * dy)
-                                as i32;
-                            let g =
-                                (input_buffer[input_offset + 1] as f32 * (1.0 - dx) * (1.0 - dy)
-                                    + input_buffer[input_offset + 1 + nx] as f32 * dx * (1.0 - dy)
-                                    + input_buffer[input_offset + 1 + ny] as f32 * (1.0 - dx) * dy
-                                    + input_buffer[input_offset + 1 + nx + ny] as f32 * dx * dy)
-                                    as i32;
-                            let b =
-                                (input_buffer[input_offset + 2] as f32 * (1.0 - dx) * (1.0 - dy)
-                                    + input_buffer[input_offset + 2 + nx] as f32 * dx * (1.0 - dy)
-                                    + input_buffer[input_offset + 2 + ny] as f32 * (1.0 - dx) * dy
-                                    + input_buffer[input_offset + 2 + nx + ny] as f32 * dx * dy)
-                                    as i32;
-                            let a =
-                                (input_buffer[input_offset + 3] as f32 * (1.0 - dx) * (1.0 - dy)
-                                    + input_buffer[input_offset + 3 + nx] as f32 * dx * (1.0 - dy)
-                                    + input_buffer[input_offset + 3 + ny] as f32 * (1.0 - dx) * dy
-                                    + input_buffer[input_offset + 3 + nx + ny] as f32 * dx * dy)
-                                    as i32;
-
-                            output_buffer[output_offset] = r.clamp(0, 255) as u8;
-                            output_buffer[output_offset + 1] = g.clamp(0, 255) as u8;
-                            output_buffer[output_offset + 2] = b.clamp(0, 255) as u8;
-                            output_buffer[output_offset + 3] = a.clamp(0, 255) as u8;
+                            let mut color = [0.0; 3];
+                            let mut alpha = 0.0;
+                            let samples = [
+                                (input_offset, (1.0 - dx) * (1.0 - dy)),
+                                (input_offset + nx, dx * (1.0 - dy)),
+                                (input_offset + ny, (1.0 - dx) * dy),
+                                (input_offset + nx + ny, dx * dy),
+                            ];
+                            for (offset, weight) in samples {
+                                Self::add_weighted_premultiplied_sample(
+                                    input_buffer,
+                                    offset,
+                                    weight,
+                                    &mut color,
+                                    &mut alpha,
+                                );
+                            }
+                            Self::write_unpremultiplied_sample(
+                                output_buffer,
+                                output_offset,
+                                color,
+                                alpha,
+                            );
                         }
                         InterpolationAlgorithm::Bicubic
                         | InterpolationAlgorithm::BicubicAlpha(_) => {
@@ -458,7 +502,8 @@ impl Affine {
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
 
-                            let mut color = [0.0; 4];
+                            let mut color = [0.0; 3];
+                            let mut out_alpha = 0.0;
 
                             for _y in 0..4 {
                                 let dy = _y as f32 - dy - 1.0;
@@ -504,28 +549,35 @@ impl Affine {
                                     };
 
                                     let w = wx * wy;
-
-                                    for i in 0..3 {
-                                        color[i] += w * input_buffer[offset as usize + i] as f32;
-                                    }
+                                    Self::add_weighted_premultiplied_sample(
+                                        input_buffer,
+                                        offset as usize,
+                                        w,
+                                        &mut color,
+                                        &mut out_alpha,
+                                    );
                                 }
                             }
 
-                            output_buffer[output_offset] = (color[0] as i32).clamp(0, 255) as u8;
-                            output_buffer[output_offset + 1] =
-                                (color[1] as i32).clamp(0, 255) as u8;
-                            output_buffer[output_offset + 2] =
-                                (color[2] as i32).clamp(0, 255) as u8;
-                            output_buffer[output_offset + 3] = 0xff;
+                            Self::write_unpremultiplied_sample(
+                                output_buffer,
+                                output_offset,
+                                color,
+                                out_alpha,
+                            );
                         }
-                        InterpolationAlgorithm::Lanzcos3 | InterpolationAlgorithm::Lanzcos(_) => {
+                        InterpolationAlgorithm::Lanczos3
+                        | InterpolationAlgorithm::Lanczos(_)
+                        | InterpolationAlgorithm::Lanzcos3
+                        | InterpolationAlgorithm::Lanzcos(_) => {
                             let dx = xx - xx.floor();
                             let dy = yy - yy.floor();
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
-                            let n = lanzcos_n as i32;
+                            let n = lanczos_n as i32;
 
-                            let mut color = [0.0; 4];
+                            let mut color = [0.0; 3];
+                            let mut out_alpha = 0.0;
 
                             for _y in 0..2 * n {
                                 let jy = _y - n + 1;
@@ -564,18 +616,22 @@ impl Affine {
                                     };
 
                                     let w = wx * wy;
-                                    for i in 0..3 {
-                                        color[i] += w * input_buffer[offset as usize + i] as f32;
-                                    }
+                                    Self::add_weighted_premultiplied_sample(
+                                        input_buffer,
+                                        offset as usize,
+                                        w,
+                                        &mut color,
+                                        &mut out_alpha,
+                                    );
                                 }
                             }
 
-                            output_buffer[output_offset] = (color[0] as i32).clamp(0, 255) as u8;
-                            output_buffer[output_offset + 1] =
-                                (color[1] as i32).clamp(0, 255) as u8;
-                            output_buffer[output_offset + 2] =
-                                (color[2] as i32).clamp(0, 255) as u8;
-                            output_buffer[output_offset + 3] = 0xff;
+                            Self::write_unpremultiplied_sample(
+                                output_buffer,
+                                output_offset,
+                                color,
+                                out_alpha,
+                            );
                         }
                     }
                 }
@@ -695,9 +751,7 @@ impl Affine {
                 let err_x1 = end_x - end_x.floor();
                 let dx = end_x as usize - base_x + 1;
 
-                let mut red = 0.0;
-                let mut green = 0.0;
-                let mut blue = 0.0;
+                let mut color = [0.0; 3];
                 let mut alpha = 0.0;
                 for yy_ in 0..dy {
                     let mut yy = yy_ + base_y;
@@ -726,17 +780,22 @@ impl Affine {
                         };
                         let src_offset = input_base_line + xx * 4;
                         let weight = weight * err_x * err_y;
-                        red += input_screen.buffer()[src_offset] as f32 * weight;
-                        green += input_screen.buffer()[src_offset + 1] as f32 * weight;
-                        blue += input_screen.buffer()[src_offset + 2] as f32 * weight;
-                        alpha += input_screen.buffer()[src_offset + 3] as f32 * weight;
+                        Self::add_weighted_premultiplied_sample(
+                            input_screen.buffer(),
+                            src_offset,
+                            weight,
+                            &mut color,
+                            &mut alpha,
+                        );
                     }
                 }
 
-                output_screen.buffer_mut()[dest_offset] = (red as u32).clamp(0, 255) as u8;
-                output_screen.buffer_mut()[dest_offset + 1] = (green as u32).clamp(0, 255) as u8;
-                output_screen.buffer_mut()[dest_offset + 2] = (blue as u32).clamp(0, 255) as u8;
-                output_screen.buffer_mut()[dest_offset + 3] = (alpha as u32).clamp(0, 255) as u8;
+                Self::write_unpremultiplied_sample(
+                    output_screen.buffer_mut(),
+                    dest_offset,
+                    color,
+                    alpha,
+                );
                 dest_offset += 4;
             }
         }

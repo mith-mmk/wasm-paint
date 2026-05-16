@@ -13,5 +13,4 @@ svg-font = ["font", "fontcore/svg-fonts"]
 
 [dependencies]
 wml2.workspace = true
-fontcore = {workspace = true, optional = true}
-png = "0.17"
+fontcore = {version = "0.0.12", optional = true}

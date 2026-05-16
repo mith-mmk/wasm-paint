@@ -3,7 +3,7 @@ use core::cmp::max;
 use core::cmp::min;
 
 #[inline]
-pub fn color_taple(color: u32) -> (u8, u8, u8, u8) {
+pub fn color_tuple(color: u32) -> (u8, u8, u8, u8) {
     let alpha: u8 = ((color >> 24) & 0xff) as u8;
     let red: u8 = ((color >> 16) & 0xff) as u8;
     let green: u8 = ((color >> 8) & 0xff) as u8;
@@ -12,7 +12,13 @@ pub fn color_taple(color: u32) -> (u8, u8, u8, u8) {
 }
 
 #[inline]
-pub fn pick_taple(screen: &mut dyn Screen, x: u32, y: u32) -> (u8, u8, u8, u8) {
+#[deprecated(note = "use color_tuple")]
+pub fn color_taple(color: u32) -> (u8, u8, u8, u8) {
+    color_tuple(color)
+}
+
+#[inline]
+pub fn pick_tuple(screen: &mut dyn Screen, x: u32, y: u32) -> (u8, u8, u8, u8) {
     let pos: usize = (y * screen.width() * 4 + (x * 4)) as usize;
     let buf = &screen.buffer_mut();
 
@@ -24,8 +30,14 @@ pub fn pick_taple(screen: &mut dyn Screen, x: u32, y: u32) -> (u8, u8, u8, u8) {
 }
 
 #[inline]
+#[deprecated(note = "use pick_tuple")]
+pub fn pick_taple(screen: &mut dyn Screen, x: u32, y: u32) -> (u8, u8, u8, u8) {
+    pick_tuple(screen, x, y)
+}
+
+#[inline]
 pub fn pick(screen: &mut dyn Screen, x: u32, y: u32) -> u32 {
-    let (r, g, b, _) = pick_taple(screen, x, y);
+    let (r, g, b, _) = pick_tuple(screen, x, y);
     let color: u32 = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
     color
 }

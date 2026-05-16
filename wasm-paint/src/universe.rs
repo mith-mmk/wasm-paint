@@ -1187,7 +1187,7 @@ impl Universe {
     pub fn affine_add(&mut self, no: usize, value1: f32, value2: f32) {
         match no {
             0 => self.affine.invert_xy(),
-            1 => self.affine.rotate_by_dgree(value1),
+            1 => self.affine.rotate_by_degree(value1),
             2 => self.affine.scale(value1, value1),
             3 => self.affine.scale(value1, value2),
             4 => self.affine.translation(value1, value2),
@@ -1199,11 +1199,11 @@ impl Universe {
 
     #[wasm_bindgen(js_name = affineRun)]
     pub fn affine_run(&mut self, canvas_in: usize, canvas_out: usize, interpolation: usize) {
-        let algorithom = match interpolation {
-            0 => InterpolationAlgorithm::NearestNeighber,
+        let algorithm = match interpolation {
+            0 => InterpolationAlgorithm::NearestNeighbor,
             1 => InterpolationAlgorithm::Bilinear,
             2 => InterpolationAlgorithm::Bicubic,
-            3 => InterpolationAlgorithm::Lanzcos3,
+            3 => InterpolationAlgorithm::Lanczos3,
 
             _ => InterpolationAlgorithm::BicubicAlpha(Some(-1.0)),
         };
@@ -1211,18 +1211,18 @@ impl Universe {
         if canvas_in == 0 {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             self.affine
-                .conversion(&self.canvas, output_canvas, algorithom);
+                .conversion(&self.canvas, output_canvas, algorithm);
         //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
         } else if canvas_out == 0 {
             let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
             self.affine
-                .conversion(input_canvas, &mut self.canvas, algorithom);
+                .conversion(input_canvas, &mut self.canvas, algorithm);
         } else {
             let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
             self.affine
-                .conversion(input_canvas, output_canvas, algorithom);
+                .conversion(input_canvas, output_canvas, algorithm);
         }
     }
 
@@ -1436,7 +1436,7 @@ impl Universe {
                 affine.invert_xy();
             }
             1 => {
-                affine.rotate_by_dgree(30.0);
+                affine.rotate_by_degree(30.0);
             }
             2 => {
                 affine.scale(1.0 / 3.0, 1.0 / 3.0);
@@ -1449,7 +1449,7 @@ impl Universe {
             6 => affine.skew_x_by_degree(-50.0),
             7 => {
                 affine.invert_xy();
-                affine.rotate_by_dgree(30.0);
+                affine.rotate_by_degree(30.0);
                 affine.scale(1.0 / 3.0, 1.0 / 3.0);
                 affine.scale(4.5, 4.5);
                 affine.translation(20.0, 20.0);
@@ -1459,27 +1459,27 @@ impl Universe {
             _ => {}
         }
 
-        let algorithom = match interpolation {
-            0 => InterpolationAlgorithm::NearestNeighber,
+        let algorithm = match interpolation {
+            0 => InterpolationAlgorithm::NearestNeighbor,
             1 => InterpolationAlgorithm::Bilinear,
             2 => InterpolationAlgorithm::Bicubic,
-            3 => InterpolationAlgorithm::Lanzcos3,
+            3 => InterpolationAlgorithm::Lanczos3,
 
             _ => InterpolationAlgorithm::BicubicAlpha(Some(-1.0)),
         };
 
         if canvas_in == 0 {
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            affine.conversion(&self.canvas, output_canvas, algorithom);
+            affine.conversion(&self.canvas, output_canvas, algorithm);
         //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
         } else if canvas_out == 0 {
             let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
-            affine.conversion(input_canvas, &mut self.canvas, algorithom);
+            affine.conversion(input_canvas, &mut self.canvas, algorithm);
         } else {
             let input_canvas = &*self.append_canvas[canvas_in - 1].read().unwrap();
             let output_canvas = &mut *self.append_canvas[canvas_out - 1].write().unwrap();
-            affine.conversion(input_canvas, output_canvas, algorithom);
+            affine.conversion(input_canvas, output_canvas, algorithm);
         }
     }
 
@@ -1488,7 +1488,7 @@ impl Universe {
         let mut affine = Affine::new();
         affine.invert_xy();
         affine.scale(5.3, 5.3);
-        affine.rotate_by_dgree(12.0);
+        affine.rotate_by_degree(12.0);
 
         if canvas_in == 0 {
             self.combine();
@@ -1496,7 +1496,7 @@ impl Universe {
             affine.conversion(
                 &self.canvas,
                 output_canvas,
-                InterpolationAlgorithm::Lanzcos(Some(3)),
+                InterpolationAlgorithm::Lanczos(Some(3)),
             );
         //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bilinear);
         //            affine.conversion(&self.canvas,output_canvas,InterpolationAlgorithm::Bicubic(Some(-0.5)));
@@ -1519,12 +1519,12 @@ impl Universe {
     }
 
     #[wasm_bindgen(js_name = imageLoader)]
-    pub fn image_loader(&mut self, buffer: &[u8], interlop: usize) {
-        let interlop = match interlop {
-            0 => Some(InterpolationAlgorithm::NearestNeighber),
+    pub fn image_loader(&mut self, buffer: &[u8], interpolation: usize) {
+        let interpolation = match interpolation {
+            0 => Some(InterpolationAlgorithm::NearestNeighbor),
             1 => Some(InterpolationAlgorithm::Bilinear),
             2 => Some(InterpolationAlgorithm::Bicubic),
-            3 => Some(InterpolationAlgorithm::Lanzcos3),
+            3 => Some(InterpolationAlgorithm::Lanczos3),
             4 => Some(InterpolationAlgorithm::BicubicAlpha(Some(-1.0))),
             _ => None,
         };
@@ -1532,7 +1532,7 @@ impl Universe {
         let r = draw_image_fit_screen(
             self.layer_mut(),
             buffer,
-            interlop.clone(),
+            interpolation.clone(),
             ImageAlign::Center,
         );
         match r {
@@ -1545,7 +1545,7 @@ impl Universe {
             }
             Ok(image_buffer) => {
                 log(&format!("{:?}", image_buffer.metadata()));
-                self.tmp_canvas = Some((image_buffer, interlop, ImageAlign::Center));
+                self.tmp_canvas = Some((image_buffer, interpolation, ImageAlign::Center));
                 self.combine();
             }
         }

@@ -144,7 +144,7 @@ pub fn polygram_with_alpha(
         return;
     };
 
-    let angle = 2.0 * PI / p as f32; // = 72.0 dgree
+    let angle = 2.0 * PI / p as f32; // = 72.0 degrees
 
     let mut x = vec![0; p as usize];
     let mut y = vec![0; p as usize];

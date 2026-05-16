@@ -4,21 +4,10 @@
 type Error = Box<dyn std::error::Error>;
 
 use crate::{
-    affine::{Affine, InterpolationAlgorithm},
-    draw::draw_over_screen_with_alpha,
-    error::Error as PaintError,
-    image::{self, ImageAlign},
-    layer::Layer,
-    line,
-    prelude::Screen,
-    spline,
-    utils::color_taple,
-};
-use png::{
-    ColorType as PngColorType, Decoder as PngDecoder, Transformations as PngTransformations,
+    affine::InterpolationAlgorithm, draw::draw_over_screen_with_alpha, error::Error as PaintError,
+    image, layer::Layer, line, prelude::Screen, spline, utils::color_tuple,
 };
 use std::cmp::Ordering;
-use std::io::Cursor;
 
 #[cfg(feature = "font")]
 pub use fontcore::commands;
@@ -197,7 +186,7 @@ impl PathGlyphLayer {
 
 /// Raster glyph payload.
 ///
-/// `Encoded` is decoded through the existing image loader, which already covers PNG.
+/// `Encoded` is decoded through the format-neutral image loader.
 #[derive(Debug, Clone)]
 pub enum RasterGlyphSource {
     Encoded(Vec<u8>),
@@ -1142,7 +1131,7 @@ fn blend_coverage_pixel(screen: &mut dyn Screen, x: i32, y: i32, color: u32, cov
         return;
     }
 
-    let (red, green, blue, alpha) = color_taple(color);
+    let (red, green, blue, alpha) = color_tuple(color);
     let src_alpha = (alpha as f32 / 255.0) * coverage;
     if src_alpha <= f32::EPSILON {
         return;
@@ -1419,11 +1408,7 @@ fn clip_mask_from_commands(
 fn decode_raster(source: &RasterGlyphSource) -> Result<Layer, Error> {
     match source {
         RasterGlyphSource::Encoded(data) => {
-            let mut layer = Layer::tmp(0, 0);
-            match image::draw_image(&mut layer, data, 0) {
-                Ok(_) => Ok(layer),
-                Err(primary_error) => decode_png_raster(data).or(Err(primary_error)),
-            }
+            image::decode_image_layer("_glyph_raster_".to_string(), data, 0)
         }
         RasterGlyphSource::Rgba {
             width,
@@ -1447,63 +1432,6 @@ fn decode_raster(source: &RasterGlyphSource) -> Result<Layer, Error> {
             ))
         }
     }
-}
-
-fn decode_png_raster(data: &[u8]) -> Result<Layer, Error> {
-    const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
-    if data.len() < PNG_SIGNATURE.len() || &data[..PNG_SIGNATURE.len()] != PNG_SIGNATURE {
-        return Err(paint_error("encoded raster glyph is not a PNG"));
-    }
-
-    let cursor = Cursor::new(data);
-    let mut decoder = PngDecoder::new(cursor);
-    decoder.set_transformations(PngTransformations::EXPAND | PngTransformations::STRIP_16);
-
-    let mut reader = decoder
-        .read_info()
-        .map_err(|error| paint_error(&format!("png glyph decode failed: {}", error)))?;
-    let mut buffer = vec![0; reader.output_buffer_size()];
-    let info = reader
-        .next_frame(&mut buffer)
-        .map_err(|error| paint_error(&format!("png glyph frame decode failed: {}", error)))?;
-    let pixels = &buffer[..info.buffer_size()];
-
-    let rgba = match info.color_type {
-        PngColorType::Rgba => pixels.to_vec(),
-        PngColorType::Rgb => {
-            let mut rgba = Vec::with_capacity((info.width * info.height * 4) as usize);
-            for chunk in pixels.chunks_exact(3) {
-                rgba.extend_from_slice(&[chunk[0], chunk[1], chunk[2], 0xff]);
-            }
-            rgba
-        }
-        PngColorType::Grayscale => {
-            let mut rgba = Vec::with_capacity((info.width * info.height * 4) as usize);
-            for gray in pixels {
-                rgba.extend_from_slice(&[*gray, *gray, *gray, 0xff]);
-            }
-            rgba
-        }
-        PngColorType::GrayscaleAlpha => {
-            let mut rgba = Vec::with_capacity((info.width * info.height * 4) as usize);
-            for chunk in pixels.chunks_exact(2) {
-                rgba.extend_from_slice(&[chunk[0], chunk[0], chunk[0], chunk[1]]);
-            }
-            rgba
-        }
-        PngColorType::Indexed => {
-            return Err(paint_error(
-                "png glyph decode left indexed data after EXPAND transformation",
-            ));
-        }
-    };
-
-    Ok(Layer::new_in(
-        "_glyph_raster_png_".to_string(),
-        rgba,
-        info.width,
-        info.height,
-    ))
 }
 
 fn scaled_size(
@@ -1532,7 +1460,7 @@ fn scale_raster(
     source: &Layer,
     width: u32,
     height: u32,
-    interpolation: InterpolationAlgorithm,
+    _interpolation: InterpolationAlgorithm,
 ) -> Layer {
     if source.width() == width && source.height() == height {
         return Layer::new_in(
@@ -1544,43 +1472,73 @@ fn scale_raster(
     }
 
     let mut target = Layer::tmp(width, height);
-    let scale_x = width as f32 / source.width() as f32;
-    let scale_y = height as f32 / source.height() as f32;
-
-    if (scale_x - scale_y).abs() <= f32::EPSILON {
-        Affine::resize(
-            source,
-            &mut target,
-            scale_x,
-            interpolation,
-            ImageAlign::LeftUp,
-        );
-        return target;
-    }
-
-    let mut affine = Affine::new();
-    affine.scale(scale_x, scale_y);
-    affine.conversion_with_area_center(
-        source,
-        &mut target,
-        0.0,
-        0.0,
-        source.width() as f32,
-        source.height() as f32,
-        0,
-        0,
-        width as i32,
-        height as i32,
-        0.0,
-        0.0,
-        interpolation,
-    );
-
+    scale_raster_premultiplied_bilinear(source, &mut target);
     target
 }
 
 fn raster_interpolation(_layer: &RasterGlyphLayer) -> InterpolationAlgorithm {
     InterpolationAlgorithm::Bilinear
+}
+
+fn scale_raster_premultiplied_bilinear(source: &Layer, target: &mut Layer) {
+    let src_width = source.width() as usize;
+    let src_height = source.height() as usize;
+    let dst_width = target.width() as usize;
+    let dst_height = target.height() as usize;
+    if src_width == 0 || src_height == 0 || dst_width == 0 || dst_height == 0 {
+        return;
+    }
+
+    let src_buffer = source.buffer();
+    let dst_buffer = target.buffer_mut();
+    let scale_x = src_width as f32 / dst_width as f32;
+    let scale_y = src_height as f32 / dst_height as f32;
+
+    for y in 0..dst_height {
+        let sy = ((y as f32 + 0.5) * scale_y - 0.5).clamp(0.0, (src_height - 1) as f32);
+        let y0 = sy.floor() as usize;
+        let y1 = (y0 + 1).min(src_height - 1);
+        let dy = sy - y0 as f32;
+
+        for x in 0..dst_width {
+            let sx = ((x as f32 + 0.5) * scale_x - 0.5).clamp(0.0, (src_width - 1) as f32);
+            let x0 = sx.floor() as usize;
+            let x1 = (x0 + 1).min(src_width - 1);
+            let dx = sx - x0 as f32;
+
+            let samples = [
+                (x0, y0, (1.0 - dx) * (1.0 - dy)),
+                (x1, y0, dx * (1.0 - dy)),
+                (x0, y1, (1.0 - dx) * dy),
+                (x1, y1, dx * dy),
+            ];
+            let mut premultiplied = [0.0f32; 3];
+            let mut alpha = 0.0f32;
+
+            for (sample_x, sample_y, weight) in samples {
+                let src_offset = (sample_y * src_width + sample_x) * 4;
+                let sample_alpha = src_buffer[src_offset + 3] as f32 * weight;
+                premultiplied[0] += src_buffer[src_offset] as f32 * sample_alpha;
+                premultiplied[1] += src_buffer[src_offset + 1] as f32 * sample_alpha;
+                premultiplied[2] += src_buffer[src_offset + 2] as f32 * sample_alpha;
+                alpha += sample_alpha;
+            }
+
+            let dst_offset = (y * dst_width + x) * 4;
+            if alpha <= f32::EPSILON {
+                dst_buffer[dst_offset] = 0;
+                dst_buffer[dst_offset + 1] = 0;
+                dst_buffer[dst_offset + 2] = 0;
+                dst_buffer[dst_offset + 3] = 0;
+                continue;
+            }
+
+            dst_buffer[dst_offset] = (premultiplied[0] / alpha).round().clamp(0.0, 255.0) as u8;
+            dst_buffer[dst_offset + 1] = (premultiplied[1] / alpha).round().clamp(0.0, 255.0) as u8;
+            dst_buffer[dst_offset + 2] = (premultiplied[2] / alpha).round().clamp(0.0, 255.0) as u8;
+            dst_buffer[dst_offset + 3] = alpha.round().clamp(0.0, 255.0) as u8;
+        }
+    }
 }
 
 fn draw_path_layer(

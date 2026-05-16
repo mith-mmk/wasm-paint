@@ -1,4 +1,4 @@
-//! image is decoding enconded image and draw.
+//! Image decoding and drawing helpers.
 /* image.rs
  * (C)2022 Mith@mmk
  */
@@ -8,6 +8,7 @@ use crate::affine::Affine;
 use crate::affine::InterpolationAlgorithm;
 use crate::canvas::Canvas;
 use crate::canvas::Screen;
+use crate::layer::Layer;
 
 pub enum ImageAlign {
     Default,
@@ -38,6 +39,12 @@ pub fn draw_image(
     };
 
     image_loader(data, &mut option)
+}
+
+pub fn decode_image_layer(label: String, data: &[u8], verbose: usize) -> Result<Layer, Error> {
+    let mut layer = Layer::new(label, 0, 0);
+    let _ = draw_image(&mut layer, data, verbose)?;
+    Ok(layer)
 }
 
 pub fn draw_image_fit_screen(

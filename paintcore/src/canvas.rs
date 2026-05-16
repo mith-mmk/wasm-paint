@@ -5,7 +5,7 @@
  */
 
 type Error = Box<dyn std::error::Error>;
-use crate::clear::clear_layter;
+use crate::clear::clear_layer;
 use crate::clear::fillrect;
 use crate::draw::draw_over_screen;
 use crate::draw::*;
@@ -153,7 +153,7 @@ impl AnimationLayer {
             self.layer.reinit(layers[0].width(), layers[0].height());
         }
 
-        clear_layter(&mut self.layer);
+        clear_layer(&mut self.layer);
         for layer in layers {
             let x = layer.x;
             let y = layer.y;

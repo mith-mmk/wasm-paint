@@ -1,6 +1,9 @@
 # paintcore
  - The paintcore is a raster image transform tool of pure rust.
 
+## features
+- font - support TypeScript, OpenType fonts includes sbix, clor
+- svg-font - supoort OpenType SVG font, but only confirmed noto color emoji
 ## function
 - affine transform(rotate, resize...)
 - canvas
@@ -12,5 +15,4 @@
 - bezier_curve
 - pen
 - polygram
-- be
 - draw font (use fontcore)

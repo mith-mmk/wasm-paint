@@ -1,6 +1,6 @@
-//! clear screen,layer,canvas.
-//! A layer is default alpha is zero.
-//! A canvas is default alha is max(255).
+//! Clear screen, layer, and canvas buffers.
+//! A layer's default alpha is zero.
+//! A canvas default alpha is max(255).
 /*
  * clear.rs  Mith@mmk (C) 2022
  *
@@ -14,8 +14,13 @@ pub fn clear_canvas(canvas: &mut Canvas) {
     fillrect(canvas, background_color);
 }
 
-pub fn clear_layter(layer: &mut Layer) {
+pub fn clear_layer(layer: &mut Layer) {
     fillrect_with_alpha(layer, 0x0, 0x0);
+}
+
+#[deprecated(note = "use clear_layer")]
+pub fn clear_layter(layer: &mut Layer) {
+    clear_layer(layer);
 }
 
 pub fn clear(screen: &mut dyn Screen) {

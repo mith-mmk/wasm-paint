@@ -94,6 +94,35 @@ fn draw_glyphs_draws_rgba_raster_layers() {
 }
 
 #[test]
+fn draw_glyphs_scales_raster_layers_without_transparent_rgb_bleed() {
+    let raster = RasterGlyphLayer {
+        source: RasterGlyphSource::Rgba {
+            width: 2,
+            height: 2,
+            data: vec![
+                0xff, 0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff,
+                0xff, 0x00,
+            ],
+        },
+        offset_x: 0.0,
+        offset_y: 0.0,
+        width: Some(4),
+        height: Some(4),
+    };
+
+    let glyph = Glyph::new(vec![GlyphLayer::Raster(raster)]);
+    let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
+    let mut canvas = Canvas::new(4, 4);
+
+    draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xffff_ffff).unwrap();
+
+    let edge = rgba(&canvas, 1, 0);
+    assert!(edge[0] > 0, "expected red coverage from the opaque pixel");
+    assert_eq!(edge[1], 0, "transparent green pixels must not bleed");
+    assert_eq!(edge[2], 0, "transparent blue pixels must not bleed");
+}
+
+#[test]
 fn draw_glyphs_antialiases_diagonal_edges() {
     let commands = vec![
         Command::MoveTo(1.0, 1.0),
