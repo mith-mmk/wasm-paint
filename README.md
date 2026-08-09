@@ -1,4 +1,5 @@
 # what's it
+
 - The paintcore is raster image tools
 - The wasm-paint is browser painting demo.
 
@@ -58,9 +59,12 @@ Color model ABGR uint32LE
 
 2026/05/03 0.0.27 Color filter、Math libの実装
 
-2026/05/16 0.0.28 refatoring code 
+2026/05/16 0.0.28 refatoring code
+
+2026/08/09 0.0.29 境界チェックの強化とそれに伴うAPIの拡張
 
 Todo
+
 - organize Functions
 - border
 - polyline
