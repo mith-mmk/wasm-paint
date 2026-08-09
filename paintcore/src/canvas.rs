@@ -10,8 +10,7 @@ use crate::clear::fillrect;
 use crate::draw::draw_over_screen;
 use crate::draw::*;
 //use crate::layer;
-use crate::layer::AnimationControl;
-use crate::layer::Layer;
+use crate::layer::{allocate_buffer, checked_buffer_len, AnimationControl, Layer};
 use crate::pen::Pen;
 use crate::rect;
 use crate::spline;
@@ -48,19 +47,33 @@ struct AnimationLayer {
 }
 
 impl AnimationLayer {
-    pub fn new(label: String, width: u32, height: u32) -> Self {
-        let layer = Layer::new(label.to_string(), width, height);
-        let layers = vec![layer];
-        let layer = Layer::new(label.to_string(), width, height);
+    fn try_new(label: String, width: u32, height: u32) -> Result<Self, crate::error::Error> {
+        let frame = Layer::try_new(label.clone(), width, height)?;
+        let layer = Layer::try_new(label, width, height)?;
 
-        Self {
+        Ok(Self {
             x: 0,
             y: 0,
             layer,
-            layers,
+            layers: vec![frame],
             frame_no: 0,
             enable: true,
-        }
+        })
+    }
+
+    pub fn new(label: String, width: u32, height: u32) -> Self {
+        Self::try_new(label.clone(), width, height).unwrap_or_else(|_| {
+            let frame = Layer::new(label.clone(), 0, 0);
+            let layer = Layer::new(label, 0, 0);
+            Self {
+                x: 0,
+                y: 0,
+                layer,
+                layers: vec![frame],
+                frame_no: 0,
+                enable: true,
+            }
+        })
     }
 
     pub fn new_in(label: String, buffer: Vec<u8>, width: u32, height: u32) -> Self {
@@ -178,13 +191,14 @@ impl AnimationLayer {
         height: u32,
         start_x: i32,
         start_y: i32,
-    ) {
-        let mut layer = Layer::new(label, width, height);
+    ) -> Result<(), crate::error::Error> {
+        let mut layer = Layer::try_new(label, width, height)?;
         layer.x = start_x;
         layer.y = start_y;
         layer.enable = false;
         self.frame_no = self.layers.len();
         self.layers.push(layer);
+        Ok(())
     }
 
     pub fn z_index(&self) -> i32 {
@@ -247,7 +261,8 @@ impl PackedLayers {
                 message: "Exist Layer name".to_string(),
             }));
         }
-        let mut layer = AnimationLayer::new(label.clone(), width, height);
+        let mut layer = AnimationLayer::try_new(label.clone(), width, height)
+            .map_err(|err| Box::new(err) as Error)?;
         layer.set_z_index(self.layers.len() as i32);
         layer.x = x;
         layer.y = y;
@@ -280,7 +295,9 @@ impl PackedLayers {
     ) -> Result<(), Error> {
         match self.layers.get_mut(&label) {
             Some(layer) => {
-                layer.add_frame(label, width, height, x, y);
+                layer
+                    .add_frame(label, width, height, x, y)
+                    .map_err(|err| Box::new(err) as Error)?;
             }
             _ => {
                 return Err(Box::new(crate::error::Error {
@@ -498,14 +515,31 @@ pub(crate) fn default_verbose(
 }
 
 impl Canvas {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn try_new(width: u32, height: u32) -> Result<Self, crate::error::Error> {
         let mut this = Self::empty();
         if width >= 0x8000000 || height >= 0x8000000 {
-            return this;
+            return Err(crate::error::Error {
+                message: format!("image dimensions are too large: {width}x{height}"),
+            });
         }
+        checked_buffer_len(width, height)?;
         this.layers
             .add("__base__".to_string(), width, height, 0, 0)
-            .unwrap();
+            .map_err(|err| crate::error::Error {
+                message: err.to_string(),
+            })?;
+        Ok(this)
+    }
+
+    pub fn new(width: u32, height: u32) -> Self {
+        Self::try_new(width, height).unwrap_or_else(|_| Self::zero_sized())
+    }
+
+    fn zero_sized() -> Self {
+        let mut this = Self::empty();
+        if this.layers.add("__base__".to_string(), 0, 0, 0, 0).is_err() {
+            return Self::empty();
+        }
         this
     }
 
@@ -806,10 +840,18 @@ impl Screen for Canvas {
     }
 
     fn reinit(&mut self, width: u32, height: u32) {
-        self.canvas().width = width;
-        self.canvas().height = height;
-        let buffersize = width as usize * height as usize * 4;
-        self.canvas().buffer = vec![0; buffersize];
+        match allocate_buffer(width, height) {
+            Ok(buffer) => {
+                self.canvas().width = width;
+                self.canvas().height = height;
+                self.canvas().buffer = buffer;
+            }
+            Err(_) => {
+                self.canvas().width = 0;
+                self.canvas().height = 0;
+                self.canvas().buffer.clear();
+            }
+        }
     }
 
     fn buffer(&self) -> &[u8] {
@@ -857,11 +899,22 @@ impl DrawCallback for Canvas {
             )));
         }
 
+        let width_u32 = u32::try_from(width).map_err(|_| {
+            Box::new(crate::error::Error {
+                message: "image width is too large".to_string(),
+            }) as Error
+        })?;
+        let height_u32 = u32::try_from(height).map_err(|_| {
+            Box::new(crate::error::Error {
+                message: "image height is too large".to_string(),
+            }) as Error
+        })?;
         if self.width() == 0 || self.height() == 0 {
-            let buffersize = width * height * 4;
-            self.canvas().width = width as u32;
-            self.canvas().height = height as u32;
-            self.canvas().buffer = (0..buffersize).map(|_| 0).collect();
+            let buffer =
+                allocate_buffer(width_u32, height_u32).map_err(|err| Box::new(err) as Error)?;
+            self.canvas().width = width_u32;
+            self.canvas().height = height_u32;
+            self.canvas().buffer = buffer;
         }
 
         if let Some(option) = opt {
@@ -889,10 +942,11 @@ impl DrawCallback for Canvas {
                 self.layers.truncate(label.to_string());
                 let layer = self.layer_mut(label.to_string()).unwrap();
                 if layer.width == 0 || layer.height == 0 {
-                    layer.width = width as u32;
-                    layer.height = height as u32;
-                    let buffersize = width * height * 4;
-                    layer.buffer = (0..buffersize).map(|_| 0).collect();
+                    let buffer = allocate_buffer(width_u32, height_u32)
+                        .map_err(|err| Box::new(err) as Error)?;
+                    layer.width = width_u32;
+                    layer.height = height_u32;
+                    layer.buffer = buffer;
                 }
             }
         }

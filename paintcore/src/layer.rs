@@ -39,16 +39,75 @@ pub struct Layer {
     pub(crate) metadata: Option<HashMap<String, DataMap>>,
 }
 
+pub(crate) fn checked_buffer_len_usize(
+    width: usize,
+    height: usize,
+) -> Result<usize, crate::error::Error> {
+    width
+        .checked_mul(height)
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| crate::error::Error {
+            message: format!("image buffer size overflow: {width}x{height}"),
+        })
+}
+
+pub(crate) fn checked_buffer_len(width: u32, height: u32) -> Result<usize, crate::error::Error> {
+    let width = usize::try_from(width).map_err(|_| crate::error::Error {
+        message: format!("image width is not supported: {width}"),
+    })?;
+    let height = usize::try_from(height).map_err(|_| crate::error::Error {
+        message: format!("image height is not supported: {height}"),
+    })?;
+    checked_buffer_len_usize(width, height)
+}
+
+pub(crate) fn allocate_buffer(width: u32, height: u32) -> Result<Vec<u8>, crate::error::Error> {
+    let buffer_len = checked_buffer_len(width, height)?;
+    let mut buffer = Vec::new();
+    buffer
+        .try_reserve_exact(buffer_len)
+        .map_err(|err| crate::error::Error {
+            message: format!("image buffer allocation failed for {width}x{height}: {err}"),
+        })?;
+    buffer.resize(buffer_len, 0);
+    Ok(buffer)
+}
+
 impl Layer {
-    pub fn new(label: String, width: u32, height: u32) -> Self {
-        let buffer = (0..(width * height * 4) as usize).map(|_| 0).collect();
-        Self {
+    pub fn try_new(label: String, width: u32, height: u32) -> Result<Self, crate::error::Error> {
+        let buffer = allocate_buffer(width, height)?;
+        Ok(Self {
             label,
             buffer,
             x: 0,
             y: 0,
             width,
             height,
+            z_index: 0,
+            use_canvas_alpha: true,
+            canvas_alpha: 0xff,
+            enable: true,
+            control: None,
+            fnverbose: crate::canvas::default_verbose,
+            metadata: None,
+        })
+    }
+
+    pub fn new(label: String, width: u32, height: u32) -> Self {
+        match Self::try_new(label.clone(), width, height) {
+            Ok(layer) => layer,
+            Err(_) => Self::empty(label),
+        }
+    }
+
+    fn empty(label: String) -> Self {
+        Self {
+            label,
+            buffer: Vec::new(),
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
             z_index: 0,
             use_canvas_alpha: true,
             canvas_alpha: 0xff,
@@ -136,10 +195,18 @@ impl Screen for Layer {
     }
 
     fn reinit(&mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-        let buffersize = width as usize * height as usize * 4;
-        self.buffer = vec![0; buffersize];
+        match allocate_buffer(width, height) {
+            Ok(buffer) => {
+                self.width = width;
+                self.height = height;
+                self.buffer = buffer;
+            }
+            Err(_) => {
+                self.width = 0;
+                self.height = 0;
+                self.buffer.clear();
+            }
+        }
     }
 
     fn buffer(&self) -> &[u8] {
@@ -186,10 +253,20 @@ impl DrawCallback for Layer {
             )));
         }
         if self.width() == 0 || self.height() == 0 {
-            let buffersize = width * height * 4;
-            self.width = width as u32;
-            self.height = height as u32;
-            self.buffer = (0..buffersize).map(|_| 0).collect();
+            let width = u32::try_from(width).map_err(|_| {
+                Box::new(crate::error::Error {
+                    message: "image width is too large".to_string(),
+                }) as Error
+            })?;
+            let height = u32::try_from(height).map_err(|_| {
+                Box::new(crate::error::Error {
+                    message: "image height is too large".to_string(),
+                }) as Error
+            })?;
+            let buffer = allocate_buffer(width, height).map_err(|err| Box::new(err) as Error)?;
+            self.width = width;
+            self.height = height;
+            self.buffer = buffer;
         }
         Ok(None)
     }

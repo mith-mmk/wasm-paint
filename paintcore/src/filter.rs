@@ -7,6 +7,8 @@ use crate::grayscale::to_grayscale;
 use crate::layer::Layer;
 use std::{collections::HashMap, io::Error};
 
+const MAX_KERNEL_SIZE: usize = 31;
+
 #[derive(Clone)]
 enum FilterType {
     Copy,
@@ -84,6 +86,11 @@ impl From<&str> for FilterType {
     }
 }
 
+/// A convolution kernel stored in column-major form: `matrix[x][y]`.
+///
+/// The outer vector must contain `width` columns, and every column must
+/// contain `height` coefficients. Shape validation is deferred until a
+/// filter uses the kernel so the existing constructor API remains intact.
 #[derive(Clone)]
 pub struct Kernel {
     pub width: usize,
@@ -111,6 +118,11 @@ impl Kernel {
         ];
         Self::from(3, 3, matrix, false)
     }
+    /// Creates a kernel without changing the legacy infallible constructor.
+    ///
+    /// `matrix` is column-major: its outer length must equal `width`, and
+    /// every inner vector must have length `height`. Invalid dimensions are
+    /// reported by the filter that consumes the kernel.
     pub fn from(
         width: usize,
         height: usize,
@@ -127,6 +139,9 @@ impl Kernel {
 
     pub fn gaussian_kernel(size: usize, sigma: f32) -> Result<Self, Error> {
         check_kernel_size(size)?;
+        if !sigma.is_finite() || sigma <= 0.0 {
+            return Err(Error::other("sigma must be finite and positive"));
+        }
         let mut matrix = vec![vec![0.0; size]; size];
         let k = (size / 2) as i32;
         let mut sum = 0.0;
@@ -174,11 +189,76 @@ fn rgb_to_y(r: u8, g: u8, b: u8) -> f32 {
 
 #[inline]
 fn check_kernel_size(size: usize) -> Result<(), Error> {
-    if size.is_multiple_of(2) {
-        Err(Error::other("not support even kernel size"))
+    if size == 0 || size.is_multiple_of(2) || size > MAX_KERNEL_SIZE {
+        Err(Error::other(
+            "kernel size must be an odd value from 1 to 31",
+        ))
     } else {
         Ok(())
     }
+}
+
+#[inline]
+fn validate_kernel(kernel: &Kernel) -> Result<(), Error> {
+    check_kernel_size(kernel.width)?;
+    check_kernel_size(kernel.height)?;
+    if kernel.matrix.len() != kernel.width
+        || kernel.matrix.iter().any(|row| row.len() != kernel.height)
+    {
+        return Err(Error::other(
+            "kernel matrix dimensions do not match kernel size",
+        ));
+    }
+    Ok(())
+}
+
+#[inline]
+fn kernel_coefficient(kernel: &Kernel) -> Result<f32, Error> {
+    validate_kernel(kernel)?;
+    if kernel.already_nomarized {
+        return Ok(1.0);
+    }
+
+    let coeff: f32 = kernel.matrix.iter().flatten().copied().sum();
+    if !coeff.is_finite() || coeff.abs() <= f32::EPSILON {
+        return Err(Error::other(
+            "kernel coefficient must be finite and non-zero",
+        ));
+    }
+    Ok(coeff)
+}
+
+#[inline]
+fn common_extent(src: &dyn Screen, dest: &dyn Screen) -> (usize, usize) {
+    (
+        (src.width() as usize).min(dest.width() as usize),
+        (src.height() as usize).min(dest.height() as usize),
+    )
+}
+
+#[inline]
+fn ensure_dest_initialized(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
+    if dest.width() == 0 || dest.height() == 0 {
+        dest.reinit(src.width(), src.height());
+        if dest.width() != src.width() || dest.height() != src.height() {
+            return Err(Error::other("destination buffer initialization failed"));
+        }
+    }
+    Ok(())
+}
+
+fn option_kernel_size(options: &Option<HashMap<&str, f32>>) -> Result<usize, Error> {
+    let Some(value) = options.as_ref().and_then(|options| options.get("size")) else {
+        return Ok(3);
+    };
+    if !value.is_finite() || value.fract() != 0.0 || *value < 0.0 {
+        return Err(Error::other(
+            "kernel size must be a finite non-negative integer",
+        ));
+    }
+    let size = *value as usize;
+    check_kernel_size(size)?;
+    Ok(size)
 }
 
 #[inline]
@@ -200,42 +280,25 @@ fn yuv_to_rgb(y: f32, u: f32, v: f32) -> (u8, u8, u8) {
 }
 
 pub fn lum_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    ensure_dest_initialized(src, dest)?;
+    let (width, height) = common_extent(src, dest);
 
     let matrix = &kernel.matrix;
     let u0 = (kernel.height / 2) as i32;
     let v0 = (kernel.width / 2) as i32;
-    let coeff = if kernel.already_nomarized {
-        1.0
-    } else {
-        let mut coeff = 0.0;
-        for u in 0..kernel.height {
-            for v in 0..kernel.width {
-                coeff += matrix[v][u];
-            }
-        }
-        coeff
-    };
+    let coeff = kernel_coefficient(kernel)?;
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
 
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let r = src_buffer[offset + x * 4];
-            let g = src_buffer[offset + x * 4 + 1];
-            let b = src_buffer[offset + x * 4 + 2];
-            let a = src_buffer[offset + x * 4 + 3];
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            let r = src_buffer[src_offset];
+            let g = src_buffer[src_offset + 1];
+            let b = src_buffer[src_offset + 2];
+            let a = src_buffer[src_offset + 3];
             let mut l = 0.0;
             for u in 0..kernel.height {
                 let uu = (y as i32 + u as i32 - u0).clamp(0, src.height() as i32 - 1) as usize
@@ -255,49 +318,32 @@ pub fn lum_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> R
             let (_, u, v) = rgb_to_yuv(r, g, b);
             let (r, g, b) = yuv_to_rgb(l, u, v);
 
-            dest_buffer[offset + x * 4] = r;
-            dest_buffer[offset + x * 4 + 1] = g;
-            dest_buffer[offset + x * 4 + 2] = b;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = r;
+            dest_buffer[dest_offset + 1] = g;
+            dest_buffer[dest_offset + 2] = b;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
     Ok(())
 }
 
 pub fn edge_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    ensure_dest_initialized(src, dest)?;
+    let (width, height) = common_extent(src, dest);
 
     let matrix = &kernel.matrix;
     let u0 = (kernel.height / 2) as i32;
     let v0 = (kernel.width / 2) as i32;
-    let coeff = if kernel.already_nomarized {
-        1.0
-    } else {
-        let mut coeff = 0.0;
-        for u in 0..kernel.height {
-            for v in 0..kernel.width {
-                coeff += matrix[v][u];
-            }
-        }
-        coeff
-    };
+    let coeff = kernel_coefficient(kernel)?;
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
 
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let a = src_buffer[offset + x * 4 + 3];
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            let a = src_buffer[src_offset + 3];
             let mut l = 0.0;
             for u in 0..kernel.height {
                 let uu = (y as i32 + u as i32 - u0).clamp(0, src.height() as i32 - 1) as usize
@@ -315,87 +361,63 @@ pub fn edge_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> 
             }
             let l = ((l / coeff).round() as i16 * 255).clamp(0, 255) as u8;
 
-            dest_buffer[offset + x * 4] = l;
-            dest_buffer[offset + x * 4 + 1] = l;
-            dest_buffer[offset + x * 4 + 2] = l;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = l;
+            dest_buffer[dest_offset + 1] = l;
+            dest_buffer[dest_offset + 2] = l;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
     Ok(())
 }
 
 pub fn grayscale(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    ensure_dest_initialized(src, dest)?;
+    let (width, height) = common_extent(src, dest);
 
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
 
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let r = src_buffer[offset + x * 4];
-            let g = src_buffer[offset + x * 4 + 1];
-            let b = src_buffer[offset + x * 4 + 2];
-            let a = src_buffer[offset + x * 4 + 3];
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            let r = src_buffer[src_offset];
+            let g = src_buffer[src_offset + 1];
+            let b = src_buffer[src_offset + 2];
+            let a = src_buffer[src_offset + 3];
             let (l, _, _) = rgb_to_yuv(r, g, b);
             let l = (l.round() as i16).clamp(0, 255) as u8;
 
-            dest_buffer[offset + x * 4] = l;
-            dest_buffer[offset + x * 4 + 1] = l;
-            dest_buffer[offset + x * 4 + 2] = l;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = l;
+            dest_buffer[dest_offset + 1] = l;
+            dest_buffer[dest_offset + 2] = l;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
     Ok(())
 }
 
 pub fn rgb_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    ensure_dest_initialized(src, dest)?;
+    let (width, height) = common_extent(src, dest);
 
     let matrix = &kernel.matrix;
     let u0 = (kernel.height / 2) as i32;
     let v0 = (kernel.width / 2) as i32;
-    let coeff = if kernel.already_nomarized {
-        1.0
-    } else {
-        let mut coeff = 0.0;
-        for u in 0..kernel.height {
-            for v in 0..kernel.width {
-                coeff += matrix[v][u];
-            }
-        }
-        coeff
-    };
+    let coeff = kernel_coefficient(kernel)?;
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
     let src_width = src.width() as usize;
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
             let mut r = 0.0;
             let mut g = 0.0;
             let mut b = 0.0;
-            let a = src_buffer[offset + x * 4 + 3];
+            let a = src_buffer[src_offset + 3];
             for u in 0..kernel.height {
                 let uu = (y as i32 + u as i32 - u0).clamp(0, src.height() as i32 - 1) as usize
                     * src_width
@@ -411,10 +433,10 @@ pub fn rgb_filter(src: &dyn Screen, dest: &mut dyn Screen, kernel: &Kernel) -> R
             let g = ((g / coeff).round() as i32).clamp(0, 255) as u8;
             let b = ((b / coeff).round() as i32).clamp(0, 255) as u8;
 
-            dest_buffer[offset + x * 4] = r;
-            dest_buffer[offset + x * 4 + 1] = g;
-            dest_buffer[offset + x * 4 + 2] = b;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = r;
+            dest_buffer[dest_offset + 1] = g;
+            dest_buffer[dest_offset + 2] = b;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
     Ok(())
@@ -431,29 +453,21 @@ pub fn blur(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
 }
 
 pub fn copy_to(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
-
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    ensure_dest_initialized(src, dest)?;
+    let (width, height) = common_extent(src, dest);
 
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
 
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            dest_buffer[offset + x * 4] = src_buffer[offset + x * 4];
-            dest_buffer[offset + x * 4 + 1] = src_buffer[offset + x * 4 + 1];
-            dest_buffer[offset + x * 4 + 2] = src_buffer[offset + x * 4 + 2];
-            dest_buffer[offset + x * 4 + 3] = src_buffer[offset + x * 4 + 3];
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            dest_buffer[dest_offset] = src_buffer[src_offset];
+            dest_buffer[dest_offset + 1] = src_buffer[src_offset + 1];
+            dest_buffer[dest_offset + 2] = src_buffer[src_offset + 2];
+            dest_buffer[dest_offset + 3] = src_buffer[src_offset + 3];
         }
     }
     Ok(())
@@ -461,46 +475,48 @@ pub fn copy_to(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
 
 pub fn combine(src1: &dyn Screen, src2: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
     // √(src1^2 + src2^2) arctan (src2/src1)
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src1.width(), src1.height());
-    }
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    ensure_dest_initialized(src1, dest)?;
+    let width = (src1.width() as usize)
+        .min(src2.width() as usize)
+        .min(dest.width() as usize);
+    let height = (src1.height() as usize)
+        .min(src2.height() as usize)
+        .min(dest.height() as usize);
     let src1_buffer = src1.buffer();
     let src2_buffer = src2.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
-    for y in 0..src1.height() as usize {
-        let offset = y * src1.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src1.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let r1 = src1_buffer[offset + x * 4] as f32;
-            let g1 = src1_buffer[offset + x * 4 + 1] as f32;
-            let b1 = src1_buffer[offset + x * 4 + 2] as f32;
+    for y in 0..height {
+        for x in 0..width {
+            let src1_offset = (y * src1.width() as usize + x) * 4;
+            let src2_offset = (y * src2.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            let r1 = src1_buffer[src1_offset] as f32;
+            let g1 = src1_buffer[src1_offset + 1] as f32;
+            let b1 = src1_buffer[src1_offset + 2] as f32;
 
-            let r2 = src2_buffer[offset + x * 4] as f32;
-            let g2 = src2_buffer[offset + x * 4 + 1] as f32;
-            let b2 = src2_buffer[offset + x * 4 + 2] as f32;
+            let r2 = src2_buffer[src2_offset] as f32;
+            let g2 = src2_buffer[src2_offset + 1] as f32;
+            let b2 = src2_buffer[src2_offset + 2] as f32;
 
             let r = ((r1 * r1 + r2 * r2).sqrt().round() as i32).clamp(0, 255) as u8;
             let g = ((g1 * g1 + g2 * g2).sqrt().round() as i32).clamp(0, 255) as u8;
             let b = ((b1 * b1 + b2 * b2).sqrt().round() as i32).clamp(0, 255) as u8;
-            let a = src1_buffer[offset + x * 4 + 3];
+            let a = src1_buffer[src1_offset + 3];
 
-            dest_buffer[offset + x * 4] = r;
-            dest_buffer[offset + x * 4 + 1] = g;
-            dest_buffer[offset + x * 4 + 2] = b;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = r;
+            dest_buffer[dest_offset + 1] = g;
+            dest_buffer[dest_offset + 2] = b;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
     Ok(())
 }
 
 pub fn ranking(src: &dyn Screen, dest: &mut dyn Screen, rank: usize) -> Result<(), Error> {
+    if rank >= 9 {
+        return Err(Error::other("rank must be less than 9"));
+    }
     ranking_with_size(src, dest, 3, Ranking::Ranking(rank))
 }
 
@@ -586,6 +602,7 @@ fn select_ranking_pixel(
     (best.1, best.2, best.3)
 }
 
+#[derive(Clone, Copy)]
 enum Ranking {
     Erode,
     Dilates,
@@ -617,45 +634,58 @@ fn ranking_with_size(
     scan_type: Ranking,
 ) -> Result<(), Error> {
     check_kernel_size(size)?;
-    let size = size as i32;
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
+    if let Ranking::Ranking(rank) = scan_type {
+        if rank >= size * size {
+            return Err(Error::other("rank is outside the kernel"));
+        }
     }
-
-    let src_height = src.height() as usize;
+    let size = size as i32;
+    ensure_dest_initialized(src, dest)?;
+    let (width, height) = common_extent(src, dest);
     let src_width = src.width() as usize;
 
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
-
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
 
-    for y in 0..src_height {
-        let offset = y * src_width * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src_width {
-            if x >= dest_width {
-                break;
-            }
-            let a = src_buffer[offset + x * 4 + 3];
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src_width + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            let a = src_buffer[src_offset + 3];
             let (r, g, b) = match scan_type {
-                Ranking::Erode => {
-                    select_pixel(src_buffer, x, y, src_width, src_height, size, min_pixel)
-                }
-                Ranking::Dilates => {
-                    select_pixel(src_buffer, x, y, src_width, src_height, size, max_pixel)
-                }
-                Ranking::Ranking(rank) => {
-                    select_ranking_pixel(src_buffer, x, y, src_width, src_height, size, rank)
-                }
+                Ranking::Erode => select_pixel(
+                    src_buffer,
+                    x,
+                    y,
+                    src_width,
+                    src.height() as usize,
+                    size,
+                    min_pixel,
+                ),
+                Ranking::Dilates => select_pixel(
+                    src_buffer,
+                    x,
+                    y,
+                    src_width,
+                    src.height() as usize,
+                    size,
+                    max_pixel,
+                ),
+                Ranking::Ranking(rank) => select_ranking_pixel(
+                    src_buffer,
+                    x,
+                    y,
+                    src_width,
+                    src.height() as usize,
+                    size,
+                    rank,
+                ),
             };
-            dest_buffer[offset + x * 4] = r;
-            dest_buffer[offset + x * 4 + 1] = g;
-            dest_buffer[offset + x * 4 + 2] = b;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = r;
+            dest_buffer[dest_offset + 1] = g;
+            dest_buffer[dest_offset + 2] = b;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
     Ok(())
@@ -725,6 +755,10 @@ fn double_threshold(src: &[f32], low: f32, high: f32) -> Vec<u8> {
 fn non_max_suppression(grad: &[Grad], w: usize, h: usize) -> Vec<f32> {
     let mut out = vec![0.0; w * h];
 
+    if w < 3 || h < 3 {
+        return out;
+    }
+
     for y in 1..h - 1 {
         for x in 1..w - 1 {
             let i = y * w + x;
@@ -747,6 +781,10 @@ fn non_max_suppression(grad: &[Grad], w: usize, h: usize) -> Vec<f32> {
 }
 
 fn hysteresis(src: &mut [u8], w: usize, h: usize) {
+    if w == 0 || h == 0 {
+        return;
+    }
+
     let mut stack = Vec::new();
 
     for i in 0..src.len() {
@@ -787,6 +825,10 @@ fn edge_filter_f32(src: &dyn Screen) -> (Vec<f32>, Vec<f32>) {
     let mut gx = vec![0.0f32; w * h];
     let mut gy = vec![0.0f32; w * h];
 
+    if w < 3 || h < 3 {
+        return (gx, gy);
+    }
+
     // Sobel kernel
     let kx = [[1.0, 0.0, -1.0], [2.0, 0.0, -2.0], [1.0, 0.0, -1.0]];
     let ky = [[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]];
@@ -824,11 +866,13 @@ fn edge_filter_f32(src: &dyn Screen) -> (Vec<f32>, Vec<f32>) {
 }
 
 pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
+    ensure_dest_initialized(src, dest)?;
+    if src.width() < 3 || src.height() < 3 {
+        return copy_to(src, dest);
     }
     let src_width = src.width() as usize;
     let src_height = src.height() as usize;
+    let (width, height) = common_extent(src, dest);
     // ガウシアン
     let mut tmp_gaussian = Layer::tmp(src.width(), src.height());
     lum_filter(
@@ -843,10 +887,11 @@ pub fn canny(src: &dyn Screen, dest: &mut dyn Screen) -> Result<(), Error> {
     hysteresis(&mut th, src_width, src_height);
 
     // 書き戻し
+    let dest_width = dest.width() as usize;
     let buffer = dest.buffer_mut();
-    for y in 0..src_height {
-        let stride = y * src_width * 4;
-        for x in 0..src_width {
+    for y in 0..height {
+        let stride = y * dest_width * 4;
+        for x in 0..width {
             let offset = stride + x * 4;
             let v = if th[y * src_width + x] == 2 { 255 } else { 0 };
             buffer[offset] = v; // R
@@ -863,9 +908,7 @@ pub fn object_extract(
     dest: &mut dyn Screen,
     threshold: f32,
 ) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
+    ensure_dest_initialized(src, dest)?;
 
     let width = src.width() as usize;
     let height = src.height() as usize;
@@ -921,9 +964,7 @@ pub fn harris(
     threshold: f32,
     k: f32,
 ) -> Result<(), Error> {
-    if dest.width() == 0 || dest.height() == 0 {
-        dest.reinit(src.width(), src.height());
-    }
+    ensure_dest_initialized(src, dest)?;
 
     let width = src.width() as usize;
     let height = src.height() as usize;
@@ -1026,21 +1067,13 @@ fn _filter(
     filter_type: FilterType,
     options: Option<HashMap<&str, f32>>,
 ) -> Result<(), Error> {
-    let size = if let Some(options) = &options {
-        if let Some(size) = options.get("size") {
-            *size as usize
-        } else {
-            3
-        }
-    } else {
-        3
-    };
+    let size = option_kernel_size(&options)?;
 
     let result = match filter_type {
         FilterType::Copy => copy_to(src, dest),
-        FilterType::Median(size) => median(src, dest, size),
-        FilterType::Erode(size) => ranking_with_size(src, dest, size, Ranking::Erode),
-        FilterType::Dilate(size) => ranking_with_size(src, dest, size, Ranking::Dilates),
+        FilterType::Median(_) => median(src, dest, size),
+        FilterType::Erode(_) => ranking_with_size(src, dest, size, Ranking::Erode),
+        FilterType::Dilate(_) => ranking_with_size(src, dest, size, Ranking::Dilates),
         FilterType::Sharpness => {
             let matrix = [[-1.0, -1.0, -1.0], [-1.0, 10.0, -1.0], [-1.0, -1.0, -1.0]];
             lum_filter(src, dest, &Kernel::new(matrix))
@@ -1134,6 +1167,7 @@ fn _filter(
             edge_filter(&tmp_gaussian, dest, &Kernel::new_already_normalized(matrix))
         }
         FilterType::Grayscale => {
+            ensure_dest_initialized(src, dest)?;
             to_grayscale(src, dest, 0);
             Ok(())
         }

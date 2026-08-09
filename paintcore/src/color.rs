@@ -38,6 +38,9 @@ where
 {
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
+        if dest.width() != src.width() || dest.height() != src.height() {
+            return Err(Error::other("destination buffer initialization failed"));
+        }
     }
 
     let src_width = src.width() as usize;

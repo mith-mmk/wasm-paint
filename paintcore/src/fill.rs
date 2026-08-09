@@ -33,6 +33,10 @@ fn scan_line(
             x += 1;
         }
 
+        if x > rx {
+            return;
+        }
+
         if pick(screan, x, y) != base_color {
             return;
         }

@@ -43,32 +43,31 @@ pub fn weight(t: usize) -> (f64, f64, f64) {
 pub fn to_grayscale(src: &dyn Screen, dest: &mut dyn Screen, t: usize) {
     if dest.width() == 0 || dest.height() == 0 {
         dest.reinit(src.width(), src.height());
+        if dest.width() == 0 || dest.height() == 0 {
+            return;
+        }
     }
-    let dest_height = dest.height() as usize;
-    let dest_width = dest.width() as usize;
+    let width = (src.width() as usize).min(dest.width() as usize);
+    let height = (src.height() as usize).min(dest.height() as usize);
 
     let src_buffer = src.buffer();
+    let dest_width = dest.width() as usize;
     let dest_buffer = dest.buffer_mut();
     let (wred, wgreen, wblue) = weight(t);
-    for y in 0..src.height() as usize {
-        let offset = y * src.width() as usize * 4;
-        if y >= dest_height {
-            break;
-        }
-        for x in 0..src.width() as usize {
-            if x >= dest_width {
-                break;
-            }
-            let r = src_buffer[offset + x * 4] as f64;
-            let g = src_buffer[offset + x * 4 + 1] as f64;
-            let b = src_buffer[offset + x * 4 + 2] as f64;
-            let a = src_buffer[offset + x * 4 + 3];
+    for y in 0..height {
+        for x in 0..width {
+            let src_offset = (y * src.width() as usize + x) * 4;
+            let dest_offset = (y * dest_width + x) * 4;
+            let r = src_buffer[src_offset] as f64;
+            let g = src_buffer[src_offset + 1] as f64;
+            let b = src_buffer[src_offset + 2] as f64;
+            let a = src_buffer[src_offset + 3];
             let l = ((wred * r + wgreen * g + wblue * b).round() as i16).clamp(0, 255) as u8;
 
-            dest_buffer[offset + x * 4] = l;
-            dest_buffer[offset + x * 4 + 1] = l;
-            dest_buffer[offset + x * 4 + 2] = l;
-            dest_buffer[offset + x * 4 + 3] = a;
+            dest_buffer[dest_offset] = l;
+            dest_buffer[dest_offset + 1] = l;
+            dest_buffer[dest_offset + 2] = l;
+            dest_buffer[dest_offset + 3] = a;
         }
     }
 }

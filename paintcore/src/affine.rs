@@ -268,10 +268,49 @@ impl Affine {
         oy: f32,
         algorithm: InterpolationAlgorithm,
     ) {
-        let end_x = width - start_x - 1.0;
-        let end_y = height - start_y - 1.0;
-        let out_end_x = out_width - out_start_x - 1;
-        let out_end_y = out_height - out_start_y - 1;
+        if input_screen.width() == 0
+            || input_screen.height() == 0
+            || output_screen.width() == 0
+            || output_screen.height() == 0
+            || !start_x.is_finite()
+            || !start_y.is_finite()
+            || !width.is_finite()
+            || !height.is_finite()
+        {
+            return;
+        }
+
+        let input_width = input_screen.width() as f32;
+        let input_height = input_screen.height() as f32;
+        let requested_end_x = start_x + width;
+        let requested_end_y = start_y + height;
+        let start_x = start_x.clamp(0.0, input_width);
+        let start_y = start_y.clamp(0.0, input_height);
+        let source_end_x = requested_end_x.clamp(0.0, input_width);
+        let source_end_y = requested_end_y.clamp(0.0, input_height);
+        if start_x >= source_end_x || start_y >= source_end_y {
+            return;
+        }
+        let source_last_x = source_end_x.ceil() - 1.0;
+        let source_last_y = source_end_y.ceil() - 1.0;
+
+        // Output bounds are a half-open range and are clipped to the actual
+        // destination before any coordinate is converted to usize.
+        let output_width = output_screen.width() as i64;
+        let output_height = output_screen.height() as i64;
+        let requested_end_x = out_start_x as i64 + out_width as i64;
+        let requested_end_y = out_start_y as i64 + out_height as i64;
+        let clipped_start_x = (out_start_x as i64).clamp(0, output_width);
+        let clipped_start_y = (out_start_y as i64).clamp(0, output_height);
+        let clipped_end_x = requested_end_x.clamp(0, output_width);
+        let clipped_end_y = requested_end_y.clamp(0, output_height);
+        if clipped_start_x >= clipped_end_x || clipped_start_y >= clipped_end_y {
+            return;
+        }
+        let out_start_x = clipped_start_x as i32;
+        let out_start_y = clipped_start_y as i32;
+        let out_end_x = clipped_end_x as i32;
+        let out_end_y = clipped_end_y as i32;
 
         let output_screen_width = &output_screen.width();
         let output_buffer = output_screen.buffer_mut();
@@ -310,20 +349,20 @@ impl Affine {
             (x * x0 + y * x1 + x2 + ox) as i32,
             (x * y0 + y * y1 + y2 + oy) as i32,
         );
-        let x = end_x - ox;
+        let x = source_end_x - ox;
         let y = start_y - oy;
         xy[1] = (
             (x * x0 + y * x1 + x2 + ox) as i32,
             (x * y0 + y * y1 + y2 + oy) as i32,
         );
         let x = start_x - ox;
-        let y = end_y - oy;
+        let y = source_end_y - oy;
         xy[2] = (
             (x * x0 + y * x1 + x2 + ox) as i32,
             (x * y0 + y * y1 + y2 + oy) as i32,
         );
-        let x = end_x - ox;
-        let y = end_y - oy;
+        let x = source_end_x - ox;
+        let y = source_end_y - oy;
         xy[3] = (
             (x * x0 + y * x1 + x2 + ox) as i32,
             (x * y0 + y * y1 + y2 + oy) as i32,
@@ -386,7 +425,7 @@ impl Affine {
                 }
                 2 => {
                     sy = xy[2].1;
-                    ey = xy[3].1;
+                    ey = xy[3].1 + 1;
                     xy0 = xy[1];
                     xy1 = xy[3];
                     xy2 = xy[2];
@@ -407,6 +446,9 @@ impl Affine {
             }
             if ey > out_end_y {
                 ey = out_end_y;
+            }
+            if sy >= ey {
+                continue;
             }
 
             let d0 = if xy0.1 != xy1.1 {
@@ -438,13 +480,16 @@ impl Affine {
                 if ex > out_end_x {
                     ex = out_end_x;
                 }
+                if sx >= ex {
+                    continue;
+                }
 
                 for x in sx..ex {
                     // inverse affine transformation from output image integer position
                     let xx = (ix0 * (x as f32 - ox) + ix1 * (y as f32 - oy) + ix2) / t + ox;
                     let yy = (iy0 * (x as f32 - ox) + iy1 * (y as f32 - oy) + iy2) / t + oy;
 
-                    if xx < start_x || xx >= end_x || yy < start_y || yy >= end_y {
+                    if xx < start_x || xx >= source_end_x || yy < start_y || yy >= source_end_y {
                         continue;
                     }
                     let output_offset = output_base_line + x as usize * 4;
@@ -464,8 +509,8 @@ impl Affine {
                             let xx = xx.floor() as i32;
                             let yy = yy.floor() as i32;
 
-                            let nx = if xx + 1 > end_x as i32 { 0 } else { 4 };
-                            let ny = if yy + 1 > end_y as i32 {
+                            let nx = if xx + 1 > source_last_x as i32 { 0 } else { 4 };
+                            let ny = if yy + 1 > source_last_y as i32 {
                                 0
                             } else {
                                 input_screen.width() as usize * 4
@@ -520,8 +565,8 @@ impl Affine {
                                 let jy = _y - 1;
                                 let baseoffset = if yy + jy < start_y as i32 {
                                     start_y as isize * input_screen.width() as isize * 4
-                                } else if yy + jy >= end_y as i32 {
-                                    end_y as isize * input_screen.width() as isize * 4
+                                } else if yy + jy >= source_end_y as i32 {
+                                    source_last_y as isize * input_screen.width() as isize * 4
                                 } else {
                                     ((yy + jy) as isize * input_screen.width() as isize) * 4
                                 };
@@ -532,8 +577,8 @@ impl Affine {
                                     let jx = _x - 1;
                                     let offset = if xx + jx <= start_x as i32 {
                                         baseoffset + start_x as isize * 4
-                                    } else if xx + jx >= end_x as i32 {
-                                        baseoffset + end_x as isize * 4
+                                    } else if xx + jx >= source_end_x as i32 {
+                                        baseoffset + source_last_x as isize * 4
                                     } else {
                                         baseoffset + (xx + jx) as isize * 4
                                     };
@@ -591,8 +636,8 @@ impl Affine {
                                 };
                                 let baseoffset = if yy + jy < start_y as i32 {
                                     start_y as isize * input_screen.width() as isize * 4
-                                } else if yy + jy > end_y as i32 {
-                                    end_y as isize * input_screen.width() as isize * 4
+                                } else if yy + jy >= source_end_y as i32 {
+                                    source_last_y as isize * input_screen.width() as isize * 4
                                 } else {
                                     ((yy + jy) as isize * input_screen.width() as isize) * 4
                                 };
@@ -609,8 +654,8 @@ impl Affine {
                                     };
                                     let offset = if xx + jx <= start_x as i32 {
                                         baseoffset + start_x as isize * 4
-                                    } else if xx + jx >= end_x as i32 {
-                                        baseoffset + end_x as isize * 4
+                                    } else if xx + jx >= source_end_x as i32 {
+                                        baseoffset + source_last_x as isize * 4
                                     } else {
                                         baseoffset + (xx + jx) as isize * 4
                                     };
@@ -682,8 +727,17 @@ impl Affine {
         ox: f32,
         oy: f32,
     ) {
-        let ox = ox as u32;
-        let oy = oy as u32;
+        if scale_x <= 0.0
+            || scale_y <= 0.0
+            || !scale_x.is_finite()
+            || !scale_y.is_finite()
+            || input_screen.width() == 0
+            || input_screen.height() == 0
+            || output_screen.width() == 0
+            || output_screen.height() == 0
+        {
+            return;
+        }
         /*
         *
         *
@@ -728,58 +782,56 @@ impl Affine {
         //        let d = (1.0 / scale).ceil() as usize;
         let d_x = 1.0 / scale_x;
         let d_y = 1.0 / scale_y;
-        //        let weight = 1.0 / d as f32 * 1.0 / d as f32;
-        let weight = scale_x * scale_y;
-        let ey = output_screen.height() - oy;
-        let ex = output_screen.width() - ox;
-        for y in oy..ey {
+        let input_width = input_screen.width() as f32;
+        let input_height = input_screen.height() as f32;
+        let output_width = output_screen.width() as i64;
+        let output_height = output_screen.height() as i64;
+        let image_end_x = (ox + input_screen.width() as f32 * scale_x).ceil() as i64;
+        let image_end_y = (oy + input_screen.height() as f32 * scale_y).ceil() as i64;
+        let start_x = (ox.floor() as i64).clamp(0, output_width);
+        let start_y = (oy.floor() as i64).clamp(0, output_height);
+        let end_x = image_end_x.clamp(0, output_width);
+        let end_y = image_end_y.clamp(0, output_height);
+
+        if start_x >= end_x || start_y >= end_y {
+            return;
+        }
+
+        for y in start_y..end_y {
             let output_base_line = output_screen.width() as usize * 4 * y as usize;
-            let mut dest_offset = output_base_line + ox as usize * 4;
 
-            let by = (y - oy) as f32 / scale_y;
-            let base_y = by as usize;
-            let end_y = by + d_y;
-            let err_y0 = 1.0 - (by - base_y as f32);
-            let err_y1 = end_y - end_y.floor();
-            let dy = end_y as usize - base_y + 1;
+            let by = (y as f32 - oy) / scale_y;
+            let sample_start_y = by.max(0.0).min(input_height);
+            let sample_end_y = (by + d_y).max(0.0).min(input_height);
+            if sample_start_y >= sample_end_y {
+                continue;
+            }
+            let first_y = sample_start_y.floor() as usize;
+            let last_y = sample_end_y.ceil() as usize;
 
-            for x in ox..ex {
-                let bx = (x - ox) as f32 / scale_x;
-                let base_x = bx as usize;
-                let end_x = bx + d_x;
-                let err_x0 = 1.0 - (bx - base_x as f32);
-                let err_x1 = end_x - end_x.floor();
-                let dx = end_x as usize - base_x + 1;
+            for x in start_x..end_x {
+                let bx = (x as f32 - ox) / scale_x;
+                let sample_start_x = bx.max(0.0).min(input_width);
+                let sample_end_x = (bx + d_x).max(0.0).min(input_width);
+                if sample_start_x >= sample_end_x {
+                    continue;
+                }
+                let first_x = sample_start_x.floor() as usize;
+                let last_x = sample_end_x.ceil() as usize;
 
                 let mut color = [0.0; 3];
                 let mut alpha = 0.0;
-                for yy_ in 0..dy {
-                    let mut yy = yy_ + base_y;
-                    if yy >= input_screen.height() as usize {
-                        yy = input_screen.height() as usize - 1;
-                    }
+                for yy in first_y..last_y {
                     let input_base_line = input_screen.width() as usize * 4 * yy;
-                    let err_y = if yy_ == 0 {
-                        err_y0
-                    } else if yy_ == dy - 1 {
-                        err_y1
-                    } else {
-                        1.0
-                    };
-                    for xx_ in 0..dx {
-                        let mut xx = xx_ + base_x;
-                        if xx >= input_screen.width() as usize {
-                            xx = input_screen.width() as usize - 1;
-                        }
-                        let err_x = if xx_ == 0 {
-                            err_x0
-                        } else if xx_ == dx - 1 {
-                            err_x1
-                        } else {
-                            1.0
-                        };
+                    let overlap_y = (sample_end_y.min((yy + 1) as f32)
+                        - sample_start_y.max(yy as f32))
+                    .max(0.0);
+                    for xx in first_x..last_x {
+                        let overlap_x = (sample_end_x.min((xx + 1) as f32)
+                            - sample_start_x.max(xx as f32))
+                        .max(0.0);
                         let src_offset = input_base_line + xx * 4;
-                        let weight = weight * err_x * err_y;
+                        let weight = scale_x * scale_y * overlap_x * overlap_y;
                         Self::add_weighted_premultiplied_sample(
                             input_screen.buffer(),
                             src_offset,
@@ -792,11 +844,10 @@ impl Affine {
 
                 Self::write_unpremultiplied_sample(
                     output_screen.buffer_mut(),
-                    dest_offset,
+                    output_base_line + x as usize * 4,
                     color,
                     alpha,
                 );
-                dest_offset += 4;
             }
         }
     }
@@ -808,6 +859,16 @@ impl Affine {
         algorithm: InterpolationAlgorithm,
         align: ImageAlign,
     ) {
+        if scale <= 0.0
+            || !scale.is_finite()
+            || input_screen.width() == 0
+            || input_screen.height() == 0
+            || output_screen.width() == 0
+            || output_screen.height() == 0
+        {
+            return;
+        }
+
         let mut affine = Affine::new();
         let output_width = output_screen.width() as i32;
         let output_height = output_screen.height() as i32;
@@ -847,11 +908,11 @@ impl Affine {
                 oy = cy;
             }
             ImageAlign::RightUp => {
-                ox = 0.0;
-                oy = cy;
+                ox = cx * 2.0;
+                oy = 0.0;
             }
             ImageAlign::RightBottom => {
-                ox = 0.0;
+                ox = cx * 2.0;
                 oy = cy * 2.0;
             }
         }
