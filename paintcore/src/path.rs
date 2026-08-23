@@ -83,6 +83,60 @@ pub enum GlyphPaint {
     RadialGradient(RadialGradientPaint),
 }
 
+impl GlyphPaint {
+    /// Resolves the glyph-specific paint into the generic paintcore paint source.
+    pub fn to_paint(&self, default_color: u32) -> crate::paint::Paint {
+        let convert_color =
+            |color| crate::paint::Color::from_argb_u32(normalize_solid_color(color));
+        let convert_stops = |stops: &[GradientStop]| {
+            stops
+                .iter()
+                .map(|stop| crate::paint::ColorStop::new(stop.offset, convert_color(stop.color)))
+                .collect()
+        };
+        let convert_spread = |spread| match spread {
+            GradientSpread::Pad => crate::paint::SpreadMode::Pad,
+            GradientSpread::Repeat => crate::paint::SpreadMode::Repeat,
+            GradientSpread::Reflect => crate::paint::SpreadMode::Reflect,
+        };
+        let convert_units = |units| match units {
+            GradientUnits::ObjectBoundingBox => crate::paint::PaintUnits::ObjectBoundingBox,
+            GradientUnits::UserSpaceOnUse => crate::paint::PaintUnits::UserSpaceOnUse,
+        };
+
+        match self {
+            Self::Solid(color) => crate::paint::Paint::solid(convert_color(*color)),
+            Self::CurrentColor => crate::paint::Paint::solid(crate::paint::Color::from_argb_u32(
+                normalize_paint_color(default_color),
+            )),
+            Self::LinearGradient(gradient) => {
+                crate::paint::Paint::LinearGradient(crate::paint::LinearGradient {
+                    start: (gradient.x1, gradient.y1),
+                    end: (gradient.x2, gradient.y2),
+                    stops: convert_stops(&gradient.stops),
+                    spread: convert_spread(gradient.spread),
+                    units: convert_units(gradient.units),
+                    transform: crate::paint::PaintTransform::new(gradient.transform),
+                    interpolation: crate::paint::GradientInterpolation::Srgb,
+                })
+            }
+            Self::RadialGradient(gradient) => {
+                crate::paint::Paint::RadialGradient(crate::paint::RadialGradient {
+                    center: (gradient.cx, gradient.cy),
+                    radius: gradient.r,
+                    focal: (gradient.fx, gradient.fy),
+                    focal_radius: gradient.fr,
+                    stops: convert_stops(&gradient.stops),
+                    spread: convert_spread(gradient.spread),
+                    units: convert_units(gradient.units),
+                    transform: crate::paint::PaintTransform::new(gradient.transform),
+                    interpolation: crate::paint::GradientInterpolation::Srgb,
+                })
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillRule {
     NonZero,
@@ -1342,6 +1396,14 @@ fn paint_coverage_mask(
         return;
     }
 
+    let prepared = paint
+        .to_paint(default_color)
+        .prepare(crate::paint::PaintBounds::new(
+            mask.origin_x as f32,
+            mask.origin_y as f32,
+            mask.width as f32,
+            mask.height as f32,
+        ));
     for y in 0..mask.height as i32 {
         let row_offset = y as usize * mask.width as usize;
         for x in 0..mask.width as i32 {
@@ -1351,7 +1413,7 @@ fn paint_coverage_mask(
             }
             let paint_x = mask.origin_x as f32 + x as f32 + 0.5;
             let paint_y = mask.origin_y as f32 + y as f32 + 0.5;
-            let color = resolve_paint_at(paint, default_color, paint_x, paint_y);
+            let color = prepared.sample(paint_x, paint_y).to_argb_u32();
             blend_coverage_pixel(
                 screen,
                 mask.origin_x + x,

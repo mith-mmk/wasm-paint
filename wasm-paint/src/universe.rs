@@ -78,6 +78,32 @@ fn js_error(message: &str) -> JsValue {
     JsValue::from_str(message)
 }
 
+fn paint_spread(name: &str) -> Result<SpreadMode, JsValue> {
+    match name.to_ascii_lowercase().as_str() {
+        "pad" => Ok(SpreadMode::Pad),
+        "repeat" => Ok(SpreadMode::Repeat),
+        "reflect" | "mirror" => Ok(SpreadMode::Reflect),
+        _ => Err(js_error("unknown gradient spread")),
+    }
+}
+
+fn paint_tile_mode(name: &str) -> Result<TileMode, JsValue> {
+    match name.to_ascii_lowercase().as_str() {
+        "repeat" => Ok(TileMode::Repeat),
+        "mirror" | "reflect" => Ok(TileMode::Mirror),
+        "clamp" => Ok(TileMode::Clamp),
+        "decal" => Ok(TileMode::Decal),
+        _ => Err(js_error("unknown pattern tile mode")),
+    }
+}
+
+fn paint_stops(start: u32, end: u32) -> Vec<ColorStop> {
+    vec![
+        ColorStop::new(0.0, Color::from_argb_u32(start)),
+        ColorStop::new(1.0, Color::from_argb_u32(end)),
+    ]
+}
+
 #[cfg(feature = "font")]
 fn extend_bounds(bounds: &mut Option<paintcore::path::GlyphBounds>, x: f32, y: f32) {
     if let Some(bounds) = bounds.as_mut() {
@@ -719,6 +745,165 @@ impl Universe {
                 blend_mode,
                 ..paintcore::composite::DrawOptions::default()
             },
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = fillLinearGradientRect)]
+    pub fn fill_linear_gradient_rect(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        start_argb: u32,
+        end_argb: u32,
+        spread: String,
+        linear_rgb: bool,
+    ) -> Result<(), JsValue> {
+        let paint = Paint::LinearGradient(LinearGradient {
+            start: (start_x, start_y),
+            end: (end_x, end_y),
+            stops: paint_stops(start_argb, end_argb),
+            spread: paint_spread(&spread)?,
+            units: PaintUnits::UserSpaceOnUse,
+            transform: PaintTransform::IDENTITY,
+            interpolation: if linear_rgb {
+                GradientInterpolation::LinearSrgb
+            } else {
+                GradientInterpolation::Srgb
+            },
+        });
+        fill_paint_rect(
+            self.layer_mut(),
+            x,
+            y,
+            width,
+            height,
+            &paint,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = fillRadialGradientRect)]
+    pub fn fill_radial_gradient_rect(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        center_x: f32,
+        center_y: f32,
+        radius: f32,
+        start_argb: u32,
+        end_argb: u32,
+        spread: String,
+    ) -> Result<(), JsValue> {
+        let paint = Paint::RadialGradient(RadialGradient {
+            center: (center_x, center_y),
+            radius,
+            focal: (center_x, center_y),
+            focal_radius: 0.0,
+            stops: paint_stops(start_argb, end_argb),
+            spread: paint_spread(&spread)?,
+            units: PaintUnits::UserSpaceOnUse,
+            transform: PaintTransform::IDENTITY,
+            interpolation: GradientInterpolation::Srgb,
+        });
+        fill_paint_rect(
+            self.layer_mut(),
+            x,
+            y,
+            width,
+            height,
+            &paint,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = fillSweepGradientRect)]
+    pub fn fill_sweep_gradient_rect(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        center_x: f32,
+        center_y: f32,
+        start_angle: f32,
+        end_angle: f32,
+        start_argb: u32,
+        end_argb: u32,
+        spread: String,
+    ) -> Result<(), JsValue> {
+        let paint = Paint::SweepGradient(SweepGradient {
+            center: (center_x, center_y),
+            start_angle,
+            end_angle,
+            stops: paint_stops(start_argb, end_argb),
+            spread: paint_spread(&spread)?,
+            units: PaintUnits::UserSpaceOnUse,
+            transform: PaintTransform::IDENTITY,
+            interpolation: GradientInterpolation::Srgb,
+        });
+        fill_paint_rect(
+            self.layer_mut(),
+            x,
+            y,
+            width,
+            height,
+            &paint,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = fillPatternRect)]
+    pub fn fill_pattern_rect(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        pattern_width: u32,
+        pattern_height: u32,
+        pixels: Vec<u8>,
+        tile_x: String,
+        tile_y: String,
+        sampling: String,
+        scale_x: f32,
+        scale_y: f32,
+        offset_x: f32,
+        offset_y: f32,
+    ) -> Result<(), JsValue> {
+        let sampling = match sampling.to_ascii_lowercase().as_str() {
+            "nearest" => SamplingMode::Nearest,
+            "bilinear" => SamplingMode::Bilinear,
+            _ => return Err(js_error("unknown pattern sampling mode")),
+        };
+        let image = PatternImage::new(pattern_width, pattern_height, pixels)
+            .map_err(|error| js_error(&error.to_string()))?;
+        let paint = Paint::Pattern(Pattern {
+            image,
+            tile_x: paint_tile_mode(&tile_x)?,
+            tile_y: paint_tile_mode(&tile_y)?,
+            sampling,
+            transform: PaintTransform::new([scale_x, 0.0, 0.0, scale_y, offset_x, offset_y]),
+        });
+        fill_paint_rect(
+            self.layer_mut(),
+            x,
+            y,
+            width,
+            height,
+            &paint,
+            paintcore::composite::DrawOptions::default(),
         );
         Ok(())
     }
