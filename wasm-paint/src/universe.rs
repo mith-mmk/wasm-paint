@@ -9,6 +9,7 @@ use paintcore::path::{
     load_font_from_buffer,
 };
 use paintcore::{path, prelude::*};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
@@ -548,6 +549,8 @@ pub struct Universe {
     ctx2: Option<CanvasRenderingContext2d>,
     affine: Affine,
     tmp_canvas: Option<(Canvas, Option<InterpolationAlgorithm>, ImageAlign)>,
+    masks: HashMap<u32, Mask>,
+    next_mask_id: u32,
     #[cfg(feature = "font")]
     font: Option<LoadedFont>,
     #[cfg(feature = "font")]
@@ -585,6 +588,8 @@ impl Universe {
             ctx2: None,
             affine: Affine::new(),
             tmp_canvas: None,
+            masks: HashMap::new(),
+            next_mask_id: 1,
             #[cfg(feature = "font")]
             font: None,
             #[cfg(feature = "font")]
@@ -609,6 +614,13 @@ impl Universe {
     /* Wrappers */
     fn layer_mut(&mut self) -> &mut Layer {
         self.canvas.layer_mut(self.canvas.current()).unwrap()
+    }
+
+    fn store_mask(&mut self, mask: Mask) -> u32 {
+        let id = self.next_mask_id;
+        self.next_mask_id = self.next_mask_id.wrapping_add(1).max(1);
+        self.masks.insert(id, mask);
+        id
     }
 
     #[wasm_bindgen(js_name = setEnable)]
@@ -902,6 +914,248 @@ impl Universe {
             y,
             width,
             height,
+            &paint,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = createRectMask)]
+    pub fn create_rect_mask(&mut self, x: i32, y: i32, width: u32, height: u32) -> u32 {
+        self.store_mask(Mask::from_rect(
+            self.canvas.width(),
+            self.canvas.height(),
+            x,
+            y,
+            width,
+            height,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = createFloodMask)]
+    pub fn create_flood_mask(
+        &mut self,
+        x: i32,
+        y: i32,
+        tolerance: u8,
+        compare_alpha: bool,
+        eight_connected: bool,
+    ) -> u32 {
+        let options = FloodOptions {
+            tolerance,
+            color_mode: if compare_alpha {
+                FloodColorMode::Rgba
+            } else {
+                FloodColorMode::Rgb
+            },
+            connectivity: if eight_connected {
+                FloodConnectivity::Eight
+            } else {
+                FloodConnectivity::Four
+            },
+        };
+        let mask = flood_mask(self.layer_mut(), x, y, options);
+        self.store_mask(mask)
+    }
+
+    #[wasm_bindgen(js_name = maskUnion)]
+    pub fn mask_union(&mut self, left: u32, right: u32) -> Result<u32, JsValue> {
+        let left = self
+            .masks
+            .get(&left)
+            .ok_or_else(|| js_error("unknown left mask"))?;
+        let right = self
+            .masks
+            .get(&right)
+            .ok_or_else(|| js_error("unknown right mask"))?;
+        let result = left
+            .union(right)
+            .map_err(|error| js_error(&error.to_string()))?;
+        Ok(self.store_mask(result))
+    }
+
+    #[wasm_bindgen(js_name = maskIntersect)]
+    pub fn mask_intersect(&mut self, left: u32, right: u32) -> Result<u32, JsValue> {
+        let left = self
+            .masks
+            .get(&left)
+            .ok_or_else(|| js_error("unknown left mask"))?;
+        let right = self
+            .masks
+            .get(&right)
+            .ok_or_else(|| js_error("unknown right mask"))?;
+        let result = left
+            .intersect(right)
+            .map_err(|error| js_error(&error.to_string()))?;
+        Ok(self.store_mask(result))
+    }
+
+    #[wasm_bindgen(js_name = maskDifference)]
+    pub fn mask_difference(&mut self, left: u32, right: u32) -> Result<u32, JsValue> {
+        let left = self
+            .masks
+            .get(&left)
+            .ok_or_else(|| js_error("unknown left mask"))?;
+        let right = self
+            .masks
+            .get(&right)
+            .ok_or_else(|| js_error("unknown right mask"))?;
+        let result = left
+            .difference(right)
+            .map_err(|error| js_error(&error.to_string()))?;
+        Ok(self.store_mask(result))
+    }
+
+    #[wasm_bindgen(js_name = maskInvert)]
+    pub fn mask_invert(&mut self, mask_id: u32) -> Result<(), JsValue> {
+        self.masks
+            .get_mut(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .invert();
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = maskGrow)]
+    pub fn mask_grow(&mut self, mask_id: u32, radius: u32) -> Result<u32, JsValue> {
+        let result = self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .grow(radius);
+        Ok(self.store_mask(result))
+    }
+
+    #[wasm_bindgen(js_name = maskShrink)]
+    pub fn mask_shrink(&mut self, mask_id: u32, radius: u32) -> Result<u32, JsValue> {
+        let result = self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .shrink(radius);
+        Ok(self.store_mask(result))
+    }
+
+    #[wasm_bindgen(js_name = maskFeather)]
+    pub fn mask_feather(&mut self, mask_id: u32, radius: u32) -> Result<u32, JsValue> {
+        let result = self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .feather(radius);
+        Ok(self.store_mask(result))
+    }
+
+    #[wasm_bindgen(js_name = maskCoverage)]
+    pub fn mask_coverage(&self, mask_id: u32, x: i32, y: i32) -> Result<u8, JsValue> {
+        Ok(self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .get(x, y))
+    }
+
+    #[wasm_bindgen(js_name = fillMaskSolid)]
+    pub fn fill_mask_solid(&mut self, mask_id: u32, argb: u32) -> Result<(), JsValue> {
+        let mask = self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .clone();
+        fill_mask(
+            self.layer_mut(),
+            &mask,
+            0,
+            0,
+            &Paint::Solid(Color::from_argb_u32(argb)),
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = fillMaskLinearGradient)]
+    pub fn fill_mask_linear_gradient(
+        &mut self,
+        mask_id: u32,
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        start_argb: u32,
+        end_argb: u32,
+        spread: String,
+    ) -> Result<(), JsValue> {
+        let mask = self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .clone();
+        let paint = Paint::LinearGradient(LinearGradient {
+            start: (start_x, start_y),
+            end: (end_x, end_y),
+            stops: paint_stops(start_argb, end_argb),
+            spread: paint_spread(&spread)?,
+            units: PaintUnits::UserSpaceOnUse,
+            transform: PaintTransform::IDENTITY,
+            interpolation: GradientInterpolation::Srgb,
+        });
+        fill_mask(
+            self.layer_mut(),
+            &mask,
+            0,
+            0,
+            &paint,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = fillMaskPattern)]
+    pub fn fill_mask_pattern(
+        &mut self,
+        mask_id: u32,
+        pattern_width: u32,
+        pattern_height: u32,
+        pixels: Vec<u8>,
+        tile_mode: String,
+        sampling: String,
+        scale: f32,
+        rotation: f32,
+        offset_x: f32,
+        offset_y: f32,
+    ) -> Result<(), JsValue> {
+        let mask = self
+            .masks
+            .get(&mask_id)
+            .ok_or_else(|| js_error("unknown mask"))?
+            .clone();
+        let sampling = match sampling.to_ascii_lowercase().as_str() {
+            "nearest" => SamplingMode::Nearest,
+            "bilinear" => SamplingMode::Bilinear,
+            _ => return Err(js_error("unknown pattern sampling mode")),
+        };
+        let (sin, cos) = rotation.sin_cos();
+        let image = PatternImage::new(pattern_width, pattern_height, pixels)
+            .map_err(|error| js_error(&error.to_string()))?;
+        let tile_mode = paint_tile_mode(&tile_mode)?;
+        let paint = Paint::Pattern(Pattern {
+            image,
+            tile_x: tile_mode,
+            tile_y: tile_mode,
+            sampling,
+            transform: PaintTransform::new([
+                scale * cos,
+                scale * sin,
+                -scale * sin,
+                scale * cos,
+                offset_x,
+                offset_y,
+            ]),
+        });
+        fill_mask(
+            self.layer_mut(),
+            &mask,
+            0,
+            0,
             &paint,
             paintcore::composite::DrawOptions::default(),
         );

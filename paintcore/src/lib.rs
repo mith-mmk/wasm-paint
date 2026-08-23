@@ -23,6 +23,7 @@ pub mod grayscale;
 pub mod image;
 pub mod layer;
 pub mod line;
+pub mod mask;
 pub mod math;
 pub mod paint;
 pub mod path;

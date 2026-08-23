@@ -11,6 +11,7 @@ pub use crate::grayscale::*;
 pub use crate::image::*;
 pub use crate::layer::*;
 pub use crate::line::*;
+pub use crate::mask::*;
 pub use crate::math::*;
 pub use crate::paint::*;
 pub use crate::path::*;

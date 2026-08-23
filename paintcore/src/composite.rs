@@ -1,6 +1,6 @@
 //! Alpha compositing and artistic blend modes.
 
-use crate::{canvas::Screen, paint::Color};
+use crate::{canvas::Screen, mask::Mask, paint::Color};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CompositeOp {
@@ -58,18 +58,39 @@ impl BlendMode {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct DrawOptions {
+pub struct ClipMask<'a> {
+    pub mask: &'a Mask,
+    pub x: i32,
+    pub y: i32,
+}
+
+impl<'a> ClipMask<'a> {
+    pub const fn new(mask: &'a Mask, x: i32, y: i32) -> Self {
+        Self { mask, x, y }
+    }
+
+    fn coverage_at(self, x: i32, y: i32) -> f32 {
+        self.mask
+            .get(x.saturating_sub(self.x), y.saturating_sub(self.y)) as f32
+            / 255.0
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DrawOptions<'a> {
     pub opacity: f32,
     pub composite_op: CompositeOp,
     pub blend_mode: BlendMode,
+    pub clip_mask: Option<ClipMask<'a>>,
 }
 
-impl Default for DrawOptions {
+impl Default for DrawOptions<'_> {
     fn default() -> Self {
         Self {
             opacity: 1.0,
             composite_op: CompositeOp::SourceOver,
             blend_mode: BlendMode::Normal,
+            clip_mask: None,
         }
     }
 }
@@ -147,7 +168,12 @@ fn factors(op: CompositeOp, source_alpha: f32, dest_alpha: f32) -> (f32, f32) {
 }
 
 /// Composites one non-premultiplied RGBA pixel and returns non-premultiplied RGBA.
-pub fn composite_pixel(dest: Color, source: Color, coverage: f32, options: DrawOptions) -> Color {
+pub fn composite_pixel(
+    dest: Color,
+    source: Color,
+    coverage: f32,
+    options: DrawOptions<'_>,
+) -> Color {
     let source_alpha =
         (source.alpha as f32 / 255.0) * coverage.clamp(0.0, 1.0) * options.opacity.clamp(0.0, 1.0);
     let dest_alpha = dest.alpha as f32 / 255.0;
@@ -211,9 +237,17 @@ pub fn blend_pixel(
     y: i32,
     source: Color,
     coverage: f32,
-    options: DrawOptions,
+    options: DrawOptions<'_>,
 ) {
     if x < 0 || y < 0 || x >= screen.width() as i32 || y >= screen.height() as i32 {
+        return;
+    }
+    let coverage = coverage
+        * options
+            .clip_mask
+            .map(|clip| clip.coverage_at(x, y))
+            .unwrap_or(1.0);
+    if coverage <= 0.0 {
         return;
     }
     let offset = ((y as u32 * screen.width() + x as u32) * 4) as usize;
@@ -236,7 +270,7 @@ pub fn composite_screen(
     dest: &mut dyn Screen,
     dx: i32,
     dy: i32,
-    options: DrawOptions,
+    options: DrawOptions<'_>,
 ) {
     let mut options = options;
     options.opacity *= source.alpha().unwrap_or(0xff) as f32 / 255.0;
@@ -276,7 +310,7 @@ pub fn fill_rect_with_options(
     width: u32,
     height: u32,
     color: Color,
-    options: DrawOptions,
+    options: DrawOptions<'_>,
 ) {
     let end_y = y.saturating_add(height.min(i32::MAX as u32) as i32);
     let end_x = x.saturating_add(width.min(i32::MAX as u32) as i32);

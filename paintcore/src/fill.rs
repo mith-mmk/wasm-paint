@@ -6,7 +6,119 @@
 
 use crate::canvas::*;
 use crate::line::*;
+use crate::mask::Mask;
 use crate::utils::*;
+use std::collections::VecDeque;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FloodColorMode {
+    #[default]
+    Rgb,
+    Rgba,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FloodConnectivity {
+    #[default]
+    Four,
+    Eight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FloodOptions {
+    pub tolerance: u8,
+    pub color_mode: FloodColorMode,
+    pub connectivity: FloodConnectivity,
+}
+
+fn rgba_at(screen: &dyn Screen, x: u32, y: u32) -> Option<[u8; 4]> {
+    if x >= screen.width() || y >= screen.height() {
+        return None;
+    }
+    let offset = usize::try_from(y)
+        .ok()?
+        .checked_mul(usize::try_from(screen.width()).ok()?)?
+        .checked_add(usize::try_from(x).ok()?)?
+        .checked_mul(4)?;
+    let pixel = screen.buffer().get(offset..offset.checked_add(4)?)?;
+    Some([pixel[0], pixel[1], pixel[2], pixel[3]])
+}
+
+fn flood_matches(candidate: [u8; 4], reference: [u8; 4], options: FloodOptions) -> bool {
+    let channels = if options.color_mode == FloodColorMode::Rgba {
+        4
+    } else {
+        3
+    };
+    candidate[..channels]
+        .iter()
+        .zip(&reference[..channels])
+        .all(|(&candidate, &reference)| candidate.abs_diff(reference) <= options.tolerance)
+}
+
+/// Finds a flood region without modifying the reference surface.
+pub fn flood_mask(
+    reference: &dyn Screen,
+    start_x: i32,
+    start_y: i32,
+    options: FloodOptions,
+) -> Mask {
+    let mut mask = Mask::new(reference.width(), reference.height());
+    if start_x < 0
+        || start_y < 0
+        || start_x >= reference.width() as i32
+        || start_y >= reference.height() as i32
+        || mask.is_empty()
+    {
+        return mask;
+    }
+    let Some(seed) = rgba_at(reference, start_x as u32, start_y as u32) else {
+        return mask;
+    };
+    let mut queue = VecDeque::new();
+    queue.push_back((start_x, start_y));
+    mask.set(start_x, start_y, 255);
+
+    const FOUR: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+    const EIGHT: [(i32, i32); 8] = [
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+        (1, 1),
+        (1, -1),
+        (-1, 1),
+        (-1, -1),
+    ];
+    let neighbors: &[(i32, i32)] = if options.connectivity == FloodConnectivity::Eight {
+        &EIGHT
+    } else {
+        &FOUR
+    };
+
+    while let Some((x, y)) = queue.pop_front() {
+        for &(dx, dy) in neighbors {
+            let next_x = x.saturating_add(dx);
+            let next_y = y.saturating_add(dy);
+            if next_x < 0
+                || next_y < 0
+                || next_x >= reference.width() as i32
+                || next_y >= reference.height() as i32
+                || mask.get(next_x, next_y) != 0
+            {
+                continue;
+            }
+            let Some(candidate) = rgba_at(reference, next_x as u32, next_y as u32) else {
+                continue;
+            };
+            if flood_matches(candidate, seed, options) {
+                mask.set(next_x, next_y, 255);
+                queue.push_back((next_x, next_y));
+            }
+        }
+    }
+    mask
+}
 
 pub struct ScanStack {
     pub sx: u32,

@@ -670,7 +670,7 @@ pub fn fill_paint_rect(
     width: u32,
     height: u32,
     paint: &Paint,
-    options: DrawOptions,
+    options: DrawOptions<'_>,
 ) {
     let bounds = PaintBounds::new(x as f32, y as f32, width as f32, height as f32);
     let prepared = paint.prepare(bounds);
