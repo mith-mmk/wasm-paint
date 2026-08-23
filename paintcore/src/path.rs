@@ -4,8 +4,17 @@
 type Error = Box<dyn std::error::Error>;
 
 use crate::{
-    affine::InterpolationAlgorithm, draw::draw_over_screen_with_alpha, error::Error as PaintError,
-    image, layer::Layer, line, prelude::Screen, spline, utils::color_tuple,
+    affine::InterpolationAlgorithm,
+    draw::draw_over_screen_with_alpha,
+    error::Error as PaintError,
+    image,
+    layer::Layer,
+    line,
+    mask::{fill_mask, Mask},
+    paint::Paint,
+    prelude::{DrawOptions, Screen},
+    spline,
+    utils::color_tuple,
 };
 use std::cmp::Ordering;
 
@@ -141,6 +150,45 @@ impl GlyphPaint {
 pub enum FillRule {
     NonZero,
     EvenOdd,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StrokeCap {
+    #[default]
+    Butt,
+    Round,
+    Square,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StrokeJoin {
+    #[default]
+    Miter,
+    Round,
+    Bevel,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StrokeStyle {
+    pub width: f32,
+    pub cap: StrokeCap,
+    pub join: StrokeJoin,
+    pub miter_limit: f32,
+    pub dash: Vec<f32>,
+    pub dash_offset: f32,
+}
+
+impl Default for StrokeStyle {
+    fn default() -> Self {
+        Self {
+            width: 1.0,
+            cap: StrokeCap::Butt,
+            join: StrokeJoin::Miter,
+            miter_limit: 4.0,
+            dash: Vec::new(),
+            dash_offset: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1384,6 +1432,364 @@ fn rasterize_stroke_coverage(
         height,
         coverage,
     })
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StyledStrokeSegment {
+    start: (f32, f32),
+    end: (f32, f32),
+    start_cap: bool,
+    end_cap: bool,
+}
+
+fn normalized_dash(style: &StrokeStyle) -> Vec<f32> {
+    let mut dash: Vec<f32> = style
+        .dash
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite() && *value > f32::EPSILON)
+        .collect();
+    if dash.len() % 2 == 1 {
+        dash.extend_from_within(..);
+    }
+    dash
+}
+
+fn styled_stroke_segments(
+    subpaths: &[FlattenedSubpath],
+    style: &StrokeStyle,
+) -> Vec<StyledStrokeSegment> {
+    let dash = normalized_dash(style);
+    if dash.is_empty() {
+        return subpaths
+            .iter()
+            .flat_map(|subpath| {
+                let segment_count = subpath.points.len().saturating_sub(1);
+                subpath
+                    .points
+                    .windows(2)
+                    .enumerate()
+                    .filter(|(_, points)| points[0] != points[1])
+                    .map(move |(index, points)| StyledStrokeSegment {
+                        start: points[0],
+                        end: points[1],
+                        start_cap: index == 0,
+                        end_cap: index + 1 == segment_count,
+                    })
+            })
+            .collect();
+    }
+
+    let dash_total: f32 = dash.iter().sum();
+    if !dash_total.is_finite() || dash_total <= f32::EPSILON {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    for subpath in subpaths {
+        let mut dash_index = 0usize;
+        let mut offset = style.dash_offset.rem_euclid(dash_total);
+        while offset >= dash[dash_index] {
+            offset -= dash[dash_index];
+            dash_index = (dash_index + 1) % dash.len();
+        }
+        let mut dash_remaining = dash[dash_index] - offset;
+
+        for points in subpath.points.windows(2) {
+            let start = points[0];
+            let end = points[1];
+            let dx = end.0 - start.0;
+            let dy = end.1 - start.1;
+            let length = dx.hypot(dy);
+            if !length.is_finite() || length <= f32::EPSILON {
+                continue;
+            }
+            let mut position = 0.0;
+            while position < length {
+                let take = dash_remaining.min(length - position);
+                if dash_index % 2 == 0 && take > f32::EPSILON {
+                    let from = position / length;
+                    let to = (position + take) / length;
+                    result.push(StyledStrokeSegment {
+                        start: (start.0 + dx * from, start.1 + dy * from),
+                        end: (start.0 + dx * to, start.1 + dy * to),
+                        start_cap: true,
+                        end_cap: true,
+                    });
+                }
+                position += take;
+                dash_remaining -= take;
+                if dash_remaining <= f32::EPSILON {
+                    dash_index = (dash_index + 1) % dash.len();
+                    dash_remaining = dash[dash_index];
+                }
+            }
+        }
+    }
+    result
+}
+
+fn styled_segment_covers(
+    point: (f32, f32),
+    segment: StyledStrokeSegment,
+    radius: f32,
+    cap: StrokeCap,
+) -> bool {
+    let dx = segment.end.0 - segment.start.0;
+    let dy = segment.end.1 - segment.start.1;
+    let length_sq = dx * dx + dy * dy;
+    if length_sq <= f32::EPSILON {
+        return false;
+    }
+    let length = length_sq.sqrt();
+    let t = ((point.0 - segment.start.0) * dx + (point.1 - segment.start.1) * dy) / length_sq;
+    let extension = radius / length;
+    let min_t = if segment.start_cap && cap == StrokeCap::Square {
+        -extension
+    } else {
+        0.0
+    };
+    let max_t = if segment.end_cap && cap == StrokeCap::Square {
+        1.0 + extension
+    } else {
+        1.0
+    };
+    if t < min_t {
+        return segment.start_cap
+            && cap == StrokeCap::Round
+            && (point.0 - segment.start.0).hypot(point.1 - segment.start.1) <= radius;
+    }
+    if t > max_t {
+        return segment.end_cap
+            && cap == StrokeCap::Round
+            && (point.0 - segment.end.0).hypot(point.1 - segment.end.1) <= radius;
+    }
+    let projected = (segment.start.0 + t * dx, segment.start.1 + t * dy);
+    (point.0 - projected.0).hypot(point.1 - projected.1) <= radius
+}
+
+fn triangle_contains(point: (f32, f32), a: (f32, f32), b: (f32, f32), c: (f32, f32)) -> bool {
+    fn cross(a: (f32, f32), b: (f32, f32), point: (f32, f32)) -> f32 {
+        (b.0 - a.0) * (point.1 - a.1) - (b.1 - a.1) * (point.0 - a.0)
+    }
+    let ab = cross(a, b, point);
+    let bc = cross(b, c, point);
+    let ca = cross(c, a, point);
+    (ab >= -f32::EPSILON && bc >= -f32::EPSILON && ca >= -f32::EPSILON)
+        || (ab <= f32::EPSILON && bc <= f32::EPSILON && ca <= f32::EPSILON)
+}
+
+fn join_covers(
+    point: (f32, f32),
+    previous: (f32, f32),
+    vertex: (f32, f32),
+    next: (f32, f32),
+    radius: f32,
+    style: &StrokeStyle,
+) -> bool {
+    if style.join == StrokeJoin::Round {
+        return (point.0 - vertex.0).hypot(point.1 - vertex.1) <= radius;
+    }
+    let incoming_length = (vertex.0 - previous.0).hypot(vertex.1 - previous.1);
+    let outgoing_length = (next.0 - vertex.0).hypot(next.1 - vertex.1);
+    if incoming_length <= f32::EPSILON || outgoing_length <= f32::EPSILON {
+        return false;
+    }
+    let incoming = (
+        (vertex.0 - previous.0) / incoming_length,
+        (vertex.1 - previous.1) / incoming_length,
+    );
+    let outgoing = (
+        (next.0 - vertex.0) / outgoing_length,
+        (next.1 - vertex.1) / outgoing_length,
+    );
+    let turn = incoming.0 * outgoing.1 - incoming.1 * outgoing.0;
+    if turn.abs() <= 1.0e-5 {
+        return false;
+    }
+    let side = if turn > 0.0 { -1.0 } else { 1.0 };
+    let normal_in = (-incoming.1 * side, incoming.0 * side);
+    let normal_out = (-outgoing.1 * side, outgoing.0 * side);
+    let offset_in = (
+        vertex.0 + normal_in.0 * radius,
+        vertex.1 + normal_in.1 * radius,
+    );
+    let offset_out = (
+        vertex.0 + normal_out.0 * radius,
+        vertex.1 + normal_out.1 * radius,
+    );
+    if style.join == StrokeJoin::Bevel {
+        return triangle_contains(point, vertex, offset_in, offset_out);
+    }
+    let sum = (normal_in.0 + normal_out.0, normal_in.1 + normal_out.1);
+    let sum_length = sum.0.hypot(sum.1);
+    if sum_length <= f32::EPSILON {
+        return triangle_contains(point, vertex, offset_in, offset_out);
+    }
+    let miter_direction = (sum.0 / sum_length, sum.1 / sum_length);
+    let denominator = miter_direction.0 * normal_in.0 + miter_direction.1 * normal_in.1;
+    if denominator.abs() <= f32::EPSILON {
+        return triangle_contains(point, vertex, offset_in, offset_out);
+    }
+    let miter_length = (radius / denominator.abs()).abs();
+    if miter_length > radius * style.miter_limit.max(1.0) {
+        return triangle_contains(point, vertex, offset_in, offset_out);
+    }
+    let miter = (
+        vertex.0 + miter_direction.0 * miter_length,
+        vertex.1 + miter_direction.1 * miter_length,
+    );
+    triangle_contains(point, vertex, offset_in, miter)
+        || triangle_contains(point, vertex, miter, offset_out)
+}
+
+fn rasterize_styled_stroke_coverage(
+    subpaths: &[FlattenedSubpath],
+    style: &StrokeStyle,
+) -> Option<CoverageMask> {
+    if !style.width.is_finite() || style.width <= 0.0 {
+        return None;
+    }
+    let radius = style.width * 0.5;
+    let mut bounds = subpath_bounds(subpaths)?;
+    let expansion = radius * style.miter_limit.max(1.0).min(1_000.0);
+    bounds.min_x -= expansion;
+    bounds.min_y -= expansion;
+    bounds.max_x += expansion;
+    bounds.max_y += expansion;
+    let (origin_x, origin_y, width, height) = coverage_bounds(&bounds)?;
+    let segments = styled_stroke_segments(subpaths, style);
+    if segments.is_empty() {
+        return None;
+    }
+    let use_joins = normalized_dash(style).is_empty();
+    let row_weight = 1.0 / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
+    let mut coverage = vec![0.0_f32; width as usize * height as usize];
+    for y in 0..height as i32 {
+        let row_offset = y as usize * width as usize;
+        for x in 0..width as i32 {
+            let sample_x = origin_x as f32 + x as f32 + 0.5;
+            let mut pixel_coverage = 0.0;
+            for subpixel_index in 0..GLYPH_AA_SUBPIXEL_ROW_COUNT {
+                let sample_y = origin_y as f32
+                    + y as f32
+                    + (subpixel_index as f32 + 0.5) / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
+                let sample = (sample_x, sample_y);
+                let segment_hit = segments
+                    .iter()
+                    .any(|segment| styled_segment_covers(sample, *segment, radius, style.cap));
+                let join_hit = use_joins
+                    && subpaths.iter().any(|subpath| {
+                        subpath.points.windows(3).any(|points| {
+                            join_covers(sample, points[0], points[1], points[2], radius, style)
+                        })
+                    });
+                if segment_hit || join_hit {
+                    pixel_coverage += row_weight;
+                }
+            }
+            coverage[row_offset + x as usize] = pixel_coverage;
+        }
+    }
+    Some(CoverageMask {
+        origin_x,
+        origin_y,
+        width,
+        height,
+        coverage,
+    })
+}
+
+fn coverage_mask_to_surface(mask: CoverageMask, width: u32, height: u32) -> Mask {
+    let mut result = Mask::new(width, height);
+    for y in 0..mask.height as i32 {
+        for x in 0..mask.width as i32 {
+            let value = (mask.coverage[y as usize * mask.width as usize + x as usize]
+                .clamp(0.0, 1.0)
+                * 255.0)
+                .round() as u8;
+            result.set(
+                mask.origin_x.saturating_add(x),
+                mask.origin_y.saturating_add(y),
+                value,
+            );
+        }
+    }
+    result
+}
+
+pub fn rasterize_path_mask(
+    commands: &[Command],
+    width: u32,
+    height: u32,
+    offset_x: f32,
+    offset_y: f32,
+    fill_rule: FillRule,
+) -> Mask {
+    if !offset_x.is_finite() || !offset_y.is_finite() {
+        return Mask::new(width, height);
+    }
+    let subpaths = flatten_commands(commands, offset_x, offset_y);
+    let contours = subpaths_to_fill_contours(&subpaths);
+    rasterize_fill_coverage(&contours, fill_rule)
+        .map(|mask| coverage_mask_to_surface(mask, width, height))
+        .unwrap_or_else(|| Mask::new(width, height))
+}
+
+pub fn rasterize_stroke_mask(
+    commands: &[Command],
+    width: u32,
+    height: u32,
+    offset_x: f32,
+    offset_y: f32,
+    style: &StrokeStyle,
+) -> Mask {
+    if !offset_x.is_finite() || !offset_y.is_finite() {
+        return Mask::new(width, height);
+    }
+    let subpaths = flatten_commands(commands, offset_x, offset_y);
+    rasterize_styled_stroke_coverage(&subpaths, style)
+        .map(|mask| coverage_mask_to_surface(mask, width, height))
+        .unwrap_or_else(|| Mask::new(width, height))
+}
+
+pub fn fill_path(
+    screen: &mut dyn Screen,
+    commands: &[Command],
+    paint: &Paint,
+    fill_rule: FillRule,
+    offset_x: f32,
+    offset_y: f32,
+    options: DrawOptions<'_>,
+) {
+    let mask = rasterize_path_mask(
+        commands,
+        screen.width(),
+        screen.height(),
+        offset_x,
+        offset_y,
+        fill_rule,
+    );
+    fill_mask(screen, &mask, 0, 0, paint, options);
+}
+
+pub fn stroke_path(
+    screen: &mut dyn Screen,
+    commands: &[Command],
+    paint: &Paint,
+    style: &StrokeStyle,
+    offset_x: f32,
+    offset_y: f32,
+    options: DrawOptions<'_>,
+) {
+    let mask = rasterize_stroke_mask(
+        commands,
+        screen.width(),
+        screen.height(),
+        offset_x,
+        offset_y,
+        style,
+    );
+    fill_mask(screen, &mask, 0, 0, paint, options);
 }
 
 fn paint_coverage_mask(

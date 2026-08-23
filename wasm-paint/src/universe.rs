@@ -551,6 +551,8 @@ pub struct Universe {
     tmp_canvas: Option<(Canvas, Option<InterpolationAlgorithm>, ImageAlign)>,
     masks: HashMap<u32, Mask>,
     next_mask_id: u32,
+    brushes: HashMap<u32, BrushStroke>,
+    next_brush_id: u32,
     #[cfg(feature = "font")]
     font: Option<LoadedFont>,
     #[cfg(feature = "font")]
@@ -590,6 +592,8 @@ impl Universe {
             tmp_canvas: None,
             masks: HashMap::new(),
             next_mask_id: 1,
+            brushes: HashMap::new(),
+            next_brush_id: 1,
             #[cfg(feature = "font")]
             font: None,
             #[cfg(feature = "font")]
@@ -621,6 +625,26 @@ impl Universe {
         self.next_mask_id = self.next_mask_id.wrapping_add(1).max(1);
         self.masks.insert(id, mask);
         id
+    }
+
+    fn brush_sample_with_paint(
+        &mut self,
+        brush_id: u32,
+        sample: StrokeSample,
+        paint: &Paint,
+    ) -> Result<u32, JsValue> {
+        let mut brush = self
+            .brushes
+            .remove(&brush_id)
+            .ok_or_else(|| js_error("unknown brush"))?;
+        let count = brush.draw_sample(
+            self.layer_mut(),
+            sample,
+            paint,
+            paintcore::composite::DrawOptions::default(),
+        );
+        self.brushes.insert(brush_id, brush);
+        Ok(count as u32)
     }
 
     #[wasm_bindgen(js_name = setEnable)]
@@ -1160,6 +1184,240 @@ impl Universe {
             paintcore::composite::DrawOptions::default(),
         );
         Ok(())
+    }
+
+    #[wasm_bindgen(js_name = strokeStyledPath)]
+    pub fn stroke_styled_path(
+        &mut self,
+        commands: String,
+        argb: u32,
+        width: f32,
+        cap: String,
+        join: String,
+        miter_limit: f32,
+        dash: Vec<f32>,
+        dash_offset: f32,
+    ) -> Result<(), JsValue> {
+        let commands = parse_path_commands(&commands)
+            .map_err(|error| js_error(&format!("invalid path: {error}")))?;
+        let cap = match cap.to_ascii_lowercase().as_str() {
+            "butt" => StrokeCap::Butt,
+            "round" => StrokeCap::Round,
+            "square" => StrokeCap::Square,
+            _ => return Err(js_error("unknown stroke cap")),
+        };
+        let join = match join.to_ascii_lowercase().as_str() {
+            "miter" => StrokeJoin::Miter,
+            "round" => StrokeJoin::Round,
+            "bevel" => StrokeJoin::Bevel,
+            _ => return Err(js_error("unknown stroke join")),
+        };
+        stroke_path(
+            self.layer_mut(),
+            &commands,
+            &Paint::Solid(Color::from_argb_u32(argb)),
+            &StrokeStyle {
+                width,
+                cap,
+                join,
+                miter_limit,
+                dash,
+                dash_offset,
+            },
+            0.0,
+            0.0,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = createBrush)]
+    pub fn create_brush(
+        &mut self,
+        tip_kind: String,
+        tip_width: u32,
+        tip_height: u32,
+        size: f32,
+        opacity: f32,
+        flow: f32,
+        spacing: f32,
+        rotation: f32,
+        scatter: f32,
+        pressure_size: f32,
+        pressure_opacity: f32,
+        pressure_flow: f32,
+        seed: u32,
+    ) -> Result<u32, JsValue> {
+        let tip = match tip_kind.to_ascii_lowercase().as_str() {
+            "circle" => BrushTip::circle(tip_width),
+            "rectangle" | "rect" => BrushTip::rectangle(tip_width, tip_height),
+            _ => return Err(js_error("unknown brush tip")),
+        };
+        let id = self.next_brush_id;
+        self.next_brush_id = self.next_brush_id.wrapping_add(1).max(1);
+        self.brushes.insert(
+            id,
+            BrushStroke::new(
+                tip,
+                BrushSettings {
+                    size,
+                    opacity,
+                    flow,
+                    spacing,
+                    rotation,
+                    scatter,
+                    pressure: PressureMapping {
+                        size: pressure_size,
+                        opacity: pressure_opacity,
+                        flow: pressure_flow,
+                    },
+                },
+                seed as u64,
+            ),
+        );
+        Ok(id)
+    }
+
+    #[wasm_bindgen(js_name = createMaskBrush)]
+    pub fn create_mask_brush(
+        &mut self,
+        width: u32,
+        height: u32,
+        coverage: Vec<u8>,
+        size: f32,
+        spacing: f32,
+        seed: u32,
+    ) -> Result<u32, JsValue> {
+        let mask = Mask::from_coverage(width, height, coverage)
+            .map_err(|error| js_error(&error.to_string()))?;
+        let id = self.next_brush_id;
+        self.next_brush_id = self.next_brush_id.wrapping_add(1).max(1);
+        self.brushes.insert(
+            id,
+            BrushStroke::new(
+                BrushTip::from_mask(mask),
+                BrushSettings {
+                    size,
+                    spacing,
+                    ..BrushSettings::default()
+                },
+                seed as u64,
+            ),
+        );
+        Ok(id)
+    }
+
+    #[wasm_bindgen(js_name = brushSampleSolid)]
+    pub fn brush_sample_solid(
+        &mut self,
+        brush_id: u32,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        tilt_x: f32,
+        tilt_y: f32,
+        rotation: f32,
+        timestamp: f64,
+        argb: u32,
+    ) -> Result<u32, JsValue> {
+        self.brush_sample_with_paint(
+            brush_id,
+            StrokeSample {
+                x,
+                y,
+                pressure,
+                tilt_x,
+                tilt_y,
+                rotation,
+                timestamp,
+            },
+            &Paint::Solid(Color::from_argb_u32(argb)),
+        )
+    }
+
+    #[wasm_bindgen(js_name = brushSampleLinearGradient)]
+    pub fn brush_sample_linear_gradient(
+        &mut self,
+        brush_id: u32,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        rotation: f32,
+        timestamp: f64,
+        start_x: f32,
+        start_y: f32,
+        end_x: f32,
+        end_y: f32,
+        start_argb: u32,
+        end_argb: u32,
+    ) -> Result<u32, JsValue> {
+        let paint = Paint::LinearGradient(LinearGradient {
+            start: (start_x, start_y),
+            end: (end_x, end_y),
+            stops: paint_stops(start_argb, end_argb),
+            spread: SpreadMode::Pad,
+            units: PaintUnits::UserSpaceOnUse,
+            transform: PaintTransform::IDENTITY,
+            interpolation: GradientInterpolation::Srgb,
+        });
+        self.brush_sample_with_paint(
+            brush_id,
+            StrokeSample {
+                x,
+                y,
+                pressure,
+                tilt_x: 0.0,
+                tilt_y: 0.0,
+                rotation,
+                timestamp,
+            },
+            &paint,
+        )
+    }
+
+    #[wasm_bindgen(js_name = brushSamplePattern)]
+    pub fn brush_sample_pattern(
+        &mut self,
+        brush_id: u32,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        rotation: f32,
+        timestamp: f64,
+        pattern_width: u32,
+        pattern_height: u32,
+        pixels: Vec<u8>,
+        tile_mode: String,
+        sampling: String,
+        pattern_scale: f32,
+    ) -> Result<u32, JsValue> {
+        let sampling = match sampling.to_ascii_lowercase().as_str() {
+            "nearest" => SamplingMode::Nearest,
+            "bilinear" => SamplingMode::Bilinear,
+            _ => return Err(js_error("unknown pattern sampling mode")),
+        };
+        let tile_mode = paint_tile_mode(&tile_mode)?;
+        let paint = Paint::Pattern(Pattern {
+            image: PatternImage::new(pattern_width, pattern_height, pixels)
+                .map_err(|error| js_error(&error.to_string()))?,
+            tile_x: tile_mode,
+            tile_y: tile_mode,
+            sampling,
+            transform: PaintTransform::new([pattern_scale, 0.0, 0.0, pattern_scale, 0.0, 0.0]),
+        });
+        self.brush_sample_with_paint(
+            brush_id,
+            StrokeSample {
+                x,
+                y,
+                pressure,
+                tilt_x: 0.0,
+                tilt_y: 0.0,
+                rotation,
+                timestamp,
+            },
+            &paint,
+        )
     }
 
     pub fn pentagram(&mut self, ox: i32, oy: i32, r: f32, tilde: f32, color: u32) {

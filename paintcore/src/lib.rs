@@ -10,6 +10,7 @@
 pub fn test() {}
 
 pub mod affine;
+pub mod brush;
 pub mod canvas;
 pub mod circle;
 pub mod clear;

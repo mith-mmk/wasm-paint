@@ -1,4 +1,5 @@
 pub use crate::affine::*;
+pub use crate::brush::*;
 pub use crate::canvas::*;
 pub use crate::circle::*;
 pub use crate::clear::*;
