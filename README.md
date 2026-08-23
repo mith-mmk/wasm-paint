@@ -1,11 +1,31 @@
-# what's it
+# wasm-paint / paintcore
 
-- The paintcore is raster image tools
-- The wasm-paint is browser painting demo.
+- `paintcore` is a standalone Pure Rust raster drawing and image-processing engine.
+- `wasm-paint` exposes the engine to browsers without breaking the existing JavaScript API.
+
+The typed painting API provides Solid, linear/radial/sweep gradient, and shared image-pattern
+paints; premultiplied-alpha compositing and blend modes; checked 8-bit masks and configurable flood
+selection; styled path strokes; and a distance-spaced pressure brush engine. No `vectorcore`, GPU
+backend, or external rasterizer is required.
+
+Buffers are straight `[R, G, B, A]` bytes. New WASM methods with an `argb` parameter accept
+`0xAARRGGBB`; legacy numeric APIs retain their historical color contract.
+
+See [paintcore/README.md](paintcore/README.md) for API details and examples.
 
 # WebAssembly Test
 
 Color model ABGR uint32LE
+
+Typed paint regression pages:
+
+- `tests/composite.html`
+- `tests/gradient.html`
+- `tests/pattern.html`
+- `tests/mask.html`
+- `tests/flood.html`
+- `tests/stroke.html`
+- `tests/brush.html` (stateful Worker example)
 
 2022/02/20 0.0.1 Pointのみ
 
@@ -63,24 +83,4 @@ Color model ABGR uint32LE
 
 2026/08/09 0.0.29 境界チェックの強化とそれに伴うAPIの拡張
 
-Todo
-
-- organize Functions
-- border
-- polyline
-- timer interrupt 1/30s 1/60s 1/120s
-- triming
-- image saver
-- inclued Trait on Canvas
-- line width
-- line dash
-- gradient paint
-- shadow effects
-- pen draw with sroke
-- text draw
-- font support
-- image effects
-- multi thread
-- support SIMD/OpenCL/WebGL
-
-- and documents
+The maintained roadmap is in [todo.md](todo.md).
