@@ -90,6 +90,8 @@ pub enum GlyphPaint {
     CurrentColor,
     LinearGradient(LinearGradientPaint),
     RadialGradient(RadialGradientPaint),
+    /// Uses the same typed Paint source as shapes, masks, and brushes.
+    Paint(crate::paint::Paint),
 }
 
 impl GlyphPaint {
@@ -142,6 +144,7 @@ impl GlyphPaint {
                     interpolation: crate::paint::GradientInterpolation::Srgb,
                 })
             }
+            Self::Paint(paint) => paint.clone(),
         }
     }
 }
@@ -726,7 +729,7 @@ fn resolve_paint(paint: &GlyphPaint, default_color: u32) -> u32 {
     match paint {
         GlyphPaint::Solid(color) => normalize_solid_color(*color),
         GlyphPaint::CurrentColor => normalize_paint_color(default_color),
-        GlyphPaint::LinearGradient(_) | GlyphPaint::RadialGradient(_) => {
+        GlyphPaint::LinearGradient(_) | GlyphPaint::RadialGradient(_) | GlyphPaint::Paint(_) => {
             normalize_paint_color(default_color)
         }
     }
@@ -892,6 +895,7 @@ fn resolve_paint_at(paint: &GlyphPaint, default_color: u32, x: f32, y: f32) -> u
         GlyphPaint::Solid(_) | GlyphPaint::CurrentColor => resolve_paint(paint, default_color),
         GlyphPaint::LinearGradient(gradient) => sample_linear_gradient(gradient, x, y),
         GlyphPaint::RadialGradient(gradient) => sample_radial_gradient(gradient, x, y),
+        GlyphPaint::Paint(_) => resolve_paint(paint, default_color),
     }
 }
 
