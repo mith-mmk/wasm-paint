@@ -1510,7 +1510,7 @@ fn styled_stroke_segments(
             let mut position = 0.0;
             while position < length {
                 let take = dash_remaining.min(length - position);
-                if dash_index % 2 == 0 && take > f32::EPSILON {
+                if dash_index & 1 == 0 && take > f32::EPSILON {
                     let from = position / length;
                     let to = (position + take) / length;
                     result.push(StyledStrokeSegment {
@@ -1655,7 +1655,12 @@ fn rasterize_styled_stroke_coverage(
     }
     let radius = style.width * 0.5;
     let mut bounds = subpath_bounds(subpaths)?;
-    let expansion = radius * style.miter_limit.max(1.0).min(1_000.0);
+    let miter_limit = if style.miter_limit.is_finite() {
+        style.miter_limit.clamp(1.0, 1_000.0)
+    } else {
+        1.0
+    };
+    let expansion = radius * miter_limit;
     bounds.min_x -= expansion;
     bounds.min_y -= expansion;
     bounds.max_x += expansion;

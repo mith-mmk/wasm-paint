@@ -795,7 +795,8 @@ fn compare_direct_font_and_family_yugothb() {
             .expect("descriptor family glyph run"),
     );
 
-    fn summarize(run: &GlyphRun) -> Vec<(usize, usize, usize, Option<(i32, i32, i32, i32)>)> {
+    type GlyphSummary = (usize, usize, usize, Option<(i32, i32, i32, i32)>);
+    fn summarize(run: &GlyphRun) -> Vec<GlyphSummary> {
         run.glyphs
             .iter()
             .map(|glyph| {

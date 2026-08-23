@@ -2,7 +2,7 @@ const canvas = document.getElementById("canvas");
 const context = canvas.getContext("2d");
 const status = document.getElementById("status");
 const results = document.getElementById("results");
-const worker = new Worker("./brush-worker.js", { type: "module" });
+const worker = new Worker("./js/brush-worker.js", { type: "module" });
 
 worker.addEventListener("message", ({ data }) => {
   if (data.type === "ready") {
@@ -19,7 +19,12 @@ worker.addEventListener("message", ({ data }) => {
   if (data.type === "frame") {
     const pixels = new Uint8ClampedArray(data.pixels);
     context.putImageData(new ImageData(pixels, data.width, data.height), 0, 0);
-    const painted = pixels.filter((_, index) => index % 4 === 3 && pixels[index] > 0).length;
+    let painted = 0;
+    for (let offset = 0; offset < pixels.length; offset += 4) {
+      if (pixels[offset] !== 0 || pixels[offset + 1] !== 0 || pixels[offset + 2] !== 0) {
+        painted += 1;
+      }
+    }
     const pass = data.totalDabs > data.samples && painted > 500;
     status.textContent = pass ? "PASS" : "FAIL";
     status.dataset.result = pass ? "pass" : "fail";

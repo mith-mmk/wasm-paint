@@ -23,7 +23,11 @@ try {
   const left = pixelAt(image, 24, 80);
   const right = pixelAt(image, 104, 80);
   const radialCenter = pixelAt(image, 192, 80);
-  const pass = left[0] > left[2] && right[2] > right[0] && radialCenter[0] > radialCenter[2];
+  const pass = left[0] > left[2]
+    && right[2] > right[0]
+    && radialCenter[0] > 245
+    && radialCenter[1] > 245
+    && radialCenter[2] > 245;
   status.textContent = pass ? "PASS" : "FAIL";
   status.dataset.result = pass ? "pass" : "fail";
   results.textContent = `linear-left=${left}\nlinear-right=${right}\nradial-center=${radialCenter}`;

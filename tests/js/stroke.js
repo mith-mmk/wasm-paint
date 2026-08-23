@@ -5,7 +5,10 @@ const context = canvas.getContext("2d");
 const status = document.getElementById("status");
 const results = document.getElementById("results");
 
-const alphaAt = (image, x, y) => image.data[(y * image.width + x) * 4 + 3];
+const pixelAt = (image, x, y) => {
+  const offset = (y * image.width + x) * 4;
+  return Array.from(image.data.slice(offset, offset + 4));
+};
 
 try {
   await init();
@@ -23,16 +26,18 @@ try {
   const image = universe.getImageData(0);
   context.putImageData(image, 0, 0);
 
-  const buttOutside = alphaAt(image, 16, 32);
-  const roundOutside = alphaAt(image, 16, 72);
-  const squareOutside = alphaAt(image, 16, 112);
-  const dashOn = alphaAt(image, 276, 40);
-  const dashOff = alphaAt(image, 288, 40);
-  const pass = buttOutside === 0
-    && roundOutside > 0
-    && squareOutside > 0
-    && dashOn > 0
-    && dashOff === 0;
+  const buttOutside = pixelAt(image, 16, 32);
+  const roundOutside = pixelAt(image, 16, 72);
+  const squareOutside = pixelAt(image, 16, 112);
+  const dashOn = pixelAt(image, 276, 40);
+  const dashOff = pixelAt(image, 288, 40);
+  const pass = buttOutside[0] === 0
+    && roundOutside[1] > 0
+    && squareOutside[2] > 0
+    && dashOn[0] > 0
+    && dashOff[0] === 0
+    && dashOff[1] === 0
+    && dashOff[2] === 0;
   status.textContent = pass ? "PASS" : "FAIL";
   status.dataset.result = pass ? "pass" : "fail";
   results.textContent = `caps=${buttOutside}/${roundOutside}/${squareOutside}\ndash=${dashOn}/${dashOff}\njoin=miter + bevel`;
