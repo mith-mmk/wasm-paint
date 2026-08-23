@@ -694,6 +694,35 @@ impl Universe {
         rect(self.layer_mut(), sx, sy, ex, ey, color);
     }
 
+    #[wasm_bindgen(js_name = fillRectComposite)]
+    pub fn fill_rect_composite(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        argb: u32,
+        opacity: f32,
+        blend_mode: String,
+    ) -> Result<(), JsValue> {
+        let blend_mode =
+            BlendMode::from_name(&blend_mode).ok_or_else(|| js_error("unknown blend mode"))?;
+        fill_rect_with_options(
+            self.layer_mut(),
+            x,
+            y,
+            width,
+            height,
+            Color::from_argb_u32(argb),
+            paintcore::composite::DrawOptions {
+                opacity,
+                blend_mode,
+                ..paintcore::composite::DrawOptions::default()
+            },
+        );
+        Ok(())
+    }
+
     pub fn pentagram(&mut self, ox: i32, oy: i32, r: f32, tilde: f32, color: u32) {
         pentagram(self.layer_mut(), ox, oy, r, tilde, color);
     }
