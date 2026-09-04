@@ -58,6 +58,38 @@ fn miter_limit_falls_back_to_bevel() {
 }
 
 #[test]
+fn closed_strokes_join_at_the_close_seam() {
+    let commands = vec![
+        Command::MoveTo(8.0, 8.0),
+        Command::Line(16.0, 8.0),
+        Command::Line(16.0, 16.0),
+        Command::Line(8.0, 16.0),
+        Command::Close,
+    ];
+    let mask = rasterize_stroke_mask(
+        &commands,
+        24,
+        24,
+        0.0,
+        0.0,
+        &StrokeStyle {
+            width: 4.0,
+            join: StrokeJoin::Miter,
+            cap: StrokeCap::Butt,
+            ..StrokeStyle::default()
+        },
+    );
+    assert!(mask.get(6, 6) > 0);
+}
+
+#[test]
+fn offscreen_strokes_are_clipped_before_raster_allocation() {
+    let commands = vec![Command::MoveTo(-1.0e10, 2.0), Command::Line(1.0e10, 2.0)];
+    let mask = rasterize_stroke_mask(&commands, 4, 4, 0.0, 0.0, &StrokeStyle::default());
+    assert_eq!(mask.coverage().len(), 16);
+}
+
+#[test]
 fn dash_and_offset_define_on_off_intervals() {
     let commands = vec![Command::MoveTo(5.0, 10.0), Command::Line(45.0, 10.0)];
     let style = StrokeStyle {
@@ -116,6 +148,42 @@ fn public_fill_path_honors_fill_rule_and_paint() {
     );
     assert_eq!(&target.buffer()[0..4], &[0, 0, 0, 0]);
     assert_eq!(target.buffer()[(3 * 20 + 3) * 4], 20);
+}
+
+#[test]
+fn public_fill_path_uses_shape_bounds_for_object_bounding_box_paint() {
+    let commands = vec![
+        Command::MoveTo(5.0, 2.0),
+        Command::Line(15.0, 2.0),
+        Command::Line(15.0, 8.0),
+        Command::Line(5.0, 8.0),
+        Command::Close,
+    ];
+    let paint = Paint::LinearGradient(LinearGradient {
+        start: (0.0, 0.0),
+        end: (1.0, 0.0),
+        stops: vec![
+            ColorStop::new(0.0, Color::rgb(255, 0, 0)),
+            ColorStop::new(1.0, Color::rgb(0, 0, 255)),
+        ],
+        spread: SpreadMode::Pad,
+        units: PaintUnits::ObjectBoundingBox,
+        transform: PaintTransform::IDENTITY,
+        interpolation: GradientInterpolation::Srgb,
+    });
+    let mut target = Layer::new("object-bounds".to_string(), 20, 10);
+    fill_path(
+        &mut target,
+        &commands,
+        &paint,
+        FillRule::NonZero,
+        0.0,
+        0.0,
+        DrawOptions::default(),
+    );
+    let left = &target.buffer()[(4 * 20 + 5) * 4..(4 * 20 + 5) * 4 + 4];
+    let right = &target.buffer()[(4 * 20 + 14) * 4..(4 * 20 + 14) * 4 + 4];
+    assert!(left[0] > 220 && right[2] > 220);
 }
 
 #[test]

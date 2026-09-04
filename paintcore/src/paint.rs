@@ -653,6 +653,13 @@ impl PreparedPaint {
                 let span = gradient.end_angle - gradient.start_angle;
                 let value = if span.abs() <= f32::EPSILON {
                     0.0
+                } else if span.abs() >= std::f32::consts::TAU - f32::EPSILON {
+                    let relative = if span > 0.0 {
+                        (angle - gradient.start_angle).rem_euclid(std::f32::consts::TAU)
+                    } else {
+                        (gradient.start_angle - angle).rem_euclid(std::f32::consts::TAU)
+                    };
+                    relative / span.abs()
                 } else {
                     (angle - gradient.start_angle) / span
                 };

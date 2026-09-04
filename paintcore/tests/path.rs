@@ -3,9 +3,22 @@ use fontcore::load_font_from_buffer;
 use paintcore::canvas::{Canvas, Screen};
 use paintcore::clear::fillrect;
 use paintcore::path::*;
-use paintcore::prelude::{Paint, PaintTransform, Pattern, PatternImage, SamplingMode, TileMode};
 #[cfg(feature = "font")]
 use std::path::{Path, PathBuf};
+
+#[test]
+fn glyph_paint_remains_exhaustively_matchable() {
+    fn paint_kind(paint: &GlyphPaint) -> &'static str {
+        match paint {
+            GlyphPaint::Solid(_) => "solid",
+            GlyphPaint::CurrentColor => "current-color",
+            GlyphPaint::LinearGradient(_) => "linear-gradient",
+            GlyphPaint::RadialGradient(_) => "radial-gradient",
+        }
+    }
+
+    assert_eq!(paint_kind(&GlyphPaint::CurrentColor), "current-color");
+}
 
 fn rgba(screen: &dyn Screen, x: u32, y: u32) -> [u8; 4] {
     let offset = ((y * screen.width() + x) * 4) as usize;
@@ -356,31 +369,6 @@ fn draw_glyphs_fill_linear_gradient_interpolates_between_stops() {
     let right = rgba(&canvas, 6, 4);
     assert!(left[0] > right[0], "left side should stay redder");
     assert!(right[2] > left[2], "right side should become bluer");
-}
-
-#[test]
-fn draw_glyphs_accepts_generic_pattern_paint() {
-    let pattern = Paint::Pattern(Pattern {
-        image: PatternImage::new(2, 1, vec![255, 32, 32, 255, 32, 32, 255, 255]).unwrap(),
-        tile_x: TileMode::Repeat,
-        tile_y: TileMode::Repeat,
-        sampling: SamplingMode::Nearest,
-        transform: PaintTransform::IDENTITY,
-    });
-    let glyph = Glyph::new(vec![GlyphLayer::Path(PathGlyphLayer::new(
-        vec![
-            Command::MoveTo(1.0, 1.0),
-            Command::Line(7.0, 1.0),
-            Command::Line(7.0, 7.0),
-            Command::Line(1.0, 7.0),
-            Command::Close,
-        ],
-        GlyphPaint::Paint(pattern),
-    ))]);
-    let run = GlyphRun::new(vec![PositionedGlyph::new(glyph, 0.0, 0.0)]);
-    let mut canvas = Canvas::new(10, 10);
-    draw_glyphs(&mut canvas, &run, 0.0, 0.0, 0xff00_0000).unwrap();
-    assert_ne!(rgba(&canvas, 2, 4), rgba(&canvas, 3, 4));
 }
 
 #[test]

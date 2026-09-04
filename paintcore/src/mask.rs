@@ -1,5 +1,7 @@
 //! Checked 8-bit coverage masks and paint-based mask filling.
 
+use std::collections::VecDeque;
+
 use crate::{
     canvas::Screen,
     composite::{blend_pixel, DrawOptions},
@@ -192,22 +194,44 @@ impl Mask {
         if radius == 0 || self.is_empty() {
             return self.clone();
         }
+        let width = self.width as usize;
+        let height = self.height as usize;
+        let radius = radius.min(self.width.max(self.height)) as usize;
+        let Some(mut horizontal) = try_zeroed(self.coverage.len()) else {
+            return Self::new(0, 0);
+        };
+        let mut candidates = VecDeque::new();
+        if candidates.try_reserve_exact(width.max(height)).is_err() {
+            return Self::new(0, 0);
+        }
+        for y in 0..height {
+            let row = y * width;
+            morphology_line(
+                &self.coverage[row..row + width],
+                &mut horizontal[row..row + width],
+                radius,
+                grow,
+                &mut candidates,
+            );
+        }
+
         let mut output = Self::new(self.width, self.height);
-        let radius = radius.min(self.width.max(self.height)).min(i32::MAX as u32) as i32;
-        for y in 0..self.height as i32 {
-            for x in 0..self.width as i32 {
-                let mut result = if grow { 0 } else { 255 };
-                for dy in -radius..=radius {
-                    for dx in -radius..=radius {
-                        let value = self.get(x.saturating_add(dx), y.saturating_add(dy));
-                        result = if grow {
-                            result.max(value)
-                        } else {
-                            result.min(value)
-                        };
-                    }
-                }
-                output.set(x, y, result);
+        if output.is_empty() {
+            return output;
+        }
+        let Some(mut column) = try_zeroed(height) else {
+            return Self::new(0, 0);
+        };
+        let Some(mut filtered) = try_zeroed(height) else {
+            return Self::new(0, 0);
+        };
+        for x in 0..width {
+            for y in 0..height {
+                column[y] = horizontal[y * width + x];
+            }
+            morphology_line(&column, &mut filtered, radius, grow, &mut candidates);
+            for y in 0..height {
+                output.coverage[y * width + x] = filtered[y];
             }
         }
         output
@@ -255,6 +279,58 @@ impl Mask {
     }
 }
 
+fn try_zeroed(len: usize) -> Option<Vec<u8>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(len).ok()?;
+    values.resize(len, 0);
+    Some(values)
+}
+
+fn morphology_line(
+    input: &[u8],
+    output: &mut [u8],
+    radius: usize,
+    grow: bool,
+    candidates: &mut VecDeque<usize>,
+) {
+    debug_assert_eq!(input.len(), output.len());
+    if input.is_empty() {
+        return;
+    }
+
+    candidates.clear();
+    let mut next = 0;
+    for center in 0..input.len() {
+        let end = center.saturating_add(radius).min(input.len() - 1);
+        while next <= end {
+            while let Some(&back) = candidates.back() {
+                let dominated = if grow {
+                    input[back] <= input[next]
+                } else {
+                    input[back] >= input[next]
+                };
+                if !dominated {
+                    break;
+                }
+                candidates.pop_back();
+            }
+            candidates.push_back(next);
+            next += 1;
+        }
+
+        let start = center.saturating_sub(radius);
+        while candidates.front().is_some_and(|&index| index < start) {
+            candidates.pop_front();
+        }
+        let crosses_edge = center < radius || radius >= input.len() - center;
+        output[center] = if !grow && crosses_edge {
+            0
+        } else {
+            input[*candidates.front().expect("window is not empty")]
+        };
+    }
+}
+
 pub fn fill_mask(
     screen: &mut dyn Screen,
     mask: &Mask,
@@ -263,15 +339,35 @@ pub fn fill_mask(
     paint: &Paint,
     options: DrawOptions<'_>,
 ) {
+    fill_mask_with_paint_bounds(
+        screen,
+        mask,
+        mask_x,
+        mask_y,
+        paint,
+        PaintBounds::new(
+            mask_x as f32,
+            mask_y as f32,
+            mask.width as f32,
+            mask.height as f32,
+        ),
+        options,
+    );
+}
+
+pub fn fill_mask_with_paint_bounds(
+    screen: &mut dyn Screen,
+    mask: &Mask,
+    mask_x: i32,
+    mask_y: i32,
+    paint: &Paint,
+    paint_bounds: PaintBounds,
+    options: DrawOptions<'_>,
+) {
     if mask.is_empty() {
         return;
     }
-    let prepared = paint.prepare(PaintBounds::new(
-        mask_x as f32,
-        mask_y as f32,
-        mask.width as f32,
-        mask.height as f32,
-    ));
+    let prepared = paint.prepare(paint_bounds);
     for y in 0..mask.height as i32 {
         for x in 0..mask.width as i32 {
             let coverage = mask.get(x, y);

@@ -10,8 +10,8 @@ use crate::{
     image,
     layer::Layer,
     line,
-    mask::{fill_mask, Mask},
-    paint::Paint,
+    mask::{fill_mask_with_paint_bounds, Mask},
+    paint::{Paint, PaintBounds},
     prelude::{DrawOptions, Screen},
     spline,
     utils::color_tuple,
@@ -90,8 +90,6 @@ pub enum GlyphPaint {
     CurrentColor,
     LinearGradient(LinearGradientPaint),
     RadialGradient(RadialGradientPaint),
-    /// Uses the same typed Paint source as shapes, masks, and brushes.
-    Paint(crate::paint::Paint),
 }
 
 impl GlyphPaint {
@@ -144,7 +142,6 @@ impl GlyphPaint {
                     interpolation: crate::paint::GradientInterpolation::Srgb,
                 })
             }
-            Self::Paint(paint) => paint.clone(),
         }
     }
 }
@@ -687,6 +684,7 @@ struct Edge {
 #[derive(Debug, Clone)]
 struct FlattenedSubpath {
     points: Vec<(f32, f32)>,
+    closed: bool,
 }
 
 struct CoverageMask {
@@ -729,7 +727,7 @@ fn resolve_paint(paint: &GlyphPaint, default_color: u32) -> u32 {
     match paint {
         GlyphPaint::Solid(color) => normalize_solid_color(*color),
         GlyphPaint::CurrentColor => normalize_paint_color(default_color),
-        GlyphPaint::LinearGradient(_) | GlyphPaint::RadialGradient(_) | GlyphPaint::Paint(_) => {
+        GlyphPaint::LinearGradient(_) | GlyphPaint::RadialGradient(_) => {
             normalize_paint_color(default_color)
         }
     }
@@ -895,7 +893,6 @@ fn resolve_paint_at(paint: &GlyphPaint, default_color: u32, x: f32, y: f32) -> u
         GlyphPaint::Solid(_) | GlyphPaint::CurrentColor => resolve_paint(paint, default_color),
         GlyphPaint::LinearGradient(gradient) => sample_linear_gradient(gradient, x, y),
         GlyphPaint::RadialGradient(gradient) => sample_radial_gradient(gradient, x, y),
-        GlyphPaint::Paint(_) => resolve_paint(paint, default_color),
     }
 }
 
@@ -1010,17 +1007,14 @@ fn flatten_cubic_segment(
     push_point(points, end);
 }
 
-fn flush_subpath(
-    subpaths: &mut Vec<FlattenedSubpath>,
-    points: &mut Vec<(f32, f32)>,
-    _closed: bool,
-) {
+fn flush_subpath(subpaths: &mut Vec<FlattenedSubpath>, points: &mut Vec<(f32, f32)>, closed: bool) {
     if points.len() < 2 {
         points.clear();
         return;
     }
     subpaths.push(FlattenedSubpath {
         points: std::mem::take(points),
+        closed,
     });
 }
 
@@ -1171,11 +1165,28 @@ fn stroke_segments(subpaths: &[FlattenedSubpath]) -> Vec<((f32, f32), (f32, f32)
 // denser vertical supersampling than generic shapes.
 const GLYPH_AA_SUBPIXEL_ROW_COUNT: usize = 32;
 
-fn coverage_bounds(bounds: &GlyphBounds) -> Option<(i32, i32, u32, u32)> {
+fn coverage_bounds_for_target(
+    bounds: &GlyphBounds,
+    target_size: Option<(u32, u32)>,
+) -> Option<(i32, i32, u32, u32)> {
     let origin_x = bounds.min_x.floor() as i32;
     let origin_y = bounds.min_y.floor() as i32;
     let max_x = bounds.max_x.ceil() as i32;
     let max_y = bounds.max_y.ceil() as i32;
+
+    let (origin_x, origin_y, max_x, max_y) =
+        if let Some((target_width, target_height)) = target_size {
+            let target_width = target_width.min(i32::MAX as u32) as i32;
+            let target_height = target_height.min(i32::MAX as u32) as i32;
+            (
+                origin_x.clamp(0, target_width),
+                origin_y.clamp(0, target_height),
+                max_x.clamp(0, target_width),
+                max_y.clamp(0, target_height),
+            )
+        } else {
+            (origin_x, origin_y, max_x, max_y)
+        };
 
     let width = max_x.saturating_sub(origin_x) as u32;
     let height = max_y.saturating_sub(origin_y) as u32;
@@ -1184,6 +1195,10 @@ fn coverage_bounds(bounds: &GlyphBounds) -> Option<(i32, i32, u32, u32)> {
     }
 
     Some((origin_x, origin_y, width, height))
+}
+
+fn coverage_bounds(bounds: &GlyphBounds) -> Option<(i32, i32, u32, u32)> {
+    coverage_bounds_for_target(bounds, None)
 }
 
 fn accumulate_coverage_span(
@@ -1269,15 +1284,22 @@ fn blend_coverage_pixel(screen: &mut dyn Screen, x: i32, y: i32, color: u32, cov
     buf[pos + 3] = alpha;
 }
 
-fn rasterize_fill_coverage(contours: &[Vec<(f32, f32)>], rule: FillRule) -> Option<CoverageMask> {
+fn rasterize_fill_coverage(
+    contours: &[Vec<(f32, f32)>],
+    rule: FillRule,
+    target_size: Option<(u32, u32)>,
+) -> Option<CoverageMask> {
     let bounds = subpath_bounds(
         &contours
             .iter()
             .cloned()
-            .map(|points| FlattenedSubpath { points })
+            .map(|points| FlattenedSubpath {
+                points,
+                closed: false,
+            })
             .collect::<Vec<_>>(),
     )?;
-    let (origin_x, origin_y, width, height) = coverage_bounds(&bounds)?;
+    let (origin_x, origin_y, width, height) = coverage_bounds_for_target(&bounds, target_size)?;
 
     let edges = contour_edges(contours);
     if edges.is_empty() {
@@ -1477,8 +1499,8 @@ fn styled_stroke_segments(
                     .map(move |(index, points)| StyledStrokeSegment {
                         start: points[0],
                         end: points[1],
-                        start_cap: index == 0,
-                        end_cap: index + 1 == segment_count,
+                        start_cap: !subpath.closed && index == 0,
+                        end_cap: !subpath.closed && index + 1 == segment_count,
                     })
             })
             .collect();
@@ -1649,6 +1671,7 @@ fn join_covers(
 fn rasterize_styled_stroke_coverage(
     subpaths: &[FlattenedSubpath],
     style: &StrokeStyle,
+    target_size: Option<(u32, u32)>,
 ) -> Option<CoverageMask> {
     if !style.width.is_finite() || style.width <= 0.0 {
         return None;
@@ -1665,7 +1688,7 @@ fn rasterize_styled_stroke_coverage(
     bounds.min_y -= expansion;
     bounds.max_x += expansion;
     bounds.max_y += expansion;
-    let (origin_x, origin_y, width, height) = coverage_bounds(&bounds)?;
+    let (origin_x, origin_y, width, height) = coverage_bounds_for_target(&bounds, target_size)?;
     let segments = styled_stroke_segments(subpaths, style);
     if segments.is_empty() {
         return None;
@@ -1688,9 +1711,20 @@ fn rasterize_styled_stroke_coverage(
                     .any(|segment| styled_segment_covers(sample, *segment, radius, style.cap));
                 let join_hit = use_joins
                     && subpaths.iter().any(|subpath| {
-                        subpath.points.windows(3).any(|points| {
+                        let internal = subpath.points.windows(3).any(|points| {
                             join_covers(sample, points[0], points[1], points[2], radius, style)
-                        })
+                        });
+                        let closing = subpath.closed
+                            && subpath.points.len() >= 3
+                            && join_covers(
+                                sample,
+                                subpath.points[subpath.points.len() - 2],
+                                subpath.points[0],
+                                subpath.points[1],
+                                radius,
+                                style,
+                            );
+                        internal || closing
                     });
                 if segment_hit || join_hit {
                     pixel_coverage += row_weight;
@@ -1739,7 +1773,7 @@ pub fn rasterize_path_mask(
     }
     let subpaths = flatten_commands(commands, offset_x, offset_y);
     let contours = subpaths_to_fill_contours(&subpaths);
-    rasterize_fill_coverage(&contours, fill_rule)
+    rasterize_fill_coverage(&contours, fill_rule, Some((width, height)))
         .map(|mask| coverage_mask_to_surface(mask, width, height))
         .unwrap_or_else(|| Mask::new(width, height))
 }
@@ -1756,7 +1790,7 @@ pub fn rasterize_stroke_mask(
         return Mask::new(width, height);
     }
     let subpaths = flatten_commands(commands, offset_x, offset_y);
-    rasterize_styled_stroke_coverage(&subpaths, style)
+    rasterize_styled_stroke_coverage(&subpaths, style, Some((width, height)))
         .map(|mask| coverage_mask_to_surface(mask, width, height))
         .unwrap_or_else(|| Mask::new(width, height))
 }
@@ -1770,6 +1804,7 @@ pub fn fill_path(
     offset_y: f32,
     options: DrawOptions<'_>,
 ) {
+    let subpaths = flatten_commands(commands, offset_x, offset_y);
     let mask = rasterize_path_mask(
         commands,
         screen.width(),
@@ -1778,7 +1813,17 @@ pub fn fill_path(
         offset_y,
         fill_rule,
     );
-    fill_mask(screen, &mask, 0, 0, paint, options);
+    let paint_bounds = subpath_bounds(&subpaths)
+        .map(|bounds| {
+            PaintBounds::new(
+                bounds.min_x,
+                bounds.min_y,
+                (bounds.max_x - bounds.min_x).max(0.0),
+                (bounds.max_y - bounds.min_y).max(0.0),
+            )
+        })
+        .unwrap_or_else(|| PaintBounds::new(0.0, 0.0, 0.0, 0.0));
+    fill_mask_with_paint_bounds(screen, &mask, 0, 0, paint, paint_bounds, options);
 }
 
 pub fn stroke_path(
@@ -1790,6 +1835,7 @@ pub fn stroke_path(
     offset_y: f32,
     options: DrawOptions<'_>,
 ) {
+    let subpaths = flatten_commands(commands, offset_x, offset_y);
     let mask = rasterize_stroke_mask(
         commands,
         screen.width(),
@@ -1798,7 +1844,23 @@ pub fn stroke_path(
         offset_y,
         style,
     );
-    fill_mask(screen, &mask, 0, 0, paint, options);
+    let miter_limit = if style.miter_limit.is_finite() {
+        style.miter_limit.clamp(1.0, 1_000.0)
+    } else {
+        1.0
+    };
+    let expansion = (style.width.max(0.0) * 0.5 * miter_limit).max(0.0);
+    let paint_bounds = subpath_bounds(&subpaths)
+        .map(|bounds| {
+            PaintBounds::new(
+                bounds.min_x - expansion,
+                bounds.min_y - expansion,
+                (bounds.max_x - bounds.min_x + expansion * 2.0).max(0.0),
+                (bounds.max_y - bounds.min_y + expansion * 2.0).max(0.0),
+            )
+        })
+        .unwrap_or_else(|| PaintBounds::new(0.0, 0.0, 0.0, 0.0));
+    fill_mask_with_paint_bounds(screen, &mask, 0, 0, paint, paint_bounds, options);
 }
 
 fn paint_coverage_mask(
@@ -1878,7 +1940,7 @@ fn clip_mask_from_commands(
 
     let subpaths = flatten_commands(commands, offset_x, offset_y);
     let contours = subpaths_to_fill_contours(&subpaths);
-    rasterize_fill_coverage(&contours, FillRule::NonZero)
+    rasterize_fill_coverage(&contours, FillRule::NonZero, None)
 }
 
 fn decode_raster(source: &RasterGlyphSource) -> Result<Layer, Error> {
@@ -2037,7 +2099,7 @@ fn draw_path_layer(
     match layer.paint_mode {
         PathPaintMode::Fill => {
             let contours = subpaths_to_fill_contours(&subpaths);
-            if let Some(mut mask) = rasterize_fill_coverage(&contours, layer.fill_rule) {
+            if let Some(mut mask) = rasterize_fill_coverage(&contours, layer.fill_rule, None) {
                 if let Some(clip_mask) = &clip_mask {
                     apply_clip_mask(&mut mask, clip_mask);
                 }

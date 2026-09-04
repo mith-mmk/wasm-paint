@@ -75,6 +75,20 @@ fn radial_and_sweep_gradients_sample_expected_geometry() {
     })
     .prepare(PaintBounds::new(-1.0, -1.0, 2.0, 2.0));
     assert_eq!(sweep.sample(1.0, 0.0), Color::rgba(128, 0, 128, 255));
+
+    let full_turn = Paint::SweepGradient(SweepGradient {
+        center: (0.0, 0.0),
+        start_angle: 0.0,
+        end_angle: std::f32::consts::TAU,
+        stops: stops(),
+        spread: SpreadMode::Pad,
+        units: PaintUnits::UserSpaceOnUse,
+        transform: PaintTransform::IDENTITY,
+        interpolation: GradientInterpolation::Srgb,
+    })
+    .prepare(PaintBounds::new(-1.0, -1.0, 2.0, 2.0));
+    let lower_half = full_turn.sample(0.0, -1.0);
+    assert!(lower_half.blue > lower_half.red);
 }
 
 #[test]

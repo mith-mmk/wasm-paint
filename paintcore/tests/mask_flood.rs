@@ -42,6 +42,18 @@ fn grow_shrink_and_feather_have_defined_edges() {
 }
 
 #[test]
+fn morphology_handles_unbounded_radius() {
+    let mut point = Mask::new(64, 64);
+    point.set(32, 32, 255);
+    let grown = point.grow(u32::MAX);
+    assert!(grown.coverage().iter().all(|&value| value == 255));
+
+    let full = Mask::from_rect(64, 64, 0, 0, 64, 64);
+    let shrunk = full.shrink(u32::MAX);
+    assert!(shrunk.coverage().iter().all(|&value| value == 0));
+}
+
+#[test]
 fn fill_mask_uses_gradient_and_coverage() {
     let mut target = Layer::new("target".to_string(), 3, 1);
     let mask = Mask::from_coverage(3, 1, vec![255, 128, 0]).unwrap();
