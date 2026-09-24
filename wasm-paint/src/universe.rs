@@ -5,16 +5,16 @@ use js_sys::{Array, Reflect};
 use paintcore::math;
 #[cfg(feature = "font")]
 use paintcore::path::{
-    FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle, FontWeight, LoadedFont,
-    load_font_from_buffer,
+    load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle,
+    FontWeight, LoadedFont,
 };
 use paintcore::{path, prelude::*};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
-use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 use web_sys::HtmlElement;
 use web_sys::ImageData;
@@ -708,6 +708,48 @@ impl Universe {
     #[wasm_bindgen(js_name = clearLayer)]
     pub fn clear_layer(&mut self, label: String) {
         let _ = self.canvas.clear_layer(label);
+    }
+
+    #[wasm_bindgen(js_name = deleteLayer)]
+    pub fn delete_layer(&mut self, label: String) -> Result<(), JsValue> {
+        if label == "main" {
+            return Err(js_error("the main layer cannot be deleted"));
+        }
+        if self.canvas.layer(label.clone()).is_none() {
+            return Err(js_error("unknown layer"));
+        }
+        self.canvas.delete_layer(label);
+        Ok(())
+    }
+
+    #[wasm_bindgen(js_name = getLayerImageData)]
+    pub fn get_layer_image_data(&mut self, label: String) -> Result<ImageData, JsValue> {
+        let layer = self
+            .canvas
+            .layer(label)
+            .ok_or_else(|| js_error("unknown layer"))?;
+        ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(layer.buffer()),
+            layer.width(),
+            layer.height(),
+        )
+    }
+
+    #[wasm_bindgen(js_name = setLayerImageData)]
+    pub fn set_layer_image_data(
+        &mut self,
+        label: String,
+        pixels: Clamped<Vec<u8>>,
+    ) -> Result<(), JsValue> {
+        let layer = self
+            .canvas
+            .layer_mut(label)
+            .ok_or_else(|| js_error("unknown layer"))?;
+        if pixels.0.len() != layer.buffer().len() {
+            return Err(js_error("layer image data has an invalid size"));
+        }
+        layer.buffer_mut().copy_from_slice(&pixels.0);
+        Ok(())
     }
 
     #[wasm_bindgen(js_name = layersLength)]

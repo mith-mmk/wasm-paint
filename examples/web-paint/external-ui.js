@@ -10,6 +10,9 @@ let state,
   fitMode = true,
   hue = 52,
   changeRevision = 0,
+  savedHistoryId,
+  savedRevision = 0,
+  saveMarkerInitialized = false,
   dirty = false,
   currentFileHandle,
   saveInProgress = false,
@@ -147,8 +150,11 @@ function renderLayers() {
       opacity.setAttribute("aria-label", `${layer.name} の不透明度`);
       opacity.addEventListener("input", () =>
         run(() =>
-          paint.setLayerOpacity(layer.name, Number(opacity.value) / 100),
+          paint.setLayerOpacity(layer.name, Number(opacity.value) / 100, false),
         ),
+      );
+      opacity.addEventListener("change", () =>
+        run(() => paint.setLayerOpacity(layer.name, Number(opacity.value) / 100)),
       );
       row.append(visibility, select, opacity, document.createElement("output"));
       list.prepend(row);
@@ -190,6 +196,21 @@ function renderLayers() {
 
 function update(next) {
   state = next;
+  if (!saveMarkerInitialized) {
+    savedHistoryId = state.historyId;
+    savedRevision = changeRevision;
+    saveMarkerInitialized = true;
+  }
+  const isAtSavedState = state.historyId !== null && savedHistoryId !== null
+    ? state.historyId === savedHistoryId
+    : changeRevision === savedRevision;
+  setDirty(!isAtSavedState);
+  document.querySelectorAll('[data-action="undo"]').forEach((button) => {
+    button.disabled = !state.canUndo;
+  });
+  document.querySelectorAll('[data-action="redo"]').forEach((button) => {
+    button.disabled = !state.canRedo;
+  });
   if (state.eraserEnabled) activeTool = "eraser";
   else if (activeTool === "eraser") activeTool = "pencil";
   $("#color").value = state.brushColor;
@@ -227,6 +248,17 @@ paint.addEventListener("paint-change", (event) => {
   const source = event.detail.source;
   changeRevision += 1;
   setDirty(true);
+  if (source === "undo" || source === "redo") {
+    for (const name of event.detail.changedLayers ?? []) {
+      if (thumbnails.has(name)) URL.revokeObjectURL(thumbnails.get(name));
+      thumbnails.delete(name);
+    }
+    editedLayers.clear();
+    for (const name of event.detail.nonEmptyLayers ?? []) editedLayers.add(name);
+    if (state) renderLayers();
+    message("未保存の変更があります");
+    return;
+  }
   if (
     [
       "draw",
@@ -460,10 +492,14 @@ async function requestWritePermission(handle) {
   if (permission !== "granted")
     throw new Error("ファイルへの書き込みが許可されませんでした");
 }
-function finishPngSave(handle, savedRevision, blob) {
+function finishPngSave(handle, savedMarker, blob) {
   currentFileHandle = handle;
   setDocumentName(handle.name);
-  const unchanged = changeRevision === savedRevision;
+  savedHistoryId = savedMarker.historyId;
+  savedRevision = savedMarker.revision;
+  const unchanged = state.historyId !== null && savedHistoryId !== null
+    ? state.historyId === savedHistoryId
+    : changeRevision === savedRevision;
   setDirty(!unchanged);
   message(
     unchanged
@@ -483,10 +519,10 @@ async function saveToNewHandle(pickerRequest) {
     const handle = await pickerRequest;
     if (!/\.png$/i.test(handle.name))
       throw new Error("保存ファイル名には .png を指定してください");
-    const savedRevision = changeRevision;
+    const savedMarker = { historyId: state.historyId, revision: changeRevision };
     const blob = await paint.exportImage();
     await writePng(handle, blob);
-    finishPngSave(handle, savedRevision, blob);
+    finishPngSave(handle, savedMarker, blob);
   } catch (error) {
     reportSaveError(error);
   } finally {
@@ -523,10 +559,10 @@ function startSaveAs() {
 async function saveToCurrentHandle(handle) {
   try {
     await requestWritePermission(handle);
-    const savedRevision = changeRevision;
+    const savedMarker = { historyId: state.historyId, revision: changeRevision };
     const blob = await paint.exportImage();
     await writePng(handle, blob);
-    finishPngSave(handle, savedRevision, blob);
+    finishPngSave(handle, savedMarker, blob);
   } catch (error) {
     reportSaveError(error);
   } finally {
@@ -568,6 +604,8 @@ async function downloadPngFromDialog() {
   }
 }
 const actions = {
+  undo: () => paint.undo(),
+  redo: () => paint.redo(),
   import: () => $("#image").click(),
   add: () => paint.addLayer(),
   clear: () => {
@@ -619,6 +657,19 @@ document.addEventListener("keydown", (event) => {
     if (event.shiftKey) startSaveAs();
     else startSave();
     return;
+  }
+  const editableTarget = event.target instanceof HTMLElement && (
+    event.target.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName)
+  );
+  if ((event.ctrlKey || event.metaKey) && !editableTarget) {
+    const key = event.key.toLowerCase();
+    if (key === "z" || key === "y") {
+      event.preventDefault();
+      if (!ready) return;
+      run(() => key === "y" || event.shiftKey ? paint.redo() : paint.undo());
+      return;
+    }
   }
   if (
     eyedropperReturn &&
@@ -714,6 +765,15 @@ $("#size-value").addEventListener("change", (event) =>
   setBrushSizeFromInput(event),
 );
 $("#opacity").addEventListener("input", (event) =>
+  run(() =>
+    paint.setLayerOpacity(
+      state.selectedLayer,
+      Number(event.target.value) / 100,
+      false,
+    ),
+  ),
+);
+$("#opacity").addEventListener("change", (event) =>
   run(() =>
     paint.setLayerOpacity(
       state.selectedLayer,

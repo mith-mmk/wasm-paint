@@ -10,6 +10,10 @@
   <body>
     <header class="menubar">
       <strong id="document-name">無題</strong>
+      <div class="history-tools" role="toolbar" aria-label="編集履歴">
+        <button type="button" data-action="undo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）" disabled>↶</button>
+        <button type="button" data-action="redo" aria-label="やり直し" title="やり直し（Ctrl+Y / Ctrl+Shift+Z）" disabled>↷</button>
+      </div>
       <details class="menu">
         <summary>ファイル</summary>
         <div class="menu-items">
@@ -29,6 +33,9 @@
       <details class="menu">
         <summary>編集</summary>
         <div class="menu-items">
+          <button type="button" data-action="undo" disabled>元に戻す <span class="shortcut">Ctrl+Z</span></button>
+          <button type="button" data-action="redo" disabled>やり直し <span class="shortcut">Ctrl+Y</span></button>
+          <hr />
           <button data-action="add">レイヤーを追加</button>
           <button data-action="clear">選択レイヤーをクリア…</button>
         </div>

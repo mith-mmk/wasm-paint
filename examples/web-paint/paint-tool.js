@@ -120,6 +120,12 @@ class WasmPaintTool extends HTMLElement {
   #eraserEnabled = false;
   #pointerStroke;
   #renderQueued = false;
+  #undoStack = [];
+  #redoStack = [];
+  #historyCurrent;
+  #historyLimitBytes = 64 * 1024 * 1024;
+  #historyLimitEntries = 30;
+  #nextHistoryId = 1;
   #webmcpController;
   #instancePrefix = `wasmpaint-${nextInstanceId++}-${globalThis.crypto?.randomUUID?.().replaceAll("-", "") ?? Math.random().toString(36).slice(2)}`;
 
@@ -176,6 +182,44 @@ class WasmPaintTool extends HTMLElement {
     this.#dispatchStateChange();
   }
 
+  async undo() {
+    await this.ready;
+    if (this.#pointerStroke) this.#finishActiveStroke("draw");
+    if (!this.#undoStack.length) return false;
+    const current = this.#historyCurrent;
+    const previous = this.#undoStack.pop();
+    this.#redoStack.push(current);
+    this.#historyCurrent = previous;
+    const changedLayers = this.#changedHistoryLayers(current, previous);
+    this.#restoreHistoryState(previous);
+    this.#dispatchPaintChange("undo", {
+      changedLayers,
+      nonEmptyLayers: previous.layers.filter((layer) => layer.hasPixels).map((layer) => layer.name),
+    });
+    this.#trimHistory();
+    this.#dispatchStateChange();
+    return true;
+  }
+
+  async redo() {
+    await this.ready;
+    if (this.#pointerStroke) this.#finishActiveStroke("draw");
+    if (!this.#redoStack.length) return false;
+    const current = this.#historyCurrent;
+    const next = this.#redoStack.pop();
+    this.#undoStack.push(current);
+    this.#historyCurrent = next;
+    const changedLayers = this.#changedHistoryLayers(current, next);
+    this.#restoreHistoryState(next);
+    this.#dispatchPaintChange("redo", {
+      changedLayers,
+      nonEmptyLayers: next.layers.filter((layer) => layer.hasPixels).map((layer) => layer.name),
+    });
+    this.#trimHistory();
+    this.#dispatchStateChange();
+    return true;
+  }
+
   async drawStroke(stroke = {}) {
     await this.ready;
     const { eraser = this.#eraserEnabled, ...settings } = stroke;
@@ -208,10 +252,11 @@ class WasmPaintTool extends HTMLElement {
     this.#commitEdit("layer-visibility");
   }
 
-  async setLayerOpacity(name, opacity) {
+  async setLayerOpacity(name, opacity, commit = true) {
     await this.ready;
     if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new RangeError("Layer opacity must be between 0 and 1.");
-    this.#setLayerOpacity(name, opacity * 100);
+    if (typeof commit !== "boolean") throw new TypeError("Layer opacity commit flag must be a boolean.");
+    this.#setLayerOpacity(name, opacity * 100, commit);
     this.#renderLayers();
   }
 
@@ -280,6 +325,11 @@ class WasmPaintTool extends HTMLElement {
       this.#syncControlInputs();
       this.#renderNow();
       this.#setStatus(`Ready · ${width} × ${height}`);
+      try {
+        this.#historyCurrent = this.#captureHistoryState();
+      } catch (error) {
+        this.#setStatus(`Ready · ${width} × ${height} · Undo/redo unavailable: ${error.message}`);
+      }
       this.#syncWebMcp();
     } catch (error) {
       this.#setStatus(`Could not initialize paint: ${error.message}`, true);
@@ -401,11 +451,15 @@ class WasmPaintTool extends HTMLElement {
 
   #finishPointerStroke(event, source) {
     if (!this.#pointerStroke || this.#pointerStroke.pointerId !== event.pointerId) return;
+    this.#finishActiveStroke(source === "draw" ? "draw" : source);
+  }
+
+  #finishActiveStroke(source) {
     const { brushId } = this.#pointerStroke;
     this.#pointerStroke = undefined;
     this.#universe.destroyBrush(brushId);
     this.#renderNow();
-    this.#commitEdit(source === "draw" ? "draw" : source);
+    this.#commitEdit(source);
   }
 
   #queueRender() {
@@ -489,6 +543,7 @@ class WasmPaintTool extends HTMLElement {
     this.#universe.setLayerAlpha(name, value);
     this.#renderNow();
     if (commit) this.#commitEdit("layer-opacity");
+    else this.#dispatchStateChange();
   }
 
   #clearLayer(name) {
@@ -530,21 +585,137 @@ class WasmPaintTool extends HTMLElement {
 
   #commitEdit(source) {
     this.#renderNow();
+    this.#recordHistory();
+    this.#dispatchPaintChange(source);
+    this.#dispatchStateChange();
+  }
+
+  #dispatchPaintChange(source, extra = {}) {
     this.dispatchEvent(new CustomEvent("paint-change", {
       bubbles: true,
       composed: true,
       detail: {
         source,
-        width: this.#canvas.width,
-        height: this.#canvas.height,
-        layers: this.#layers.map(({ name, visible, opacity }) => ({ name, visible, opacity: opacity / 255 })),
-        selectedLayer: this.#selectedLayer,
-        brushColor: this.#brushColor,
-        brushSize: this.#brushSize,
-        eraserEnabled: this.#eraserEnabled,
+        ...this.#stateSnapshot(),
+        ...extra,
       },
     }));
-    this.#dispatchStateChange();
+  }
+
+  #captureHistoryState() {
+    if (
+      typeof this.#universe.getLayerImageData !== "function" ||
+      typeof this.#universe.setLayerImageData !== "function" ||
+      typeof this.#universe.deleteLayer !== "function"
+    ) {
+      throw new Error("the WASM package is outdated; rebuild wasm-paint");
+    }
+    const width = this.#canvas.width;
+    const height = this.#canvas.height;
+    const bytesPerLayer = width * height * 4;
+    if (!Number.isSafeInteger(bytesPerLayer) || bytesPerLayer * this.#layers.length > this.#historyLimitBytes) {
+      throw new Error("Undo history exceeds its memory limit.");
+    }
+    const layers = this.#layers.map(({ name, visible, opacity }) => {
+      const pixels = new Uint8ClampedArray(this.#universe.getLayerImageData(name).data);
+      let hasPixels = false;
+      for (let index = 3; index < pixels.length; index += 4) {
+        if (pixels[index] !== 0) {
+          hasPixels = true;
+          break;
+        }
+      }
+      return { name, visible, opacity, pixels, hasPixels };
+    });
+    return {
+      id: this.#nextHistoryId++,
+      width,
+      height,
+      selectedLayer: this.#selectedLayer,
+      layers,
+      bytes: layers.reduce((sum, layer) => sum + layer.pixels.byteLength, 0),
+    };
+  }
+
+  #recordHistory() {
+    if (!this.#historyCurrent) return;
+    try {
+      const next = this.#captureHistoryState();
+      this.#undoStack.push(this.#historyCurrent);
+      this.#historyCurrent = next;
+      this.#redoStack = [];
+      this.#trimHistory();
+    } catch (error) {
+      this.#undoStack = [];
+      this.#redoStack = [];
+      this.#historyCurrent = undefined;
+      this.#setStatus(`Undo/redo unavailable: ${error.message}`);
+    }
+  }
+
+  #trimHistory() {
+    const retainedBytes = () => [
+      this.#historyCurrent,
+      ...this.#undoStack,
+      ...this.#redoStack,
+    ].reduce((sum, state) => sum + (state?.bytes ?? 0), 0);
+    while (
+      this.#undoStack.length + this.#redoStack.length > this.#historyLimitEntries ||
+      retainedBytes() > this.#historyLimitBytes
+    ) {
+      if (this.#undoStack.length) this.#undoStack.shift();
+      else if (this.#redoStack.length) this.#redoStack.shift();
+      else break;
+    }
+  }
+
+  #changedHistoryLayers(before, after) {
+    const beforeByName = new Map(before.layers.map((layer) => [layer.name, layer]));
+    const afterByName = new Map(after.layers.map((layer) => [layer.name, layer]));
+    const changed = [];
+    for (const name of new Set([...beforeByName.keys(), ...afterByName.keys()])) {
+      const left = beforeByName.get(name)?.pixels;
+      const right = afterByName.get(name)?.pixels;
+      if (!left || !right || left.length !== right.length) {
+        changed.push(name);
+        continue;
+      }
+      for (let index = 0; index < left.length; index += 1) {
+        if (left[index] !== right[index]) {
+          changed.push(name);
+          break;
+        }
+      }
+    }
+    return changed;
+  }
+
+  #restoreHistoryState(snapshot) {
+    const targetByName = new Map(snapshot.layers.map((layer) => [layer.name, layer]));
+    for (const layer of [...this.#layers]) {
+      if (!targetByName.has(layer.name)) {
+        this.#universe.deleteLayer(layer.name);
+      }
+    }
+    const currentByName = new Map(this.#layers.map((layer) => [layer.name, layer]));
+    this.#layers = snapshot.layers.map((target) => {
+      let layer = currentByName.get(target.name);
+      if (!layer) {
+        this.#universe.addLayer(target.name, this.#canvas.width, this.#canvas.height);
+        layer = { name: target.name, visible: target.visible, opacity: target.opacity };
+      }
+      this.#universe.setLayerImageData(target.name, target.pixels);
+      layer.visible = target.visible;
+      layer.opacity = target.opacity;
+      if (target.visible) this.#universe.setEnable(target.name);
+      else this.#universe.setDisable(target.name);
+      this.#universe.setLayerAlpha(target.name, target.opacity);
+      return layer;
+    });
+    this.#selectedLayer = snapshot.selectedLayer;
+    this.#universe.setCurrentLayer(this.#selectedLayer);
+    this.#renderLayers();
+    this.#renderNow();
   }
 
   #setStatus(message, error = false) {
@@ -571,6 +742,10 @@ class WasmPaintTool extends HTMLElement {
       brushColor: this.#brushColor,
       brushSize: this.#brushSize,
       eraserEnabled: this.#eraserEnabled,
+      historyId: this.#historyCurrent?.id ?? null,
+      historyAvailable: Boolean(this.#historyCurrent),
+      canUndo: this.#undoStack.length > 0,
+      canRedo: this.#redoStack.length > 0,
     };
   }
 
