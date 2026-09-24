@@ -28,8 +28,12 @@ cd ..
 python -m http.server 8000
 ```
 
-Open <http://localhost:8000/examples/web-paint/> for the demo. To embed it in another page served
-from this checkout, load the module and add the element:
+Open <http://localhost:8000/examples/web-paint/> for the demo.
+
+On Windows, run `.\test.ps1` from the repository root to start the local test server. Open
+<http://127.0.0.1:8000/examples/web-paint/external-ui.html> to test the standalone UI.
+
+To embed the component in another page, load its module and add the element:
 
 ```html
 <script type="module" src="/examples/web-paint/paint-tool.js"></script>
