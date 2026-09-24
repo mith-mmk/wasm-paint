@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Embedded WASM Paint Tool</title>
+    <style>
+      body { max-width: 900px; margin: 32px auto; padding: 0 16px; color: #18212f; font: 16px/1.5 system-ui, sans-serif; }
+      h1 { margin-bottom: 8px; font-size: 1.8rem; }
+      p { color: #48566b; }
+    </style>
+    <script type="module" src="./paint-tool.js"></script>
+  </head>
+  <body>
+    <h1>Embedded WASM Paint Tool</h1>
+    <p>A framework-free Web Component backed by the existing Rust/WASM paint engine.</p>
+    <wasm-paint-tool width="640" height="480" webmcp></wasm-paint-tool>
+  </body>
+</html>

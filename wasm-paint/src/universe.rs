@@ -633,16 +633,26 @@ impl Universe {
         sample: StrokeSample,
         paint: &Paint,
     ) -> Result<u32, JsValue> {
+        self.brush_sample_with_options(
+            brush_id,
+            sample,
+            paint,
+            paintcore::composite::DrawOptions::default(),
+        )
+    }
+
+    fn brush_sample_with_options(
+        &mut self,
+        brush_id: u32,
+        sample: StrokeSample,
+        paint: &Paint,
+        options: paintcore::composite::DrawOptions<'_>,
+    ) -> Result<u32, JsValue> {
         let mut brush = self
             .brushes
             .remove(&brush_id)
             .ok_or_else(|| js_error("unknown brush"))?;
-        let count = brush.draw_sample(
-            self.layer_mut(),
-            sample,
-            paint,
-            paintcore::composite::DrawOptions::default(),
-        );
+        let count = brush.draw_sample(self.layer_mut(), sample, paint, options);
         self.brushes.insert(brush_id, brush);
         Ok(count as u32)
     }
@@ -1278,6 +1288,15 @@ impl Universe {
         Ok(id)
     }
 
+    fn release_brush(&mut self, brush_id: u32) -> bool {
+        self.brushes.remove(&brush_id).is_some()
+    }
+
+    #[wasm_bindgen(js_name = destroyBrush)]
+    pub fn destroy_brush(&mut self, brush_id: u32) {
+        self.release_brush(brush_id);
+    }
+
     #[wasm_bindgen(js_name = createMaskBrush)]
     pub fn create_mask_brush(
         &mut self,
@@ -1332,6 +1351,37 @@ impl Universe {
                 timestamp,
             },
             &Paint::Solid(Color::from_argb_u32(argb)),
+        )
+    }
+
+    #[wasm_bindgen(js_name = brushSampleEraser)]
+    pub fn brush_sample_eraser(
+        &mut self,
+        brush_id: u32,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        tilt_x: f32,
+        tilt_y: f32,
+        rotation: f32,
+        timestamp: f64,
+    ) -> Result<u32, JsValue> {
+        self.brush_sample_with_options(
+            brush_id,
+            StrokeSample {
+                x,
+                y,
+                pressure,
+                tilt_x,
+                tilt_y,
+                rotation,
+                timestamp,
+            },
+            &Paint::Solid(Color::from_argb_u32(0xffff_ffff)),
+            paintcore::composite::DrawOptions {
+                composite_op: paintcore::composite::CompositeOp::DestinationOut,
+                ..paintcore::composite::DrawOptions::default()
+            },
         )
     }
 
@@ -2509,6 +2559,25 @@ impl Universe {
         }
     }
 
+    #[wasm_bindgen(js_name = getImageDataTransparent)]
+    pub fn get_imagedata_transparent(&mut self, no: usize) -> Result<ImageData, JsValue> {
+        if no == 0 {
+            let width = self.width();
+            let height = self.height();
+            let canvas = &mut self.canvas;
+            canvas.combine_transparent();
+            let clamped = Clamped(canvas.buffer());
+            ImageData::new_with_u8_clamped_array_and_sh(clamped, width, height)
+        } else {
+            if self.append_canvas.len() > no {
+                return Err(JsValue::FALSE);
+            }
+            let canvas = &mut self.append_canvas[no - 1].write().unwrap();
+            let clamped = Clamped(canvas.buffer());
+            ImageData::new_with_u8_clamped_array_and_sh(clamped, self.width(), self.height())
+        }
+    }
+
     pub fn combine(&mut self) {
         self.canvas.combine();
     }
@@ -2560,5 +2629,79 @@ impl Universe {
         } else {
             Err(JsValue::FALSE)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Universe;
+    use paintcore::canvas::Screen;
+
+    fn create_test_brush(universe: &mut Universe) -> u32 {
+        universe
+            .create_brush(
+                "circle".to_string(),
+                9,
+                9,
+                9.0,
+                1.0,
+                1.0,
+                0.2,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                42,
+            )
+            .unwrap()
+    }
+
+    fn paint_center(universe: &mut Universe, brush_id: u32, argb: u32) {
+        let dab_count = universe
+            .brush_sample_solid(brush_id, 8.5, 8.5, 1.0, 0.0, 0.0, 0.0, 0.0, argb)
+            .unwrap();
+        assert_eq!(dab_count, 1);
+    }
+
+    #[test]
+    fn eraser_brush_removes_alpha_from_only_the_current_layer() {
+        let mut universe = Universe::new(16, 16);
+        let base_brush = create_test_brush(&mut universe);
+        paint_center(&mut universe, base_brush, 0xffff_0000);
+
+        universe.add_layer("top".to_string(), 16, 16);
+        universe.set_current("top".to_string());
+        let top_brush = create_test_brush(&mut universe);
+        paint_center(&mut universe, top_brush, 0xff00_00ff);
+
+        let eraser = create_test_brush(&mut universe);
+        universe
+            .brush_sample_eraser(eraser, 8.5, 8.5, 1.0, 0.0, 0.0, 0.0, 0.0)
+            .unwrap();
+
+        let offset = (8 * 16 + 8) * 4;
+        let base = universe
+            .canvas
+            .layer_mut("main".to_string())
+            .unwrap()
+            .buffer();
+        assert_eq!(&base[offset..offset + 4], &[255, 0, 0, 255]);
+
+        let top = universe
+            .canvas
+            .layer_mut("top".to_string())
+            .unwrap()
+            .buffer();
+        assert_eq!(&top[offset..offset + 4], &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn destroy_brush_releases_the_brush_id() {
+        let mut universe = Universe::new(16, 16);
+        let brush_id = create_test_brush(&mut universe);
+
+        assert!(universe.release_brush(brush_id));
+        assert!(!universe.release_brush(brush_id));
     }
 }

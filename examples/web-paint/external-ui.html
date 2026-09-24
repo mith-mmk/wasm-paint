@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>External UI · Embedded WASM Paint Tool</title>
+    <script type="module" src="./paint-tool.js"></script>
+    <style>
+      body { max-width: 920px; margin: 32px auto; padding: 0 16px; color: #18212f; font: 16px/1.5 system-ui, sans-serif; }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0; }
+      label { display: inline-flex; align-items: center; gap: 6px; }
+      button, input, select { font: inherit; }
+      button, select { min-height: 34px; padding: 5px 9px; border: 1px solid #d5dbe5; border-radius: 7px; background: white; }
+      input[type="range"] { accent-color: #315fce; }
+      #status { min-height: 1.5em; color: #647084; }
+    </style>
+  </head>
+  <body>
+    <h1>External host UI</h1>
+    <p>The component supplies the canvas. All controls below belong to the host page.</p>
+    <div class="controls" aria-label="Host paint controls">
+      <label>Color <input id="color" type="color" value="#20304a"></label>
+      <label>Brush <input id="size" type="range" min="1" max="100" value="12"><output id="size-value">12</output></label>
+      <label><input id="eraser" type="checkbox"> Eraser</label>
+      <label>Layer <select id="layer"></select></label>
+      <button id="add-layer" type="button">Add layer</button>
+      <button id="visibility" type="button">Hide layer</button>
+      <label>Opacity <input id="opacity" type="range" min="0" max="100" value="100"><output id="opacity-value">100%</output></label>
+      <button id="clear-layer" type="button">Clear layer</button>
+      <button id="draw-sample" type="button">Draw sample</button>
+      <label>Import <input id="image" type="file" accept="image/*"></label>
+      <button id="export" type="button">Download PNG</button>
+    </div>
+    <p id="status" role="status" aria-live="polite">Loading…</p>
+    <wasm-paint-tool controls="external" width="640" height="480" webmcp></wasm-paint-tool>
+    <script type="module">
+      const paint = document.querySelector("wasm-paint-tool");
+      const status = document.querySelector("#status");
+      const layerPicker = document.querySelector("#layer");
+      let state;
+
+      function update(nextState) {
+        state = nextState;
+        const previous = layerPicker.value;
+        layerPicker.replaceChildren(...state.layers.map(({ name }) => new Option(name, name)));
+        layerPicker.value = state.layers.some(({ name }) => name === state.selectedLayer) ? state.selectedLayer : previous;
+        document.querySelector("#color").value = state.brushColor;
+        document.querySelector("#size").value = String(state.brushSize);
+        document.querySelector("#size-value").value = String(state.brushSize);
+        document.querySelector("#eraser").checked = state.eraserEnabled;
+        const layer = state.layers.find(({ name }) => name === state.selectedLayer);
+        document.querySelector("#opacity").value = String(Math.round(layer.opacity * 100));
+        document.querySelector("#opacity-value").value = `${document.querySelector("#opacity").value}%`;
+        document.querySelector("#visibility").textContent = layer.visible ? "Hide layer" : "Show layer";
+      }
+
+      paint.addEventListener("paint-state-change", (event) => update(event.detail));
+      paint.addEventListener("paint-change", (event) => {
+        status.textContent = `Changed: ${event.detail.source}`;
+      });
+
+      try {
+        await paint.ready;
+        update(await paint.getState());
+        status.textContent = `Ready · ${state.width} × ${state.height}`;
+      } catch (error) { status.textContent = error.message; }
+
+      document.querySelector("#color").addEventListener("input", (event) => paint.setBrushColor(event.currentTarget.value));
+      document.querySelector("#size").addEventListener("input", (event) => paint.setBrushSize(Number(event.currentTarget.value)));
+      document.querySelector("#eraser").addEventListener("change", (event) => paint.setEraserEnabled(event.currentTarget.checked));
+      layerPicker.addEventListener("change", (event) => paint.selectLayer(event.currentTarget.value));
+      document.querySelector("#add-layer").addEventListener("click", () => paint.addLayer());
+      document.querySelector("#visibility").addEventListener("click", () => {
+        const layer = state.layers.find(({ name }) => name === state.selectedLayer);
+        paint.setLayerVisibility(layer.name, !layer.visible);
+      });
+      document.querySelector("#opacity").addEventListener("input", (event) => {
+        const opacity = Number(event.currentTarget.value) / 100;
+        document.querySelector("#opacity-value").value = `${event.currentTarget.value}%`;
+        paint.setLayerOpacity(state.selectedLayer, opacity);
+      });
+      document.querySelector("#clear-layer").addEventListener("click", () => paint.clearLayer(state.selectedLayer));
+      document.querySelector("#draw-sample").addEventListener("click", () => paint.drawStroke({ points: [{ x: 100, y: 100 }, { x: 180, y: 150 }, { x: 260, y: 100 }] }));
+      document.querySelector("#image").addEventListener("change", async (event) => {
+        const input = event.currentTarget;
+        const [file] = input.files ?? [];
+        if (!file) return;
+        try { await paint.loadImage(file); }
+        catch (error) { status.textContent = `Import failed: ${error.message}`; }
+        finally { input.value = ""; }
+      });
+      document.querySelector("#export").addEventListener("click", async () => {
+        try {
+          const blob = await paint.exportImage();
+          const url = URL.createObjectURL(blob);
+          const link = Object.assign(document.createElement("a"), { href: url, download: "paint.png" });
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          status.textContent = `Exported PNG · ${blob.size.toLocaleString()} bytes`;
+        } catch (error) { status.textContent = `Export failed: ${error.message}`; }
+      });
+    </script>
+  </body>
+</html>

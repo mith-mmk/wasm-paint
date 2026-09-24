@@ -13,6 +13,65 @@ Buffers are straight `[R, G, B, A]` bytes. New WASM methods with an `argb` param
 
 See [paintcore/README.md](paintcore/README.md) for API details and examples.
 
+## Embedded Web Paint Component
+
+`examples/web-paint/` contains a framework-free `<wasm-paint-tool>` Web Component backed by the
+existing WASM engine. It provides pointer and touch drawing, an eraser, image import, PNG export,
+and basic layer controls inside a Shadow DOM.
+
+Build the generated WASM JavaScript package, then serve the repository root over HTTP:
+
+```sh
+cd wasm-paint
+wasm-pack build -t web
+cd ..
+python -m http.server 8000
+```
+
+Open <http://localhost:8000/examples/web-paint/> for the demo. To embed it in another page served
+from this checkout, load the module and add the element:
+
+```html
+<script type="module" src="/examples/web-paint/paint-tool.js"></script>
+<wasm-paint-tool width="640" height="480"></wasm-paint-tool>
+```
+
+The `width` and `height` attributes set the backing canvas size; positive integer values are capped
+at 8192, and omitted or invalid values default to `640 × 480`. The canvas scales to its available
+width while pointer coordinates continue to use canvas pixels. The host page can pass a `Blob` to
+create a new image layer, export the visible result
+as a PNG `Blob`, and listen for committed edits. Add `controls="external"` to hide the component's
+toolbar and layer controls while keeping the canvas and its pointer interaction:
+
+```js
+const paint = document.querySelector("wasm-paint-tool");
+await paint.setBrushColor("#315fce");
+await paint.setBrushSize(18);
+await paint.setEraserEnabled(false);
+const layer = await paint.addLayer("Annotations");
+await paint.drawStroke({ points: [{ x: 80, y: 60 }, { x: 140, y: 100 }] });
+await paint.setLayerOpacity(layer, 0.8);
+await paint.loadImage(imageBlob);
+const pngBlob = await paint.exportImage();
+paint.addEventListener("paint-change", (event) => {
+  console.log(event.detail.source, event.detail.layers);
+});
+paint.addEventListener("paint-state-change", (event) => {
+  console.log(event.detail.selectedLayer, event.detail.brushSize);
+});
+```
+
+The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
+`clearLayer(name)`, and `clearCanvas()`. See
+[`examples/web-paint/external-ui.html`](examples/web-paint/external-ui.html) for a standalone page
+whose complete toolbar and layer UI are outside the component.
+
+Adding the `webmcp` attribute opts that instance into WebMCP tool registration when
+`document.modelContext` is available. WebMCP is an evolving proposal; Chrome currently documents
+availability through an origin trial or a local development flag. The normal component UI and
+JavaScript API do not depend on WebMCP. See the [Chrome WebMCP guide](https://developer.chrome.com/docs/ai/webmcp)
+and [WebMCP draft specification](https://webmachinelearning.github.io/webmcp/).
+
 # WebAssembly Test
 
 Color model ABGR uint32LE

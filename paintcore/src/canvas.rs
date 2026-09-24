@@ -688,6 +688,14 @@ impl Canvas {
     }
 
     pub fn combine(&mut self) {
+        self.combine_layers(false);
+    }
+
+    pub fn combine_transparent(&mut self) {
+        self.combine_layers(true);
+    }
+
+    fn combine_layers(&mut self, transparent_background: bool) {
         let background_color = self.background_color();
         let preserve_base = self.current_layer.is_none();
         let (base_width, base_height, base_buffer) = if preserve_base {
@@ -699,14 +707,28 @@ impl Canvas {
 
         {
             let canvas = self.canvas();
-            fillrect(canvas, background_color);
+            if transparent_background {
+                clear_layer(canvas);
+            } else {
+                fillrect(canvas, background_color);
+            }
         }
 
         if !base_buffer.is_empty() {
             let base_layer =
                 Layer::new_in("__base__".to_string(), base_buffer, base_width, base_height);
             let canvas = self.canvas();
-            draw_over_screen_with_alpha(&base_layer, canvas, 0, 0);
+            if transparent_background {
+                crate::composite::composite_screen(
+                    &base_layer,
+                    canvas,
+                    0,
+                    0,
+                    crate::composite::DrawOptions::default(),
+                );
+            } else {
+                draw_over_screen_with_alpha(&base_layer, canvas, 0, 0);
+            }
         }
 
         let sorted = self.layers.sorted().clone();
@@ -730,7 +752,17 @@ impl Canvas {
             if enabled {
                 let canvas = self.canvas();
                 let layer = unsafe { &mut *layer_ptr };
-                draw_over_screen_with_alpha(layer, canvas, x, y);
+                if transparent_background {
+                    crate::composite::composite_screen(
+                        layer,
+                        canvas,
+                        x,
+                        y,
+                        crate::composite::DrawOptions::default(),
+                    );
+                } else {
+                    draw_over_screen_with_alpha(layer, canvas, x, y);
+                }
             }
         }
     }
@@ -1126,6 +1158,38 @@ mod tests {
         canvas.combine();
 
         assert_eq!(&canvas.buffer()[0..4], &rgba(0xaa, 0x44, 0x11, 0xff));
+    }
+
+    #[test]
+    fn transparent_combine_keeps_empty_pixels_transparent_and_layer_alpha() {
+        let mut canvas = Canvas::new(1, 1);
+        canvas.add_layer("main".to_string(), 1, 1, 0, 0).unwrap();
+        canvas.set_current("main".to_string());
+        canvas
+            .layer_mut("main".to_string())
+            .unwrap()
+            .buffer_mut()
+            .copy_from_slice(&rgba(0x12, 0x34, 0x56, 0x80));
+
+        canvas.combine_transparent();
+
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0x12, 0x34, 0x56, 0x80));
+        canvas.clear_layer("main".to_string()).unwrap();
+        canvas.combine_transparent();
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0, 0, 0, 0));
+    }
+
+    #[test]
+    fn transparent_combine_preserves_alpha_of_pixels_on_the_base_canvas() {
+        let mut canvas = Canvas::new(1, 1);
+        canvas
+            .canvas()
+            .buffer_mut()
+            .copy_from_slice(&rgba(0x70, 0x80, 0x90, 0x40));
+
+        canvas.combine_transparent();
+
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0x70, 0x80, 0x90, 0x40));
     }
 
     #[test]
