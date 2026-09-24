@@ -737,6 +737,9 @@ impl Canvas {
             if label == "__base__" {
                 continue;
             }
+            if !self.layers.enable(label.clone()).unwrap_or_default() {
+                continue;
+            }
             let (x, y, enabled, layer_ptr) = {
                 let layer = self.layers.get_combined_layer(label.clone());
                 match layer {
@@ -1177,6 +1180,29 @@ mod tests {
         canvas.clear_layer("main".to_string()).unwrap();
         canvas.combine_transparent();
         assert_eq!(&canvas.buffer()[0..4], &rgba(0, 0, 0, 0));
+    }
+
+    #[test]
+    fn transparent_combine_respects_layer_visibility() {
+        let mut canvas = Canvas::new(1, 1);
+        canvas.add_layer("ink".to_string(), 1, 1, 0, 0).unwrap();
+        canvas.set_current("ink".to_string());
+        canvas
+            .layer_mut("ink".to_string())
+            .unwrap()
+            .buffer_mut()
+            .copy_from_slice(&rgba(0x12, 0x34, 0x56, 0xff));
+
+        canvas.combine_transparent();
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0x12, 0x34, 0x56, 0xff));
+
+        canvas.set_disable("ink".to_string()).unwrap();
+        canvas.combine_transparent();
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0, 0, 0, 0));
+
+        canvas.set_enable("ink".to_string()).unwrap();
+        canvas.combine_transparent();
+        assert_eq!(&canvas.buffer()[0..4], &rgba(0x12, 0x34, 0x56, 0xff));
     }
 
     #[test]

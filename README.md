@@ -66,6 +66,16 @@ The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibilit
 [`examples/web-paint/external-ui.html`](examples/web-paint/external-ui.html) for a standalone page
 whose complete toolbar and layer UI are outside the component.
 
+The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer panel, and zoom
+controls. Pencil and brush are size presets for the existing brush engine; opacity controls the
+selected layer. Image imports fit within the existing 640 × 480 canvas and create a new layer.
+The File menu also opens a landscape sample. Selection, fill, text, and shape tools are explicitly
+disabled because the component does not yet expose them. The eyedropper previews canvas pixels and
+restores the previous tool after sampling or cancellation. Save and Save As use the browser file
+picker when available; “PNGをダウンロード…” always opens the named-download flow and keeps the
+document marked as changed. Imported image previews are replaced with a drawn-layer icon after editing; live layer
+thumbnails are not implemented. The component exposes `workspace` and `canvas` CSS parts for host styling.
+
 Adding the `webmcp` attribute opts that instance into WebMCP tool registration when
 `document.modelContext` is available. WebMCP is an evolving proposal; Chrome currently documents
 availability through an origin trial or a local development flag. The normal component UI and

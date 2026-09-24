@@ -85,7 +85,7 @@ template.innerHTML = `
       <input class="file visually-hidden" type="file" accept="image/*" aria-label="Choose an image file">
       <button class="export" type="button">Download PNG</button>
     </div>
-    <div class="workspace"><canvas aria-label="Drawing canvas"></canvas></div>
+    <div class="workspace" part="workspace"><canvas part="canvas" aria-label="Drawing canvas"></canvas></div>
     <section class="layers" aria-label="Layers">
       <div class="layer-tools">
         <strong>Layers</strong>

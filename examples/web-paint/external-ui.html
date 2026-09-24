@@ -1,104 +1,229 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>External UI · Embedded WASM Paint Tool</title>
-    <script type="module" src="./paint-tool.js"></script>
-    <style>
-      body { max-width: 920px; margin: 32px auto; padding: 0 16px; color: #18212f; font: 16px/1.5 system-ui, sans-serif; }
-      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0; }
-      label { display: inline-flex; align-items: center; gap: 6px; }
-      button, input, select { font: inherit; }
-      button, select { min-height: 34px; padding: 5px 9px; border: 1px solid #d5dbe5; border-radius: 7px; background: white; }
-      input[type="range"] { accent-color: #315fce; }
-      #status { min-height: 1.5em; color: #647084; }
-    </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>無題 — ペイント</title>
+    <link rel="stylesheet" href="./external-ui.css" />
+    <script type="module" src="./external-ui.js"></script>
   </head>
   <body>
-    <h1>External host UI</h1>
-    <p>The component supplies the canvas. All controls below belong to the host page.</p>
-    <div class="controls" aria-label="Host paint controls">
-      <label>Color <input id="color" type="color" value="#20304a"></label>
-      <label>Brush <input id="size" type="range" min="1" max="100" value="12"><output id="size-value">12</output></label>
-      <label><input id="eraser" type="checkbox"> Eraser</label>
-      <label>Layer <select id="layer"></select></label>
-      <button id="add-layer" type="button">Add layer</button>
-      <button id="visibility" type="button">Hide layer</button>
-      <label>Opacity <input id="opacity" type="range" min="0" max="100" value="100"><output id="opacity-value">100%</output></label>
-      <button id="clear-layer" type="button">Clear layer</button>
-      <button id="draw-sample" type="button">Draw sample</button>
-      <label>Import <input id="image" type="file" accept="image/*"></label>
-      <button id="export" type="button">Download PNG</button>
-    </div>
-    <p id="status" role="status" aria-live="polite">Loading…</p>
-    <wasm-paint-tool controls="external" width="640" height="480" webmcp></wasm-paint-tool>
-    <script type="module">
-      const paint = document.querySelector("wasm-paint-tool");
-      const status = document.querySelector("#status");
-      const layerPicker = document.querySelector("#layer");
-      let state;
-
-      function update(nextState) {
-        state = nextState;
-        const previous = layerPicker.value;
-        layerPicker.replaceChildren(...state.layers.map(({ name }) => new Option(name, name)));
-        layerPicker.value = state.layers.some(({ name }) => name === state.selectedLayer) ? state.selectedLayer : previous;
-        document.querySelector("#color").value = state.brushColor;
-        document.querySelector("#size").value = String(state.brushSize);
-        document.querySelector("#size-value").value = String(state.brushSize);
-        document.querySelector("#eraser").checked = state.eraserEnabled;
-        const layer = state.layers.find(({ name }) => name === state.selectedLayer);
-        document.querySelector("#opacity").value = String(Math.round(layer.opacity * 100));
-        document.querySelector("#opacity-value").value = `${document.querySelector("#opacity").value}%`;
-        document.querySelector("#visibility").textContent = layer.visible ? "Hide layer" : "Show layer";
-      }
-
-      paint.addEventListener("paint-state-change", (event) => update(event.detail));
-      paint.addEventListener("paint-change", (event) => {
-        status.textContent = `Changed: ${event.detail.source}`;
-      });
-
-      try {
-        await paint.ready;
-        update(await paint.getState());
-        status.textContent = `Ready · ${state.width} × ${state.height}`;
-      } catch (error) { status.textContent = error.message; }
-
-      document.querySelector("#color").addEventListener("input", (event) => paint.setBrushColor(event.currentTarget.value));
-      document.querySelector("#size").addEventListener("input", (event) => paint.setBrushSize(Number(event.currentTarget.value)));
-      document.querySelector("#eraser").addEventListener("change", (event) => paint.setEraserEnabled(event.currentTarget.checked));
-      layerPicker.addEventListener("change", (event) => paint.selectLayer(event.currentTarget.value));
-      document.querySelector("#add-layer").addEventListener("click", () => paint.addLayer());
-      document.querySelector("#visibility").addEventListener("click", () => {
-        const layer = state.layers.find(({ name }) => name === state.selectedLayer);
-        paint.setLayerVisibility(layer.name, !layer.visible);
-      });
-      document.querySelector("#opacity").addEventListener("input", (event) => {
-        const opacity = Number(event.currentTarget.value) / 100;
-        document.querySelector("#opacity-value").value = `${event.currentTarget.value}%`;
-        paint.setLayerOpacity(state.selectedLayer, opacity);
-      });
-      document.querySelector("#clear-layer").addEventListener("click", () => paint.clearLayer(state.selectedLayer));
-      document.querySelector("#draw-sample").addEventListener("click", () => paint.drawStroke({ points: [{ x: 100, y: 100 }, { x: 180, y: 150 }, { x: 260, y: 100 }] }));
-      document.querySelector("#image").addEventListener("change", async (event) => {
-        const input = event.currentTarget;
-        const [file] = input.files ?? [];
-        if (!file) return;
-        try { await paint.loadImage(file); }
-        catch (error) { status.textContent = `Import failed: ${error.message}`; }
-        finally { input.value = ""; }
-      });
-      document.querySelector("#export").addEventListener("click", async () => {
-        try {
-          const blob = await paint.exportImage();
-          const url = URL.createObjectURL(blob);
-          const link = Object.assign(document.createElement("a"), { href: url, download: "paint.png" });
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-          status.textContent = `Exported PNG · ${blob.size.toLocaleString()} bytes`;
-        } catch (error) { status.textContent = `Export failed: ${error.message}`; }
-      });
-    </script>
+    <header class="menubar">
+      <strong id="document-name">無題</strong>
+      <details class="menu">
+        <summary>ファイル</summary>
+        <div class="menu-items">
+          <button data-action="import">
+            <img src="./assets/icons/open.svg" alt="" />画像を開く
+          </button>
+          <button data-action="save">
+            <img src="./assets/icons/save.svg" alt="" />保存
+          </button>
+          <button data-action="save-as">名前を付けて保存</button>
+          <button data-action="download">PNGをダウンロード…</button>
+          <button data-action="sample">
+            <img src="./assets/icons/image.svg" alt="" />サンプルを開く
+          </button>
+        </div>
+      </details>
+      <details class="menu">
+        <summary>編集</summary>
+        <div class="menu-items">
+          <button data-action="add">レイヤーを追加</button>
+          <button data-action="clear">選択レイヤーをクリア…</button>
+        </div>
+      </details>
+      <details class="menu">
+        <summary>表示</summary>
+        <div class="menu-items">
+          <button data-action="fit">画面に合わせる</button>
+          <button data-action="actual">実際のサイズ（100%）</button>
+        </div>
+      </details>
+      <span class="app-name">ペイント</span>
+    </header>
+    <section class="ribbon" aria-label="描画の設定">
+      <nav class="tabs" aria-label="リボン">
+        <button class="tab active" data-panel="home" aria-pressed="true">
+          ホーム
+        </button>
+        <button class="tab" data-panel="draw" aria-pressed="false">描く</button>
+        <button class="tab" disabled title="範囲選択は未対応です">選択</button>
+        <button class="tab" disabled title="図形ツールは未対応です">
+          図形
+        </button>
+        <button class="tab" data-panel="color" aria-pressed="false">色</button>
+        <button class="tab" data-panel="canvas" aria-pressed="false">
+          キャンバス
+        </button>
+      </nav>
+      <div class="ribbon-content">
+        <div
+          id="ribbon-tools"
+          class="tool-group"
+          role="toolbar"
+          aria-label="描画ツール"
+        ></div>
+        <div class="brush-settings" id="brush-settings">
+          <label for="size">ブラシの大きさ</label
+          ><input id="size" type="range" min="1" max="100" value="5" /><input
+            id="size-value"
+            aria-label="ブラシの大きさ（数値）"
+            type="number"
+            min="1"
+            max="100"
+            value="5"
+          />
+          <label for="opacity">レイヤーの不透明度</label
+          ><input
+            id="opacity"
+            type="range"
+            min="0"
+            max="100"
+            value="100"
+          /><output id="opacity-value">100%</output> <span>線の種類</span>
+          <div class="line-style" title="実線ブラシ">
+            <span></span><small>実線</small>
+          </div>
+        </div>
+        <div class="context-actions" id="context-actions" hidden></div>
+      </div>
+    </section>
+    <main class="workspace">
+      <aside
+        id="side-tools"
+        class="side-tools"
+        role="toolbar"
+        aria-label="ツール"
+      ></aside>
+      <section class="canvas-area" aria-label="キャンバスの作業領域">
+        <div class="canvas-stage">
+          <div id="eyedropper-preview" class="eyedropper-preview" hidden>
+            <span id="eyedropper-swatch" aria-hidden="true"></span>
+            <span class="eyedropper-values">
+              <strong id="eyedropper-hex">—</strong>
+              <small id="eyedropper-details">キャンバスをポイント</small>
+            </span>
+            <small class="eyedropper-help">クリック / Enterで取得 · Escで取消</small>
+          </div>
+          <wasm-paint-tool
+            controls="external"
+            width="640"
+            height="480"
+            webmcp
+          ></wasm-paint-tool>
+        </div>
+      </section>
+      <aside class="sidebar" aria-label="色とレイヤー">
+        <section class="panel color-panel">
+          <h2>
+            色<button
+              class="collapse"
+              aria-label="色パネルを折りたたむ"
+              aria-expanded="true"
+            >
+              <img src="./assets/icons/chevron.svg" alt="" />
+            </button>
+          </h2>
+          <div class="panel-body">
+            <div id="palette" class="palette" aria-label="カラーパレット"></div>
+            <div class="color-editor">
+              <canvas
+                id="color-wheel"
+                width="240"
+                height="240"
+                aria-label="色相環。キーボードでは下の色入力を使用してください"
+              ></canvas>
+              <div class="current-colors">
+                <input
+                  id="color"
+                  type="color"
+                  value="#ffe331"
+                  aria-label="描画色"
+                /><button
+                  id="white"
+                  aria-label="白を選択"
+                  title="白を選択"
+                ></button>
+              </div>
+            </div>
+            <label class="hex-label" for="hex"
+              >色の値<input
+                id="hex"
+                value="#FFE331"
+                maxlength="7"
+                pattern="#[0-9a-fA-F]{6}"
+                spellcheck="false"
+                aria-label="描画色の16進数"
+            /></label>
+          </div>
+        </section>
+        <section class="panel layer-panel">
+          <h2>
+            レイヤー<button
+              class="collapse"
+              aria-label="レイヤーパネルを折りたたむ"
+              aria-expanded="true"
+            >
+              <img src="./assets/icons/chevron.svg" alt="" />
+            </button>
+          </h2>
+          <div class="panel-body">
+            <div id="layers" class="layer-list" aria-label="レイヤー一覧"></div>
+            <button id="add-layer" class="add-layer" data-action="add">
+              <span><img src="./assets/icons/add.svg" alt="" /></span
+              >レイヤーの追加
+            </button>
+          </div>
+        </section>
+      </aside>
+    </main>
+    <footer class="statusbar">
+      <span class="dimensions">640 × 480 px</span
+      ><span id="status" role="status" aria-live="polite">読み込み中…</span>
+      <div class="zoom-controls">
+        <button data-action="zoom-out" aria-label="縮小">
+          <img src="./assets/icons/subtract.svg" alt="" /></button
+        ><button id="zoom-value" data-action="actual" title="100%に戻す">
+          100%</button
+        ><input
+          id="zoom"
+          aria-label="表示倍率"
+          type="range"
+          min="25"
+          max="200"
+          step="1"
+          value="100"
+        /><button data-action="zoom-in" aria-label="拡大">
+          <img src="./assets/icons/add.svg" alt="" />
+        </button>
+      </div>
+    </footer>
+    <input id="image" type="file" accept="image/*" hidden />
+    <dialog id="clear-dialog">
+      <form method="dialog">
+        <h2>レイヤーをクリアしますか？</h2>
+        <p>選択したレイヤーの描画が消去されます。この操作は元に戻せません。</p>
+        <div>
+          <button value="cancel">キャンセル</button
+          ><button value="clear" class="primary">クリア</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="save-dialog">
+      <form method="dialog" id="save-form">
+        <h2>PNGをダウンロード</h2>
+        <p>PNGファイルをダウンロードします。保存先はブラウザーで確認してください。</p>
+        <label for="save-filename">ファイル名</label>
+        <div class="save-filename-row">
+          <input id="save-filename" type="text" required maxlength="120" autocomplete="off" />
+          <span>.png</span>
+        </div>
+        <div class="dialog-actions">
+          <button id="save-cancel" type="button">キャンセル</button>
+          <button id="save-download" class="primary" type="submit" value="download">ダウンロード</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>
