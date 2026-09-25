@@ -36,7 +36,7 @@ if (-not $python) {
     throw 'Python 3 is required to run the test server. Install Python 3 and retry.'
 }
 
-$url = "http://127.0.0.1:$Port/examples/web-paint/external-ui.html"
+$url = "http://127.0.0.1:$Port/test/web-paint-ui.html"
 Write-Host "Serving $repoRoot at http://127.0.0.1:$Port/"
 Write-Host "Open $url"
 Write-Host 'Press Ctrl+C to stop the server.'

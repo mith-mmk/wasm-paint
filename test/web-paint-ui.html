@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>無題 — ペイント</title>
-    <link rel="stylesheet" href="./external-ui.css" />
-    <script type="module" src="./external-ui.js"></script>
+    <link rel="stylesheet" href="../tests/web-paint/external-ui.css" />
+    <script type="module" src="../tests/web-paint/external-ui.js"></script>
   </head>
   <body>
     <header class="menubar">
@@ -18,15 +18,15 @@
         <summary>ファイル</summary>
         <div class="menu-items">
           <button data-action="import">
-            <img src="./assets/icons/open.svg" alt="" />画像を開く
+            <img src="../tests/web-paint/assets/icons/open.svg" alt="" />画像を開く
           </button>
           <button data-action="save">
-            <img src="./assets/icons/save.svg" alt="" />保存
+            <img src="../tests/web-paint/assets/icons/save.svg" alt="" />保存
           </button>
           <button data-action="save-as">名前を付けて保存</button>
           <button data-action="download">PNGをダウンロード…</button>
           <button data-action="sample">
-            <img src="./assets/icons/image.svg" alt="" />サンプルを開く
+            <img src="../tests/web-paint/assets/icons/image.svg" alt="" />サンプルを開く
           </button>
         </div>
       </details>
@@ -129,7 +129,7 @@
               aria-label="色パネルを折りたたむ"
               aria-expanded="true"
             >
-              <img src="./assets/icons/chevron.svg" alt="" />
+              <img src="../tests/web-paint/assets/icons/chevron.svg" alt="" />
             </button>
           </h2>
           <div class="panel-body">
@@ -172,13 +172,13 @@
               aria-label="レイヤーパネルを折りたたむ"
               aria-expanded="true"
             >
-              <img src="./assets/icons/chevron.svg" alt="" />
+              <img src="../tests/web-paint/assets/icons/chevron.svg" alt="" />
             </button>
           </h2>
           <div class="panel-body">
             <div id="layers" class="layer-list" aria-label="レイヤー一覧"></div>
             <button id="add-layer" class="add-layer" data-action="add">
-              <span><img src="./assets/icons/add.svg" alt="" /></span
+              <span><img src="../tests/web-paint/assets/icons/add.svg" alt="" /></span
               >レイヤーの追加
             </button>
           </div>
@@ -190,7 +190,7 @@
       ><span id="status" role="status" aria-live="polite">読み込み中…</span>
       <div class="zoom-controls">
         <button data-action="zoom-out" aria-label="縮小">
-          <img src="./assets/icons/subtract.svg" alt="" /></button
+          <img src="../tests/web-paint/assets/icons/subtract.svg" alt="" /></button
         ><button id="zoom-value" data-action="actual" title="100%に戻す">
           100%</button
         ><input
@@ -202,7 +202,7 @@
           step="1"
           value="100"
         /><button data-action="zoom-in" aria-label="拡大">
-          <img src="./assets/icons/add.svg" alt="" />
+          <img src="../tests/web-paint/assets/icons/add.svg" alt="" />
         </button>
       </div>
     </footer>

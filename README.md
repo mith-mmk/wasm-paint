@@ -15,7 +15,7 @@ See [paintcore/README.md](paintcore/README.md) for API details and examples.
 
 ## Embedded Web Paint Component
 
-`examples/web-paint/` contains a framework-free `<wasm-paint-tool>` Web Component backed by the
+`tests/web-paint/` contains a framework-free `<wasm-paint-tool>` Web Component backed by the
 existing WASM engine. It provides pointer and touch drawing, an eraser, image import, PNG export,
 and basic layer controls inside a Shadow DOM.
 
@@ -28,15 +28,15 @@ cd ..
 python -m http.server 8000
 ```
 
-Open <http://localhost:8000/examples/web-paint/> for the demo.
+Open <http://localhost:8000/tests/web-paint.html> for the demo.
 
 On Windows, run `.\test.ps1` from the repository root to start the local test server. Open
-<http://127.0.0.1:8000/examples/web-paint/external-ui.html> to test the standalone UI.
+<http://127.0.0.1:8000/test/web-paint-ui.html> to test the standalone UI.
 
 To embed the component in another page, load its module and add the element:
 
 ```html
-<script type="module" src="/examples/web-paint/paint-tool.js"></script>
+<script type="module" src="/tests/web-paint/paint-tool.js"></script>
 <wasm-paint-tool width="640" height="480"></wasm-paint-tool>
 ```
 
@@ -67,7 +67,7 @@ paint.addEventListener("paint-state-change", (event) => {
 
 The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
 `clearLayer(name)`, and `clearCanvas()`. See
-[`examples/web-paint/external-ui.html`](examples/web-paint/external-ui.html) for a standalone page
+[`test/web-paint-ui.html`](test/web-paint-ui.html) for a standalone page
 whose complete toolbar and layer UI are outside the component.
 
 The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer panel, and zoom

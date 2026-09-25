@@ -30,7 +30,7 @@
 - Verified: initial transparent 640 × 480 canvas; palette color choice; brush range and numeric size; actual pointer drawing with pencil and brush; erasing a stroke segment; eyedropper hover preview, click sampling, Escape cancel, and prior tool/size/color restoration; adding/selecting layers; layer opacity; per-layer visibility after the compositor fix; sample load from the File menu; zoom in/reset; Color and Canvas tabs; color/layer panel collapse and expand; clear confirmation cancel; fit-to-screen; PNG filename dialog, cancel/dirty retention, clean reopen, and fallback download-start status; 1586 × 992, 1280 × 720, and 390 × 844 layouts.
 - Not verified: general image file picker path (it shares the sample import path); native Save As picker; actual downloaded PNG file and dimensions; Arrow/Enter eyedropper sampling and transparent-pixel continuation.
 - Console: no error or warning entries were recorded in the final desktop sample session.
-- Static checks: `node --check examples/web-paint/external-ui.js` and `git diff --check` passed.
+- Static checks: `node --check tests/web-paint/external-ui.js` and `git diff --check` passed.
 
 **Comparison history**
 

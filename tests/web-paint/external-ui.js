@@ -63,7 +63,7 @@ async function run(action) {
 }
 function icon(name) {
   const img = document.createElement("img");
-  img.src = `./assets/icons/${name}.svg`;
+  img.src = new URL(`./assets/icons/${name}.svg`, import.meta.url).href;
   img.alt = "";
   return img;
 }
@@ -623,7 +623,7 @@ const actions = {
     sampleLoading = true;
     try {
       message("サンプルを読み込み中…");
-      const response = await fetch("./assets/meadow.png");
+      const response = await fetch(new URL("./assets/meadow.png", import.meta.url));
       if (!response.ok) throw new Error("サンプル画像を読み込めませんでした");
       await importImage(await response.blob(), "草原のスケッチ");
     } finally {
