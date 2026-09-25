@@ -70,6 +70,7 @@
         <button class="tab" data-panel="shapes" aria-pressed="false">
           図形
         </button>
+        <button class="tab" data-panel="text" aria-pressed="false">文字</button>
         <button class="tab" data-panel="color" aria-pressed="false">色</button>
         <button class="tab" data-panel="canvas" aria-pressed="false">
           キャンバス
@@ -144,6 +145,15 @@
               webmcp
             ></wasm-paint-tool>
             <canvas id="shape-preview" aria-hidden="true" hidden></canvas>
+            <div id="text-editor" class="text-editor" role="group" aria-label="文字入力" hidden>
+              <label for="text-value">文字を入力</label>
+              <textarea id="text-value" rows="2" spellcheck="false" aria-label="キャンバスに配置する文字"></textarea>
+              <div class="text-editor-actions">
+                <small>Ctrl+Enterで確定 · Escで取消</small>
+                <button id="text-cancel" type="button">キャンセル</button>
+                <button id="text-apply" class="primary" type="button">配置</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="canvas-footnote"><span id="canvas-hint">キャンバス上をドラッグして描画</span><span>透明部分は市松模様で表示</span></div>

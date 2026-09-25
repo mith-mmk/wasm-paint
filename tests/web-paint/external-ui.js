@@ -21,7 +21,16 @@ let state,
   shapeKind = "rectangle",
   shapeFilled = false,
   lastSample,
-  pendingDeleteLayer;
+  pendingDeleteLayer,
+  textDraft,
+  textCommitPromise;
+const textStyle = {
+  fontFamily: "sans-serif",
+  fontSize: 32,
+  bold: false,
+  italic: false,
+  align: "left",
+};
 let ready = false,
   sampleLoading = false;
 const tools = [
@@ -30,7 +39,7 @@ const tools = [
   ["eraser", "消しゴム"],
   ["fill", "塗りつぶし"],
   ["eyedropper", "スポイト"],
-  ["text", "文字", true],
+  ["text", "文字"],
   ["shapes", "図形"],
 ];
 
@@ -252,6 +261,7 @@ function update(next) {
   });
   if (state.eraserEnabled) activeTool = "eraser";
   else if (activeTool === "eraser") activeTool = "pencil";
+  if (textDraft) syncTextDraftStyle();
   updateCanvasHint();
   $("#color").value = state.brushColor;
   if (document.activeElement !== $("#hex"))
@@ -435,6 +445,7 @@ function updateCanvasHint() {
     eraser: "キャンバス上をドラッグして消去",
     fill: "キャンバス上をクリックして塗りつぶし",
     eyedropper: "色を確認してクリックまたは Enter で取得",
+    text: "キャンバスをクリックして文字を入力",
     shapes: "キャンバス上をドラッグして図形を描画",
   };
   $("#canvas-hint").textContent = hints[activeTool] ?? "キャンバス上で操作";
@@ -484,6 +495,7 @@ async function enterEyedropper() {
   message("色を確認中 · クリックまたはEnterで取得 · Escで取消");
 }
 async function chooseTool(tool) {
+  if (textDraft && tool !== "text") await commitTextDraft();
   if (tool === "eyedropper") {
     if (eyedropperReturn)
       await leaveEyedropper({ status: "スポイトをキャンセルしました" });
@@ -510,6 +522,8 @@ async function chooseTool(tool) {
     $('[data-panel="home"]').click();
   if (tool === "fill" && !$('[data-panel="draw"]').classList.contains("active"))
     $('[data-panel="draw"]').click();
+  if (tool === "text" && !$('[data-panel="text"]').classList.contains("active"))
+    $('[data-panel="text"]').click();
   message(`${tools.find(([id]) => id === tool)[1]}を選択`);
 }
 
@@ -585,6 +599,253 @@ function renderShapePanel(target) {
   target.append(gallery, style);
   updateShapePanelControls();
 }
+
+function renderTextPanel(target) {
+  target.classList.add("text-panel");
+  const fontSetting = document.createElement("label");
+  fontSetting.className = "text-setting font-family";
+  fontSetting.append(document.createTextNode("書体"));
+  const fontFamily = document.createElement("select");
+  fontFamily.setAttribute("aria-label", "文字の書体");
+  for (const [value, label] of [
+    ["sans-serif", "ゴシック"],
+    ["serif", "明朝"],
+    ["monospace", "等幅"],
+    ["cursive", "手書き風"],
+  ]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    fontFamily.append(option);
+  }
+  fontFamily.value = textStyle.fontFamily;
+  fontFamily.addEventListener("change", () => {
+    textStyle.fontFamily = fontFamily.value;
+    syncTextDraftStyle();
+  });
+  fontSetting.append(fontFamily);
+
+  const sizeSetting = document.createElement("label");
+  sizeSetting.className = "text-setting";
+  sizeSetting.append(document.createTextNode("文字サイズ"));
+  const size = document.createElement("input");
+  Object.assign(size, { type: "number", min: "6", max: "160", value: String(textStyle.fontSize) });
+  size.setAttribute("aria-label", "文字サイズ（ピクセル）");
+  size.addEventListener("input", () => {
+    const value = Number(size.value);
+    if (!Number.isFinite(value)) return;
+    textStyle.fontSize = Math.max(6, Math.min(160, Math.round(value)));
+    syncTextDraftStyle();
+  });
+  sizeSetting.append(size);
+
+  const toggles = document.createElement("div");
+  toggles.className = "text-style-toggles";
+  toggles.setAttribute("role", "group");
+  toggles.setAttribute("aria-label", "文字の装飾");
+  for (const [key, label] of [["bold", "太字"], ["italic", "斜体"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "text-style-toggle";
+    button.dataset.textStyle = key;
+    button.textContent = label;
+    button.setAttribute("aria-pressed", String(textStyle[key]));
+    button.addEventListener("click", () => {
+      textStyle[key] = !textStyle[key];
+      button.setAttribute("aria-pressed", String(textStyle[key]));
+      syncTextDraftStyle();
+    });
+    toggles.append(button);
+  }
+
+  const alignSetting = document.createElement("label");
+  alignSetting.className = "text-setting";
+  alignSetting.append(document.createTextNode("揃え"));
+  const align = document.createElement("select");
+  align.setAttribute("aria-label", "文字の揃え方");
+  for (const [value, label] of [["left", "左揃え"], ["center", "中央揃え"], ["right", "右揃え"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    align.append(option);
+  }
+  align.value = textStyle.align;
+  align.addEventListener("change", () => {
+    textStyle.align = align.value;
+    syncTextDraftStyle();
+  });
+  alignSetting.append(align);
+
+  const note = document.createElement("p");
+  note.className = "text-panel-note";
+  note.textContent = "右側で色を選び、キャンバスをクリックして入力します。配置後は画像レイヤーになります。";
+  target.append(fontSetting, sizeSetting, toggles, alignSetting, note);
+}
+
+function textFont(style, scale = 1) {
+  const slant = style.italic ? "italic " : "";
+  const weight = style.bold ? "700" : "400";
+  return `${slant}${weight} ${Math.max(1, style.fontSize * scale)}px ${style.fontFamily}`;
+}
+
+function syncTextDraftStyle() {
+  if (!textDraft) return;
+  textDraft.style = { ...textStyle, color: state.brushColor };
+  updateTextEditorStyle();
+  positionTextEditor();
+}
+
+function updateTextEditorStyle() {
+  if (!textDraft) return;
+  const input = $("#text-value");
+  const scaleY = textDraft.canvas.getBoundingClientRect().height / textDraft.canvas.height;
+  input.style.font = textFont(textDraft.style, scaleY);
+  input.style.color = textDraft.style.color;
+  input.style.textAlign = textDraft.style.align;
+  input.style.caretColor = textDraft.style.color;
+  resizeTextEditor();
+}
+
+function resizeTextEditor() {
+  const editor = $("#text-editor");
+  const input = $("#text-value");
+  if (!textDraft || editor.hidden) return;
+  input.style.height = "auto";
+  input.style.height = `${Math.max(54, Math.min(220, input.scrollHeight))}px`;
+}
+
+function positionTextEditor() {
+  if (!textDraft) return;
+  const editor = $("#text-editor");
+  const canvas = textDraft.canvas;
+  const rect = canvas.getBoundingClientRect();
+  const stage = $(".canvas-stage");
+  const stageRect = stage.getBoundingClientRect();
+  const scaleX = rect.width / canvas.width;
+  const scaleY = rect.height / canvas.height;
+  const { x, y } = textDraft.point;
+  const maxTextWidth = textWidthLimit(canvas, textDraft);
+  const width = Math.max(80, Math.min(340, maxTextWidth * scaleX));
+  const anchorX = rect.left - stageRect.left + x * scaleX;
+  const alignedLeft = textDraft.style.align === "center"
+    ? anchorX - width / 2
+    : textDraft.style.align === "right"
+      ? anchorX - width
+      : anchorX;
+  const left = Math.max(6, Math.min(stageRect.width - width - 6, alignedLeft));
+  const top = rect.top - stageRect.top + y * scaleY;
+  editor.style.left = `${left}px`;
+  editor.style.top = `${top}px`;
+  editor.style.width = `${width}px`;
+  editor.hidden = false;
+  updateTextEditorStyle();
+}
+
+function textWidthLimit(canvas, draft) {
+  const { x } = draft.point;
+  if (draft.style.align === "right") return Math.max(1, x);
+  if (draft.style.align === "center") return Math.max(1, Math.min(x, canvas.width - x) * 2);
+  return Math.max(1, canvas.width - x);
+}
+
+function wrapCanvasText(context, text, maxWidth) {
+  const lines = [];
+  for (const paragraph of text.replace(/\r\n?/gu, "\n").split("\n")) {
+    let line = "";
+    for (const character of Array.from(paragraph)) {
+      const candidate = line + character;
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line.trimEnd());
+        line = character.trim() ? character : "";
+      } else {
+        line = candidate;
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+function startTextDraft(canvas, point) {
+  textDraft = {
+    canvas,
+    point,
+    style: { ...textStyle, color: state.brushColor },
+  };
+  const input = $("#text-value");
+  input.value = "";
+  $("#text-editor").hidden = false;
+  positionTextEditor();
+  input.focus({ preventScroll: true });
+  message("文字を入力してください · Ctrl+Enterで配置 · Escで取消");
+}
+
+function cancelTextDraft() {
+  if (!textDraft) return;
+  textDraft = undefined;
+  $("#text-editor").hidden = true;
+  $("#text-value").value = "";
+  $("#text-apply").disabled = false;
+  message("文字入力を取り消しました");
+}
+
+async function textImageBlob(draft, text) {
+  const output = document.createElement("canvas");
+  output.width = draft.canvas.width;
+  output.height = draft.canvas.height;
+  const context = output.getContext("2d", { alpha: true });
+  context.font = textFont(draft.style);
+  context.fillStyle = draft.style.color;
+  context.textAlign = draft.style.align;
+  context.textBaseline = "top";
+  const maxWidth = textWidthLimit(output, draft);
+  const lines = wrapCanvasText(context, text, maxWidth);
+  const lineHeight = Math.ceil(draft.style.fontSize * 1.25);
+  for (let index = 0; index < lines.length; index += 1) {
+    context.fillText(lines[index], draft.point.x, draft.point.y + index * lineHeight, maxWidth);
+  }
+  return new Promise((resolve, reject) => {
+    output.toBlob((blob) => blob ? resolve(blob) : reject(new Error("文字画像を作成できませんでした")), "image/png");
+  });
+}
+
+async function commitTextDraft() {
+  if (textCommitPromise) return textCommitPromise;
+  if (!textDraft) return;
+  const draft = textDraft;
+  const value = $("#text-value").value;
+  if (!value.trim()) {
+    cancelTextDraft();
+    message("文字が入力されていません");
+    return;
+  }
+  const input = $("#text-value");
+  const cancel = $("#text-cancel");
+  $("#text-apply").disabled = true;
+  input.disabled = true;
+  cancel.disabled = true;
+  textCommitPromise = (async () => {
+    try {
+      const blob = await textImageBlob(draft, value);
+      const name = await paint.loadImage(blob);
+      thumbnails.set(name, URL.createObjectURL(blob));
+      if (textDraft === draft) {
+        textDraft = undefined;
+        $("#text-editor").hidden = true;
+        input.value = "";
+      }
+      renderLayers();
+      message(`文字を「${name}」レイヤーに配置しました`);
+    } finally {
+      textCommitPromise = undefined;
+      input.disabled = false;
+      cancel.disabled = false;
+      $("#text-apply").disabled = false;
+    }
+  })();
+  return textCommitPromise;
+}
+
 async function selectEyedropperColor() {
   if (!lastSample || !lastSample.alpha) {
     message("透明なピクセルです。色のある場所を選択してください", true);
@@ -610,6 +871,7 @@ function setZoom(value, fitted = false) {
   $("#zoom-value").textContent = `${zoom}%`;
   $(".canvas-heading-actions [data-action='fit']").setAttribute("aria-pressed", String(fitMode));
   $(".canvas-heading-actions [data-action='actual']").setAttribute("aria-pressed", String(!fitMode && zoom === 100));
+  positionTextEditor();
 }
 function fitCanvas() {
   const area = $(".canvas-viewport");
@@ -887,6 +1149,17 @@ document.addEventListener("click", (event) => {
       .forEach((menu) => (menu.open = false));
 });
 document.addEventListener("keydown", (event) => {
+  const dialogOpen = Boolean(document.querySelector("dialog[open]"));
+  if (textDraft && !dialogOpen && (event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    run(commitTextDraft);
+    return;
+  }
+  if (textDraft && !dialogOpen && event.key === "Escape" && !textCommitPromise) {
+    event.preventDefault();
+    cancelTextDraft();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
     if (!ready || saveInProgress) return;
@@ -1060,6 +1333,7 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
     });
     const panel = button.dataset.panel;
     $(".ribbon").classList.toggle("shapes-active", panel === "shapes");
+    $(".ribbon").classList.toggle("text-active", panel === "text");
     $(".ribbon").classList.toggle("home-active", panel === "home");
     $(".ribbon").classList.toggle("draw-active", panel === "draw");
     $("#ribbon-tools").hidden = !["home", "draw"].includes(panel);
@@ -1072,7 +1346,7 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
     $("#brush-settings").hidden = !["home", "draw", "shapes"].includes(panel);
     const target = $("#context-actions");
     target.hidden = ["home", "draw"].includes(panel);
-    target.classList.remove("shape-panel", "canvas-actions");
+    target.classList.remove("shape-panel", "canvas-actions", "text-panel");
     target.replaceChildren();
     if (panel === "canvas") {
       target.classList.add("canvas-actions");
@@ -1095,6 +1369,10 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
     if (panel === "shapes") {
       renderShapePanel(target);
       if (ready && activeTool !== "shapes") run(() => chooseTool("shapes"));
+    }
+    if (panel === "text") {
+      renderTextPanel(target);
+      if (ready && activeTool !== "text") run(() => chooseTool("text"));
     }
     if (panel === "home" && ready && !["pencil", "brush", "eraser"].includes(activeTool))
       run(() => chooseTool("pencil"));
@@ -1240,10 +1518,19 @@ run(async () => {
     (event) => {
       const canvas = canvasFromEvent(event);
       if (!canvas) return;
-      if (!eyedropperReturn && activeTool !== "fill" && activeTool !== "shapes") return;
+      if (!eyedropperReturn && !["fill", "shapes", "text"].includes(activeTool)) return;
       event.stopImmediatePropagation();
       if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
+      if (activeTool === "text" && !eyedropperReturn) {
+        if (textDraft) {
+          $("#text-value").focus({ preventScroll: true });
+          message("文字を入力してから配置または取消してください");
+        } else {
+          startTextDraft(canvas, pointFromPointer(canvas, event));
+        }
+        return;
+      }
       if (activeTool === "shapes" && !eyedropperReturn) {
         const start = pointFromPointer(canvas, event);
         shapeDrag = {
@@ -1285,5 +1572,11 @@ run(async () => {
   $("#fill-tolerance").addEventListener("input", (event) => {
     $("#fill-tolerance-value").value = event.currentTarget.value;
   });
+  $("#text-value").addEventListener("input", resizeTextEditor);
+  $("#text-apply").addEventListener("click", () => run(commitTextDraft));
+  $("#text-cancel").addEventListener("click", cancelTextDraft);
+  const canvas = paintCanvas();
+  if (canvas) new ResizeObserver(positionTextEditor).observe(canvas);
+  window.addEventListener("resize", positionTextEditor);
   message("描画できます · ファイルからサンプルも開けます");
 });

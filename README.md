@@ -82,8 +82,10 @@ brush engine; opacity controls the selected layer. Image imports fit within the 
 The File menu also opens a landscape sample. The fill tool colors a connected region on the selected
 layer, with an adjustable color tolerance. The shape tool draws lines, rectangles, rounded
 rectangles, ellipses, triangles, diamonds, pentagons, hexagons, stars, and arrows. Closed shapes can
-be filled. Selection and text tools remain disabled because the
-component does not yet expose them. The eyedropper previews canvas pixels and
+be filled. Selection remains disabled. The text tool uses the external UI's
+JavaScript Canvas 2D context to render typed text into a transparent PNG, then
+loads that image as a new layer; it does not use a component text-rendering API.
+Placed text is rasterized and cannot be edited as text. The eyedropper previews canvas pixels and
 restores the previous tool after sampling or cancellation. Save and Save As use the browser file
 picker when available; “PNGをダウンロード…” always opens the named-download flow and keeps the
 document marked as changed. Imported image previews are replaced with a drawn-layer icon after editing; live layer
