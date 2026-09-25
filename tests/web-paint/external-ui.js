@@ -24,7 +24,7 @@ const tools = [
   ["pencil", "鉛筆"],
   ["brush", "ブラシ"],
   ["eraser", "消しゴム"],
-  ["fill", "塗りつぶし", true],
+  ["fill", "塗りつぶし"],
   ["eyedropper", "スポイト"],
   ["text", "文字", true],
   ["shapes", "図形", true],
@@ -263,6 +263,7 @@ paint.addEventListener("paint-change", (event) => {
     [
       "draw",
       "api-draw",
+      "fill",
       "clear-layer",
       "clear-canvas",
       "webmcp-clear-canvas",
@@ -306,14 +307,17 @@ function sampleAt(canvas, x, y) {
   return lastSample;
 }
 function sampleFromPointer(canvas, event) {
+  const point = pointFromPointer(canvas, event);
+  return sampleAt(canvas, point.x, point.y);
+}
+function pointFromPointer(canvas, event) {
   const rect = canvas.getBoundingClientRect();
   const contentX = event.clientX - rect.left - canvas.clientLeft;
   const contentY = event.clientY - rect.top - canvas.clientTop;
-  return sampleAt(
-    canvas,
-    Math.floor((contentX * canvas.width) / canvas.clientWidth),
-    Math.floor((contentY * canvas.height) / canvas.clientHeight),
-  );
+  return {
+    x: Math.max(0, Math.min(canvas.width - 1, Math.floor((contentX * canvas.width) / canvas.clientWidth))),
+    y: Math.max(0, Math.min(canvas.height - 1, Math.floor((contentY * canvas.height) / canvas.clientHeight))),
+  };
 }
 function focusToolButton(tool) {
   [...document.querySelectorAll("[data-tool]")]
@@ -961,11 +965,22 @@ run(async () => {
   paint.addEventListener(
     "pointerdown",
     (event) => {
-      if (!eyedropperReturn) return;
       const canvas = canvasFromEvent(event);
       if (!canvas) return;
+      if (!eyedropperReturn && activeTool !== "fill") return;
       event.stopImmediatePropagation();
+      if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
+      if (activeTool === "fill" && !eyedropperReturn) {
+        const point = pointFromPointer(canvas, event);
+        run(async () => {
+          const changed = await paint.fillAt(point.x, point.y, {
+            tolerance: Number($("#fill-tolerance").value),
+          });
+          message(changed ? "塗りつぶしました" : "塗りつぶす範囲に変更はありません");
+        });
+        return;
+      }
       sampleFromPointer(canvas, event);
       if (!lastSample.alpha) {
         message("透明なピクセルです。色のある場所を選択してください", true);
@@ -975,5 +990,8 @@ run(async () => {
     },
     true,
   );
+  $("#fill-tolerance").addEventListener("input", (event) => {
+    $("#fill-tolerance-value").value = event.currentTarget.value;
+  });
   message("描画できます · ファイルからサンプルも開けます");
 });

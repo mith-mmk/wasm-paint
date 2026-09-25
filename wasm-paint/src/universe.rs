@@ -1008,6 +1008,60 @@ impl Universe {
         ))
     }
 
+    /// Fills the connected region on the selected layer. Returns whether any pixels changed.
+    #[wasm_bindgen(js_name = floodFill)]
+    pub fn flood_fill(
+        &mut self,
+        x: i32,
+        y: i32,
+        tolerance: u8,
+        compare_alpha: bool,
+        eight_connected: bool,
+        argb: u32,
+    ) -> bool {
+        let options = FloodOptions {
+            tolerance,
+            color_mode: if compare_alpha {
+                FloodColorMode::Rgba
+            } else {
+                FloodColorMode::Rgb
+            },
+            connectivity: if eight_connected {
+                FloodConnectivity::Eight
+            } else {
+                FloodConnectivity::Four
+            },
+        };
+        let mask = flood_mask(self.layer_mut(), x, y, options);
+        let color = Color::from_argb_u32(argb);
+        let changed = self
+            .layer_mut()
+            .buffer()
+            .chunks_exact(4)
+            .zip(mask.coverage())
+            .any(|(pixel, &coverage)| {
+                coverage != 0
+                    && (color.alpha != u8::MAX
+                        || pixel[0] != color.red
+                        || pixel[1] != color.green
+                        || pixel[2] != color.blue
+                        || pixel[3] != color.alpha)
+            });
+        if !changed {
+            return false;
+        }
+
+        fill_mask(
+            self.layer_mut(),
+            &mask,
+            0,
+            0,
+            &Paint::Solid(color),
+            paintcore::composite::DrawOptions::default(),
+        );
+        true
+    }
+
     #[wasm_bindgen(js_name = createFloodMask)]
     pub fn create_flood_mask(
         &mut self,

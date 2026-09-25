@@ -19,7 +19,7 @@ if (@($requiredFiles | Where-Object { -not (Test-Path -LiteralPath $_) }).Count 
 }
 
 $bindings = Get-Content -LiteralPath (Join-Path $packageDir 'paint.d.ts') -Raw
-foreach ($method in @('deleteLayer', 'getLayerImageData', 'setLayerImageData')) {
+foreach ($method in @('deleteLayer', 'getLayerImageData', 'setLayerImageData', 'floodFill')) {
     if ($bindings -notmatch "\b$method\s*\(") {
         throw "Generated WASM bindings are outdated. Rebuild them with: Push-Location wasm-paint; wasm-pack build -t web; Pop-Location"
     }

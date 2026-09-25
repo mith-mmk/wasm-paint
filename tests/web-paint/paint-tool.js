@@ -227,6 +227,33 @@ class WasmPaintTool extends HTMLElement {
     this.#drawStroke({ color: this.#brushColor, size: this.#brushSize, ...settings }, "api-draw", eraser);
   }
 
+  async fillAt(x, y, options = {}) {
+    await this.ready;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError("Fill coordinates must be finite numbers.");
+    const pixelX = Math.floor(x);
+    const pixelY = Math.floor(y);
+    if (pixelX < 0 || pixelY < 0 || pixelX >= this.#canvas.width || pixelY >= this.#canvas.height) {
+      throw new RangeError("Fill coordinates must be inside the canvas.");
+    }
+    if (!options || typeof options !== "object") throw new TypeError("Fill options must be an object.");
+    const { tolerance = 16, compareAlpha = false, eightConnected = false } = options;
+    if (!Number.isInteger(tolerance) || tolerance < 0 || tolerance > 255) {
+      throw new RangeError("Fill tolerance must be an integer between 0 and 255.");
+    }
+    if (typeof compareAlpha !== "boolean" || typeof eightConnected !== "boolean") {
+      throw new TypeError("Fill comparison options must be booleans.");
+    }
+    if (typeof this.#universe.floodFill !== "function") {
+      throw new Error("the WASM package is outdated; rebuild wasm-paint");
+    }
+    const rgb = Number.parseInt(this.#brushColor.slice(1), 16);
+    const argb = ((0xff << 24) | rgb) >>> 0;
+    const changed = this.#universe.floodFill(pixelX, pixelY, tolerance, compareAlpha, eightConnected, argb);
+    if (!changed) return false;
+    this.#commitEdit("fill");
+    return true;
+  }
+
   async addLayer(name) {
     await this.ready;
     const label = this.#createLayer("Layer", name);

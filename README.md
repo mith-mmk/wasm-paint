@@ -66,15 +66,17 @@ paint.addEventListener("paint-state-change", (event) => {
 ```
 
 The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
-`clearLayer(name)`, and `clearCanvas()`. See
+`clearLayer(name)`, `clearCanvas()`, and `fillAt(x, y, { tolerance })`. `fillAt` fills the connected
+region on the selected layer; its per-channel RGB tolerance ranges from 0 to 255. See
 [`test/web-paint-ui.html`](test/web-paint-ui.html) for a standalone page
 whose complete toolbar and layer UI are outside the component.
 
 The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer panel, and zoom
 controls. Pencil and brush are size presets for the existing brush engine; opacity controls the
 selected layer. Image imports fit within the existing 640 × 480 canvas and create a new layer.
-The File menu also opens a landscape sample. Selection, fill, text, and shape tools are explicitly
-disabled because the component does not yet expose them. The eyedropper previews canvas pixels and
+The File menu also opens a landscape sample. The fill tool colors a connected region on the selected
+layer, with an adjustable color tolerance. Selection, text, and shape tools remain disabled because
+the component does not yet expose them. The eyedropper previews canvas pixels and
 restores the previous tool after sampling or cancellation. Save and Save As use the browser file
 picker when available; “PNGをダウンロード…” always opens the named-download flow and keeps the
 document marked as changed. Imported image previews are replaced with a drawn-layer icon after editing; live layer

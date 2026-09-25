@@ -22,13 +22,13 @@
 - Spacing and layout: the ribbon, left tool rail, central canvas, and right sidebar follow the reference grouping. At 1280 × 720 the full application fits; longer sidebar content scrolls inside the sidebar.
 - Colors and tokens: active blue selection, neutral panels, palette colors, and disabled gray tools remain consistent with the source.
 - Image quality and assets: the generated landscape sample follows the broad sky, cloud, sun, hills, and meadow composition, with details differing from the source. Tool icons use the selected Microsoft icon library.
-- Copy and content: labels are coherent in Japanese; unsupported selection, fill, text, and shape actions remain visibly disabled.
+- Copy and content: labels are coherent in Japanese; fill is available with a tolerance control, while selection, text, and shape actions remain visibly disabled.
 - Responsiveness and accessibility: the 390 × 844 capture keeps the sample, tool controls, and status reachable; the status element is displayed and readable. Browser-native keyboard/pointer interactions used in this test worked for the verified controls.
 
 **Interaction coverage**
 
 - Verified: initial transparent 640 × 480 canvas; palette color choice; brush range and numeric size; actual pointer drawing with pencil and brush; erasing a stroke segment; eyedropper hover preview, click sampling, Escape cancel, and prior tool/size/color restoration; adding/selecting layers; layer opacity; per-layer visibility after the compositor fix; sample load from the File menu; zoom in/reset; Color and Canvas tabs; color/layer panel collapse and expand; clear confirmation cancel; fit-to-screen; PNG filename dialog, cancel/dirty retention, clean reopen, and fallback download-start status; 1586 × 992, 1280 × 720, and 390 × 844 layouts.
-- Not verified: general image file picker path (it shares the sample import path); native Save As picker; actual downloaded PNG file and dimensions; Arrow/Enter eyedropper sampling and transparent-pixel continuation.
+- Not verified: fill region boundaries, tolerance behavior, and undo/redo; general image file picker path (it shares the sample import path); native Save As picker; actual downloaded PNG file and dimensions; Arrow/Enter eyedropper sampling and transparent-pixel continuation.
 - Console: no error or warning entries were recorded in the final desktop sample session.
 - Static checks: `node --check tests/web-paint/external-ui.js` and `git diff --check` passed.
 
