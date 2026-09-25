@@ -56,7 +56,7 @@
         </button>
         <button class="tab" data-panel="draw" aria-pressed="false">描く</button>
         <button class="tab" disabled title="範囲選択は未対応です">選択</button>
-        <button class="tab" disabled title="図形ツールは未対応です">
+        <button class="tab" data-panel="shapes" aria-pressed="false">
           図形
         </button>
         <button class="tab" data-panel="color" aria-pressed="false">色</button>
@@ -121,6 +121,7 @@
             height="480"
             webmcp
           ></wasm-paint-tool>
+          <canvas id="shape-preview" aria-hidden="true" hidden></canvas>
         </div>
       </section>
       <aside class="sidebar" aria-label="色とレイヤー">

@@ -1337,6 +1337,22 @@ impl Universe {
         Ok(())
     }
 
+    #[wasm_bindgen(js_name = fillPathSolid)]
+    pub fn fill_path_solid(&mut self, commands: String, argb: u32) -> Result<(), JsValue> {
+        let commands = parse_path_commands(&commands)
+            .map_err(|error| js_error(&format!("invalid path: {error}")))?;
+        path::fill_path(
+            self.layer_mut(),
+            &commands,
+            &Paint::Solid(Color::from_argb_u32(argb)),
+            path::FillRule::NonZero,
+            0.0,
+            0.0,
+            paintcore::composite::DrawOptions::default(),
+        );
+        Ok(())
+    }
+
     #[wasm_bindgen(js_name = createBrush)]
     pub fn create_brush(
         &mut self,

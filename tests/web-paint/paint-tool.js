@@ -3,6 +3,81 @@ import init, { Universe } from "../../wasm-paint/pkg/paint.js";
 const wasmReady = init();
 let nextInstanceId = 1;
 
+export function shapePathCommands(kind, startX, startY, endX, endY) {
+  const left = Math.min(startX, endX);
+  const top = Math.min(startY, endY);
+  const right = Math.max(startX, endX);
+  const bottom = Math.max(startY, endY);
+  const width = right - left;
+  const height = bottom - top;
+  const cx = (left + right) / 2;
+  const cy = (top + bottom) / 2;
+  const polygonPath = (points) =>
+    `M ${points[0][0]} ${points[0][1]} ${points.slice(1).map(([x, y]) => `L ${x} ${y}`).join(" ")} Z`;
+
+  if (kind === "line") return `M ${startX} ${startY} L ${endX} ${endY}`;
+  if (kind === "rectangle") {
+    return `M ${left} ${top} L ${right} ${top} L ${right} ${bottom} L ${left} ${bottom} Z`;
+  }
+  if (kind === "roundedRectangle") {
+    const radius = Math.min(width, height) * 0.2;
+    return `M ${left + radius} ${top} L ${right - radius} ${top}` +
+      ` Q ${right} ${top} ${right} ${top + radius} L ${right} ${bottom - radius}` +
+      ` Q ${right} ${bottom} ${right - radius} ${bottom} L ${left + radius} ${bottom}` +
+      ` Q ${left} ${bottom} ${left} ${bottom - radius} L ${left} ${top + radius}` +
+      ` Q ${left} ${top} ${left + radius} ${top} Z`;
+  }
+  if (kind === "ellipse") {
+    const rx = (right - left) / 2;
+    const ry = (bottom - top) / 2;
+    const k = 0.552284749831;
+    return `M ${cx + rx} ${cy} C ${cx + rx} ${cy + ry * k} ${cx + rx * k} ${cy + ry} ${cx} ${cy + ry}` +
+      ` C ${cx - rx * k} ${cy + ry} ${cx - rx} ${cy + ry * k} ${cx - rx} ${cy}` +
+      ` C ${cx - rx} ${cy - ry * k} ${cx - rx * k} ${cy - ry} ${cx} ${cy - ry}` +
+      ` C ${cx + rx * k} ${cy - ry} ${cx + rx} ${cy - ry * k} ${cx + rx} ${cy} Z`;
+  }
+  if (kind === "triangle") {
+    return polygonPath([[cx, top], [right, bottom], [left, bottom]]);
+  }
+  if (kind === "diamond") {
+    return polygonPath([[cx, top], [right, cy], [cx, bottom], [left, cy]]);
+  }
+  if (kind === "pentagon" || kind === "hexagon" || kind === "star") {
+    const count = kind === "pentagon" ? 5 : kind === "hexagon" ? 6 : 10;
+    const points = Array.from({ length: count }, (_, index) => {
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / count;
+      const radius = kind === "star" && index % 2 === 1 ? 0.42 : 1;
+      return [cx + Math.cos(angle) * (width / 2) * radius, cy + Math.sin(angle) * (height / 2) * radius];
+    });
+    return polygonPath(points);
+  }
+  if (kind === "arrow") {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const length = Math.hypot(dx, dy);
+    if (length === 0) return `M ${startX} ${startY}`;
+    const unitX = dx / length;
+    const unitY = dy / length;
+    const normalX = -unitY;
+    const normalY = unitX;
+    const shaftWidth = Math.max(2, length * 0.1);
+    const headLength = Math.min(length * 0.45, Math.max(10, length * 0.3));
+    const headWidth = shaftWidth * 2.4;
+    const baseX = endX - unitX * headLength;
+    const baseY = endY - unitY * headLength;
+    return polygonPath([
+      [startX + normalX * shaftWidth / 2, startY + normalY * shaftWidth / 2],
+      [baseX + normalX * shaftWidth / 2, baseY + normalY * shaftWidth / 2],
+      [baseX + normalX * headWidth / 2, baseY + normalY * headWidth / 2],
+      [endX, endY],
+      [baseX - normalX * headWidth / 2, baseY - normalY * headWidth / 2],
+      [baseX - normalX * shaftWidth / 2, baseY - normalY * shaftWidth / 2],
+      [startX - normalX * shaftWidth / 2, startY - normalY * shaftWidth / 2],
+    ]);
+  }
+  throw new RangeError("Unsupported shape type.");
+}
+
 const template = document.createElement("template");
 template.innerHTML = `
   <style>
@@ -251,6 +326,44 @@ class WasmPaintTool extends HTMLElement {
     const changed = this.#universe.floodFill(pixelX, pixelY, tolerance, compareAlpha, eightConnected, argb);
     if (!changed) return false;
     this.#commitEdit("fill");
+    return true;
+  }
+
+  async drawShape(kind, start, end, options = {}) {
+    await this.ready;
+    if (!["line", "rectangle", "roundedRectangle", "ellipse", "triangle", "diamond", "pentagon", "hexagon", "star", "arrow"].includes(kind)) {
+      throw new RangeError("Unsupported shape type.");
+    }
+    if (!Number.isFinite(start?.x) || !Number.isFinite(start?.y) || !Number.isFinite(end?.x) || !Number.isFinite(end?.y)) {
+      throw new TypeError("Shape points need finite x and y coordinates.");
+    }
+    if (!options || typeof options !== "object") throw new TypeError("Shape options must be an object.");
+    const { color = this.#brushColor, size = this.#brushSize, filled = false } = options;
+    if (typeof color !== "string" || !/^#[\da-f]{6}$/i.test(color)) {
+      throw new TypeError("Shape color must be a six-digit hex color.");
+    }
+    if (!Number.isFinite(size) || size < 1 || size > 100) {
+      throw new RangeError("Shape line width must be between 1 and 100.");
+    }
+    if (typeof filled !== "boolean" || (filled && kind === "line")) {
+      throw new TypeError("Lines cannot be filled.");
+    }
+    const x1 = Math.round(Math.max(0, Math.min(this.#canvas.width, start.x)));
+    const y1 = Math.round(Math.max(0, Math.min(this.#canvas.height, start.y)));
+    const x2 = Math.round(Math.max(0, Math.min(this.#canvas.width, end.x)));
+    const y2 = Math.round(Math.max(0, Math.min(this.#canvas.height, end.y)));
+    if (x1 === x2 && y1 === y2) return false;
+    if (kind !== "line" && kind !== "arrow" && (x1 === x2 || y1 === y2)) return false;
+    if (typeof this.#universe.strokeStyledPath !== "function" ||
+        (filled && typeof this.#universe.fillPathSolid !== "function")) {
+      throw new Error("the WASM package is outdated; rebuild wasm-paint");
+    }
+    const commands = shapePathCommands(kind, x1, y1, x2, y2);
+    const rgb = Number.parseInt(color.slice(1), 16);
+    const argb = ((0xff << 24) | rgb) >>> 0;
+    if (filled) this.#universe.fillPathSolid(commands, argb);
+    this.#universe.strokeStyledPath(commands, argb, size, "round", "round", 4, new Float32Array(), 0);
+    this.#commitEdit("shape");
     return true;
   }
 

@@ -66,8 +66,11 @@ paint.addEventListener("paint-state-change", (event) => {
 ```
 
 The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
-`clearLayer(name)`, `clearCanvas()`, and `fillAt(x, y, { tolerance })`. `fillAt` fills the connected
-region on the selected layer; its per-channel RGB tolerance ranges from 0 to 255. See
+`clearLayer(name)`, `clearCanvas()`, `fillAt(x, y, { tolerance })`, and
+`drawShape(kind, start, end, { size, filled })`. `fillAt` fills the connected region on the selected
+layer; its per-channel RGB tolerance ranges from 0 to 255. `drawShape` supports `line`, `rectangle`,
+`roundedRectangle`, `ellipse`, `triangle`, `diamond`, `pentagon`, `hexagon`, `star`, and `arrow`;
+all closed shapes can also be filled. See
 [`tests/web-paint-ui.html`](tests/web-paint-ui.html) for a standalone page
 whose complete toolbar and layer UI are outside the component.
 
@@ -75,8 +78,10 @@ The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer p
 controls. Pencil and brush are size presets for the existing brush engine; opacity controls the
 selected layer. Image imports fit within the existing 640 × 480 canvas and create a new layer.
 The File menu also opens a landscape sample. The fill tool colors a connected region on the selected
-layer, with an adjustable color tolerance. Selection, text, and shape tools remain disabled because
-the component does not yet expose them. The eyedropper previews canvas pixels and
+layer, with an adjustable color tolerance. The shape tool draws lines, rectangles, rounded
+rectangles, ellipses, triangles, diamonds, pentagons, hexagons, stars, and arrows. Closed shapes can
+be filled. Selection and text tools remain disabled because the
+component does not yet expose them. The eyedropper previews canvas pixels and
 restores the previous tool after sampling or cancellation. Save and Save As use the browser file
 picker when available; “PNGをダウンロード…” always opens the named-download flow and keeps the
 document marked as changed. Imported image previews are replaced with a drawn-layer icon after editing; live layer

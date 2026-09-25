@@ -1,4 +1,4 @@
-import "./paint-tool.js";
+import { shapePathCommands } from "./paint-tool.js";
 
 const $ = (selector) => document.querySelector(selector);
 const paint = $("wasm-paint-tool");
@@ -17,6 +17,9 @@ let state,
   currentFileHandle,
   saveInProgress = false,
   eyedropperReturn,
+  shapeDrag,
+  shapeKind = "rectangle",
+  shapeFilled = false,
   lastSample;
 let ready = false,
   sampleLoading = false;
@@ -27,7 +30,7 @@ const tools = [
   ["fill", "塗りつぶし"],
   ["eyedropper", "スポイト"],
   ["text", "文字", true],
-  ["shapes", "図形", true],
+  ["shapes", "図形"],
 ];
 
 function message(text, error = false) {
@@ -264,6 +267,7 @@ paint.addEventListener("paint-change", (event) => {
       "draw",
       "api-draw",
       "fill",
+      "shape",
       "clear-layer",
       "clear-canvas",
       "webmcp-clear-canvas",
@@ -319,6 +323,62 @@ function pointFromPointer(canvas, event) {
     y: Math.max(0, Math.min(canvas.height - 1, Math.floor((contentY * canvas.height) / canvas.clientHeight))),
   };
 }
+function clearShapePreview() {
+  const preview = $("#shape-preview");
+  preview.getContext("2d").clearRect(0, 0, preview.width, preview.height);
+  preview.hidden = true;
+}
+function renderShapePreview() {
+  if (!shapeDrag) return;
+  const preview = $("#shape-preview");
+  const stage = $(".canvas-stage");
+  const canvasRect = shapeDrag.canvas.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  preview.width = shapeDrag.canvas.width;
+  preview.height = shapeDrag.canvas.height;
+  preview.style.left = `${canvasRect.left - stageRect.left}px`;
+  preview.style.top = `${canvasRect.top - stageRect.top}px`;
+  preview.style.width = `${canvasRect.width}px`;
+  preview.style.height = `${canvasRect.height}px`;
+  preview.hidden = false;
+  const context = preview.getContext("2d");
+  context.clearRect(0, 0, preview.width, preview.height);
+  const path = new Path2D(shapePathCommands(
+    shapeDrag.kind,
+    shapeDrag.start.x,
+    shapeDrag.start.y,
+    shapeDrag.end.x,
+    shapeDrag.end.y,
+  ));
+  if (shapeDrag.filled) {
+    context.globalAlpha = 0.25;
+    context.fillStyle = shapeDrag.color;
+    context.fill(path);
+    context.globalAlpha = 1;
+  }
+  context.strokeStyle = shapeDrag.color;
+  context.lineWidth = shapeDrag.size;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.stroke(path);
+}
+function finishShapeDrag(event) {
+  if (!shapeDrag || shapeDrag.pointerId !== event.pointerId) return;
+  const drag = shapeDrag;
+  if (event.type === "pointerup") drag.end = pointFromPointer(drag.canvas, event);
+  shapeDrag = undefined;
+  clearShapePreview();
+  if (event.type !== "pointerup") return;
+  event.preventDefault();
+  run(async () => {
+    const changed = await paint.drawShape(drag.kind, drag.start, drag.end, {
+      color: drag.color,
+      size: drag.size,
+      filled: drag.filled,
+    });
+    message(changed ? "図形を描画しました" : "図形の大きさが足りません");
+  });
+}
 function focusToolButton(tool) {
   [...document.querySelectorAll("[data-tool]")]
     .find((button) => button.dataset.tool === tool && !button.disabled && button.getClientRects().length)
@@ -373,11 +433,89 @@ async function chooseTool(tool) {
   }
   if (eyedropperReturn) await leaveEyedropper({ focus: false });
   activeTool = tool;
+  document.querySelectorAll("[data-tool]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
+  });
   await paint.setEraserEnabled(tool === "eraser");
   if (tool === "pencil") await paint.setBrushSize(5);
   if (tool === "brush") await paint.setBrushSize(18);
   if (tool === "eraser") await paint.setBrushSize(24);
+  if (tool === "shapes" && !$('[data-panel="shapes"]').classList.contains("active"))
+    $('[data-panel="shapes"]').click();
   message(`${tools.find(([id]) => id === tool)[1]}を選択`);
+}
+
+function updateShapePanelControls() {
+  document.querySelectorAll("[data-shape-kind]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.shapeKind === shapeKind));
+  });
+  if (shapeKind === "line") shapeFilled = false;
+  document.querySelectorAll("[data-shape-fill]").forEach((button) => {
+    const filled = button.dataset.shapeFill === "true";
+    button.disabled = filled && shapeKind === "line";
+    button.setAttribute("aria-pressed", String(filled === shapeFilled));
+  });
+}
+
+function renderShapePanel(target) {
+  target.classList.add("shape-panel");
+  const gallery = document.createElement("div");
+  gallery.className = "shape-gallery";
+  const galleryTitle = document.createElement("span");
+  galleryTitle.className = "shape-group-title";
+  galleryTitle.textContent = "図形の種類";
+  const types = document.createElement("div");
+  types.className = "shape-types";
+  types.setAttribute("role", "group");
+  types.setAttribute("aria-label", "図形の種類");
+  for (const [kind, label, path] of [
+    ["line", "直線", "M5 27 27 5"],
+    ["rectangle", "四角形", "M5 6 H27 V27 H5 Z"],
+    ["ellipse", "楕円", "M27 16 A11 10 0 1 1 5 16 A11 10 0 1 1 27 16 Z"],
+    ["roundedRectangle", "角丸四角", "M10 6 H22 Q27 6 27 11 V22 Q27 27 22 27 H10 Q5 27 5 22 V11 Q5 6 10 6 Z"],
+    ["triangle", "三角形", "M16 5 28 27 H4 Z"],
+    ["diamond", "ひし形", "M16 4 29 16 16 28 3 16 Z"],
+    ["pentagon", "五角形", "M16 4 28 13 23 28 H9 L4 13 Z"],
+    ["hexagon", "六角形", "M10 5 H22 L29 16 22 27 H10 L3 16 Z"],
+    ["star", "星形", "M16 3 20 12 H29 L22 18 25 28 16 22 7 28 10 18 3 12 H12 Z"],
+    ["arrow", "矢印", "M4 12 H18 V5 L29 16 18 27 V20 H4 Z"],
+  ]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.shapeKind = kind;
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 32 32");
+    svg.setAttribute("aria-hidden", "true");
+    const outline = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    outline.setAttribute("d", path);
+    svg.append(outline);
+    const name = document.createElement("span");
+    name.textContent = label;
+    button.append(svg, name);
+    types.append(button);
+  }
+  gallery.append(galleryTitle, types);
+  const style = document.createElement("div");
+  style.className = "shape-style";
+  const styleTitle = document.createElement("span");
+  styleTitle.className = "shape-group-title";
+  styleTitle.textContent = "描画スタイル";
+  const styleOptions = document.createElement("div");
+  styleOptions.className = "shape-style-options";
+  styleOptions.setAttribute("role", "group");
+  styleOptions.setAttribute("aria-label", "描画スタイル");
+  for (const [filled, label] of [[false, "輪郭のみ"], [true, "塗りつぶし"]]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.shapeFill = String(filled);
+    button.textContent = label;
+    styleOptions.append(button);
+  }
+  style.append(styleTitle, styleOptions);
+  target.append(gallery, style);
+  updateShapePanelControls();
 }
 async function selectEyedropperColor() {
   if (!lastSample || !lastSample.alpha) {
@@ -647,6 +785,14 @@ document.addEventListener("click", (event) => {
     if (ready) run(actions[button.dataset.action]);
   }
   if (button?.dataset.tool && ready) run(() => chooseTool(button.dataset.tool));
+  if (button?.dataset.shapeKind) {
+    shapeKind = button.dataset.shapeKind;
+    updateShapePanelControls();
+  }
+  if (button?.dataset.shapeFill && !button.disabled) {
+    shapeFilled = button.dataset.shapeFill === "true";
+    updateShapePanelControls();
+  }
   if (button?.dataset.color && ready)
     run(() => paint.setBrushColor(button.dataset.color));
   if (!event.target.closest(".menu"))
@@ -801,10 +947,12 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
       tab.setAttribute("aria-pressed", String(tab === button));
     });
     const panel = button.dataset.panel;
-    $("#ribbon-tools").hidden = ["canvas", "color"].includes(panel);
+    $(".ribbon").classList.toggle("shapes-active", panel === "shapes");
+    $("#ribbon-tools").hidden = ["canvas", "color", "shapes"].includes(panel);
     $("#brush-settings").hidden = ["canvas", "color"].includes(panel);
     const target = $("#context-actions");
     target.hidden = ["home", "draw"].includes(panel);
+    target.classList.remove("shape-panel");
     target.replaceChildren();
     if (panel === "canvas") {
       for (const [action, label] of [
@@ -833,6 +981,10 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
       target.append(item);
       $(".color-panel").classList.remove("collapsed");
       $(".color-panel .collapse").setAttribute("aria-expanded", "true");
+    }
+    if (panel === "shapes") {
+      renderShapePanel(target);
+      if (ready && activeTool !== "shapes") run(() => chooseTool("shapes"));
     }
   }),
 );
@@ -955,6 +1107,12 @@ run(async () => {
   paint.addEventListener(
     "pointermove",
     (event) => {
+      if (shapeDrag && shapeDrag.pointerId === event.pointerId) {
+        shapeDrag.end = pointFromPointer(shapeDrag.canvas, event);
+        renderShapePreview();
+        event.preventDefault();
+        return;
+      }
       if (!eyedropperReturn) return;
       const canvas = canvasFromEvent(event);
       if (canvas) sampleFromPointer(canvas, event);
@@ -967,10 +1125,26 @@ run(async () => {
     (event) => {
       const canvas = canvasFromEvent(event);
       if (!canvas) return;
-      if (!eyedropperReturn && activeTool !== "fill") return;
+      if (!eyedropperReturn && activeTool !== "fill" && activeTool !== "shapes") return;
       event.stopImmediatePropagation();
       if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
+      if (activeTool === "shapes" && !eyedropperReturn) {
+        const start = pointFromPointer(canvas, event);
+        shapeDrag = {
+          pointerId: event.pointerId,
+          canvas,
+          kind: shapeKind,
+          start,
+          end: start,
+          color: state.brushColor,
+          size: state.brushSize,
+          filled: shapeFilled && shapeKind !== "line",
+        };
+        canvas.setPointerCapture(event.pointerId);
+        renderShapePreview();
+        return;
+      }
       if (activeTool === "fill" && !eyedropperReturn) {
         const point = pointFromPointer(canvas, event);
         run(async () => {
@@ -990,6 +1164,9 @@ run(async () => {
     },
     true,
   );
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    paint.addEventListener(type, finishShapeDrag, true);
+  }
   $("#fill-tolerance").addEventListener("input", (event) => {
     $("#fill-tolerance-value").value = event.currentTarget.value;
   });
