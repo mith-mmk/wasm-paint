@@ -17,16 +17,20 @@
       <details class="menu">
         <summary>ファイル</summary>
         <div class="menu-items">
-          <button data-action="import">
-            <img src="../tests/web-paint/assets/icons/open.svg" alt="" />画像を開く
+          <button type="button" class="command-button" data-action="import">
+            <span class="command-icon" aria-hidden="true"><img src="../tests/web-paint/assets/icons/open.svg" alt="" /></span><span class="command-label">画像を開く</span>
           </button>
-          <button data-action="save">
-            <img src="../tests/web-paint/assets/icons/save.svg" alt="" />保存
+          <button type="button" class="command-button command-primary" data-action="save">
+            <span class="command-icon" aria-hidden="true"><img src="../tests/web-paint/assets/icons/save.svg" alt="" /></span><span class="command-label">保存</span>
           </button>
-          <button data-action="save-as">名前を付けて保存</button>
-          <button data-action="download">PNGをダウンロード…</button>
-          <button data-action="sample">
-            <img src="../tests/web-paint/assets/icons/image.svg" alt="" />サンプルを開く
+          <button type="button" class="command-button" data-action="save-as">
+            <span class="command-icon command-save-as" aria-hidden="true"><img src="../tests/web-paint/assets/icons/save.svg" alt="" /></span><span class="command-label">名前を付けて保存</span>
+          </button>
+          <button type="button" class="command-button" data-action="download">
+            <span class="command-icon command-glyph" aria-hidden="true">↓</span><span class="command-label">PNGをダウンロード…</span>
+          </button>
+          <button type="button" class="command-button" data-action="sample">
+            <span class="command-icon" aria-hidden="true"><img src="../tests/web-paint/assets/icons/image.svg" alt="" /></span><span class="command-label">サンプルを開く</span>
           </button>
         </div>
       </details>
@@ -37,23 +41,30 @@
           <button type="button" data-action="redo" disabled>やり直し <span class="shortcut">Ctrl+Y</span></button>
           <hr />
           <button data-action="add">レイヤーを追加</button>
-          <button data-action="clear">選択レイヤーをクリア…</button>
+          <button type="button" class="command-button command-caution" data-action="clear">
+            <span class="command-icon" aria-hidden="true"><img src="../tests/web-paint/assets/icons/clear.svg" alt="" /></span><span class="command-label">レイヤーをクリア…</span>
+          </button>
         </div>
       </details>
       <details class="menu">
         <summary>表示</summary>
         <div class="menu-items">
-          <button data-action="fit">画面に合わせる</button>
-          <button data-action="actual">実際のサイズ（100%）</button>
+          <button type="button" class="command-button" data-action="fit">
+            <span class="command-icon command-glyph" aria-hidden="true">⤢</span><span class="command-label">画面に合わせる</span>
+          </button>
+          <button type="button" class="command-button" data-action="actual">
+            <span class="command-icon command-glyph command-ratio" aria-hidden="true">1:1</span><span class="command-label">実際のサイズ（100%）</span>
+          </button>
         </div>
       </details>
+      <button id="tool-rail-toggle" class="tool-rail-toggle" type="button" aria-controls="side-tools" aria-expanded="false" aria-label="縦のツールバーを表示" title="縦のツールバーを表示">
+        ツール
+      </button>
       <span class="app-name">ペイント</span>
     </header>
     <section class="ribbon" aria-label="描画の設定">
       <nav class="tabs" aria-label="リボン">
-        <button class="tab active" data-panel="home" aria-pressed="true">
-          ホーム
-        </button>
+        <button class="tab active" data-panel="home" aria-pressed="true">ホーム</button>
         <button class="tab" data-panel="draw" aria-pressed="false">描く</button>
         <button class="tab" disabled title="範囲選択は未対応です">選択</button>
         <button class="tab" data-panel="shapes" aria-pressed="false">
@@ -72,28 +83,27 @@
           aria-label="描画ツール"
         ></div>
         <div class="brush-settings" id="brush-settings">
-          <label for="size">ブラシの大きさ</label
-          ><input id="size" type="range" min="1" max="100" value="5" /><input
-            id="size-value"
-            aria-label="ブラシの大きさ（数値）"
-            type="number"
-            min="1"
-            max="100"
-            value="5"
-          />
-          <label for="opacity">レイヤーの不透明度</label
-          ><input
-            id="opacity"
-            type="range"
-            min="0"
-            max="100"
-            value="100"
-          /><output id="opacity-value">100%</output> <span>線の種類</span>
-          <div class="line-style" title="実線ブラシ">
-            <span></span><small>実線</small>
+          <div class="brush-setting-row size-setting">
+            <label for="size">ブラシの大きさ</label>
+            <div class="setting-control">
+              <input id="size" type="range" min="1" max="100" value="5" />
+              <input id="size-value" aria-label="ブラシの大きさ（数値）" type="number" min="1" max="100" value="5" />
+            </div>
           </div>
-          <label for="fill-tolerance" title="クリック位置と近い色まで塗り広げます">塗りつぶし許容差</label
-          ><input id="fill-tolerance" type="range" min="0" max="255" value="16" /><output id="fill-tolerance-value">16</output>
+          <div class="brush-setting-row opacity-setting">
+            <label for="opacity">レイヤーの不透明度</label>
+            <div class="setting-control">
+              <input id="opacity" type="range" min="0" max="100" value="100" />
+              <output id="opacity-value" for="opacity">100%</output>
+            </div>
+          </div>
+          <div class="brush-setting-row tolerance-setting">
+            <label for="fill-tolerance" title="クリック位置と近い色まで塗り広げます">塗りつぶし許容差</label>
+            <div class="setting-control">
+              <input id="fill-tolerance" type="range" min="0" max="255" value="16" />
+              <output id="fill-tolerance-value" for="fill-tolerance">16</output>
+            </div>
+          </div>
         </div>
         <div class="context-actions" id="context-actions" hidden></div>
       </div>
@@ -104,25 +114,39 @@
         class="side-tools"
         role="toolbar"
         aria-label="ツール"
+        hidden
       ></aside>
       <section class="canvas-area" aria-label="キャンバスの作業領域">
-        <div class="canvas-stage">
-          <div id="eyedropper-preview" class="eyedropper-preview" hidden>
-            <span id="eyedropper-swatch" aria-hidden="true"></span>
-            <span class="eyedropper-values">
-              <strong id="eyedropper-hex">—</strong>
-              <small id="eyedropper-details">キャンバスをポイント</small>
-            </span>
-            <small class="eyedropper-help">クリック / Enterで取得 · Escで取消</small>
+        <div class="canvas-heading">
+          <div class="canvas-heading-title">
+            <strong>キャンバス</strong>
+            <span>640 × 480 px</span>
           </div>
-          <wasm-paint-tool
-            controls="external"
-            width="640"
-            height="480"
-            webmcp
-          ></wasm-paint-tool>
-          <canvas id="shape-preview" aria-hidden="true" hidden></canvas>
+          <div class="canvas-heading-actions" role="group" aria-label="キャンバスの表示">
+            <button type="button" data-action="fit" aria-pressed="true">全体表示</button>
+            <button type="button" data-action="actual" aria-pressed="false">100%</button>
+          </div>
         </div>
+        <div class="canvas-viewport">
+          <div class="canvas-stage">
+            <div id="eyedropper-preview" class="eyedropper-preview" hidden>
+              <span id="eyedropper-swatch" aria-hidden="true"></span>
+              <span class="eyedropper-values">
+                <strong id="eyedropper-hex">—</strong>
+                <small id="eyedropper-details">キャンバスをポイント</small>
+              </span>
+              <small class="eyedropper-help">クリック / Enterで取得 · Escで取消</small>
+            </div>
+            <wasm-paint-tool
+              controls="external"
+              width="640"
+              height="480"
+              webmcp
+            ></wasm-paint-tool>
+            <canvas id="shape-preview" aria-hidden="true" hidden></canvas>
+          </div>
+        </div>
+        <div class="canvas-footnote"><span id="canvas-hint">キャンバス上をドラッグして描画</span><span>透明部分は市松模様で表示</span></div>
       </section>
       <aside class="sidebar" aria-label="色とレイヤー">
         <section class="panel color-panel">

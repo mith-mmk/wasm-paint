@@ -82,6 +82,16 @@ for (const target of [$("#ribbon-tools"), $("#side-tools")]) {
     target.append(button);
   }
 }
+$("#tool-rail-toggle").addEventListener("click", (event) => {
+  const rail = $("#side-tools");
+  const expanded = rail.hidden;
+  rail.hidden = !expanded;
+  $(".workspace").classList.toggle("tool-rail-open", expanded);
+  event.currentTarget.setAttribute("aria-expanded", String(expanded));
+  const label = expanded ? "縦のツールバーを隠す" : "縦のツールバーを表示";
+  event.currentTarget.setAttribute("aria-label", label);
+  event.currentTarget.title = label;
+});
 const colors = [
   "#252525",
   "#858585",
@@ -216,6 +226,7 @@ function update(next) {
   });
   if (state.eraserEnabled) activeTool = "eraser";
   else if (activeTool === "eraser") activeTool = "pencil";
+  updateCanvasHint();
   $("#color").value = state.brushColor;
   if (document.activeElement !== $("#hex"))
     $("#hex").value = state.brushColor.toUpperCase();
@@ -384,12 +395,24 @@ function focusToolButton(tool) {
     .find((button) => button.dataset.tool === tool && !button.disabled && button.getClientRects().length)
     ?.focus();
 }
+function updateCanvasHint() {
+  const hints = {
+    pencil: "キャンバス上をドラッグして描画",
+    brush: "キャンバス上をドラッグして描画",
+    eraser: "キャンバス上をドラッグして消去",
+    fill: "キャンバス上をクリックして塗りつぶし",
+    eyedropper: "色を確認してクリックまたは Enter で取得",
+    shapes: "キャンバス上をドラッグして図形を描画",
+  };
+  $("#canvas-hint").textContent = hints[activeTool] ?? "キャンバス上で操作";
+}
 async function leaveEyedropper({ focus = true, status = "" } = {}) {
   if (!eyedropperReturn) return;
   const previous = eyedropperReturn;
   eyedropperReturn = undefined;
   lastSample = undefined;
   activeTool = previous.tool;
+  updateCanvasHint();
   $("#eyedropper-preview").hidden = true;
   paint.removeAttribute("data-eyedropper");
   const canvas = paintCanvas();
@@ -402,6 +425,8 @@ async function leaveEyedropper({ focus = true, status = "" } = {}) {
   }
   await paint.setEraserEnabled(previous.tool === "eraser");
   await paint.setBrushSize(previous.size);
+  if (focus && ["pencil", "brush", "eraser"].includes(previous.tool) && $('[data-panel="draw"]').classList.contains("active"))
+    $('[data-panel="home"]').click();
   if (focus) focusToolButton(previous.tool);
   if (status) message(status);
 }
@@ -415,6 +440,7 @@ async function enterEyedropper() {
     ariaLabel: canvas.getAttribute("aria-label"),
   };
   activeTool = "eyedropper";
+  updateCanvasHint();
   paint.dataset.eyedropper = "true";
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", "スポイト。矢印キーで色を確認し、Enterで取得、Escapeで取消");
@@ -428,11 +454,16 @@ async function chooseTool(tool) {
   if (tool === "eyedropper") {
     if (eyedropperReturn)
       await leaveEyedropper({ status: "スポイトをキャンセルしました" });
-    else await enterEyedropper();
+    else {
+      await enterEyedropper();
+      if ($('[data-panel="home"]').classList.contains("active"))
+        $('[data-panel="draw"]').click();
+    }
     return;
   }
   if (eyedropperReturn) await leaveEyedropper({ focus: false });
   activeTool = tool;
+  updateCanvasHint();
   document.querySelectorAll("[data-tool]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
   });
@@ -442,6 +473,10 @@ async function chooseTool(tool) {
   if (tool === "eraser") await paint.setBrushSize(24);
   if (tool === "shapes" && !$('[data-panel="shapes"]').classList.contains("active"))
     $('[data-panel="shapes"]').click();
+  if (["pencil", "brush", "eraser"].includes(tool) && !$('[data-panel="home"]').classList.contains("active"))
+    $('[data-panel="home"]').click();
+  if (tool === "fill" && !$('[data-panel="draw"]').classList.contains("active"))
+    $('[data-panel="draw"]').click();
   message(`${tools.find(([id]) => id === tool)[1]}を選択`);
 }
 
@@ -540,9 +575,11 @@ function setZoom(value, fitted = false) {
   paint.style.width = `${(640 * zoom) / 100}px`;
   $("#zoom").value = zoom;
   $("#zoom-value").textContent = `${zoom}%`;
+  $(".canvas-heading-actions [data-action='fit']").setAttribute("aria-pressed", String(fitMode));
+  $(".canvas-heading-actions [data-action='actual']").setAttribute("aria-pressed", String(!fitMode && zoom === 100));
 }
 function fitCanvas() {
-  const area = $(".canvas-area");
+  const area = $(".canvas-viewport");
   const padding =
     parseFloat(getComputedStyle($(".canvas-stage")).paddingLeft) * 2;
   setZoom(
@@ -555,7 +592,7 @@ function fitCanvas() {
 }
 new ResizeObserver(() => {
   if (fitMode) fitCanvas();
-}).observe($(".canvas-area"));
+}).observe($(".canvas-viewport"));
 
 async function importImage(blob, title) {
   // Fit a reference image to the fixed backing canvas; preserve aspect ratio.
@@ -940,6 +977,21 @@ document.querySelectorAll(".collapse").forEach((button) =>
     button.setAttribute("aria-expanded", String(!collapsed));
   }),
 );
+function renderActionGroup(target, title, actions, group) {
+  const section = document.createElement("section");
+  section.className = "canvas-action-group";
+  section.dataset.group = group;
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const list = document.createElement("div");
+  list.className = "canvas-action-list";
+  for (const action of actions) {
+    const source = document.querySelector(`.menu-items .command-button[data-action="${action}"]`);
+    list.append(source.cloneNode(true));
+  }
+  section.append(heading, list);
+  target.append(section);
+}
 document.querySelectorAll("[data-panel]").forEach((button) =>
   button.addEventListener("click", () => {
     document.querySelectorAll("[data-panel]").forEach((tab) => {
@@ -948,27 +1000,25 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
     });
     const panel = button.dataset.panel;
     $(".ribbon").classList.toggle("shapes-active", panel === "shapes");
-    $("#ribbon-tools").hidden = ["canvas", "color", "shapes"].includes(panel);
-    $("#brush-settings").hidden = ["canvas", "color"].includes(panel);
+    $(".ribbon").classList.toggle("home-active", panel === "home");
+    $(".ribbon").classList.toggle("draw-active", panel === "draw");
+    $("#ribbon-tools").hidden = !["home", "draw"].includes(panel);
+    $("#ribbon-tools").querySelectorAll("[data-tool]").forEach((toolButton) => {
+      const visibleTools = panel === "home"
+        ? ["pencil", "brush", "eraser"]
+        : ["fill", "eyedropper", "shapes", "text"];
+      toolButton.hidden = !visibleTools.includes(toolButton.dataset.tool);
+    });
+    $("#brush-settings").hidden = !["home", "draw", "shapes"].includes(panel);
     const target = $("#context-actions");
     target.hidden = ["home", "draw"].includes(panel);
-    target.classList.remove("shape-panel");
+    target.classList.remove("shape-panel", "canvas-actions");
     target.replaceChildren();
     if (panel === "canvas") {
-      for (const [action, label] of [
-        ["import", "画像を開く"],
-        ["save", "保存"],
-        ["save-as", "名前を付けて保存"],
-        ["download", "PNGをダウンロード…"],
-        ["sample", "サンプルを開く"],
-        ["fit", "画面に合わせる"],
-        ["clear", "レイヤーをクリア…"],
-      ]) {
-        const item = document.createElement("button");
-        item.dataset.action = action;
-        item.textContent = label;
-        target.append(item);
-      }
+      target.classList.add("canvas-actions");
+      renderActionGroup(target, "ファイル", ["import", "save", "save-as", "download", "sample"], "file");
+      renderActionGroup(target, "表示", ["fit"], "view");
+      renderActionGroup(target, "レイヤー", ["clear"], "layer");
     }
     if (panel === "color") {
       const text = document.createElement("p");
@@ -986,8 +1036,13 @@ document.querySelectorAll("[data-panel]").forEach((button) =>
       renderShapePanel(target);
       if (ready && activeTool !== "shapes") run(() => chooseTool("shapes"));
     }
+    if (panel === "home" && ready && !["pencil", "brush", "eraser"].includes(activeTool))
+      run(() => chooseTool("pencil"));
+    if (panel === "draw" && ready && !["fill", "eyedropper"].includes(activeTool))
+      run(() => chooseTool("fill"));
   }),
 );
+$('[data-panel="home"]').click();
 
 // A functional HSV color picker, computed from color values rather than an image.
 function hsv(h, s, v) {
