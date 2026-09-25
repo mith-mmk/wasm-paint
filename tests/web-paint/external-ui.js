@@ -20,7 +20,8 @@ let state,
   shapeDrag,
   shapeKind = "rectangle",
   shapeFilled = false,
-  lastSample;
+  lastSample,
+  pendingDeleteLayer;
 let ready = false,
   sampleLoading = false;
 const tools = [
@@ -125,7 +126,11 @@ for (const color of colors) {
 function renderLayers() {
   // Retain row nodes while dragging a slider or navigating with the keyboard.
   const list = $("#layers");
-  for (const layer of [...state.layers].reverse()) {
+  const visibleNames = new Set(state.layers.map((layer) => layer.name));
+  for (const row of [...list.children]) {
+    if (!visibleNames.has(row.dataset.layer)) row.remove();
+  }
+  for (const [index, layer] of [...state.layers].reverse().entries()) {
     let row = [...list.children].find(
       (item) => item.dataset.layer === layer.name,
     );
@@ -170,7 +175,9 @@ function renderLayers() {
         run(() => paint.setLayerOpacity(layer.name, Number(opacity.value) / 100)),
       );
       row.append(visibility, select, opacity, document.createElement("output"));
-      list.prepend(row);
+    }
+    if (list.children[index] !== row) {
+      list.insertBefore(row, list.children[index] ?? null);
     }
     row.classList.toggle("selected", layer.name === state.selectedLayer);
     row
@@ -205,6 +212,25 @@ function renderLayers() {
       delete thumb.dataset.source;
     }
   }
+  updateLayerActions();
+}
+
+function updateLayerActions() {
+  const index = state.layers.findIndex((layer) => layer.name === state.selectedLayer);
+  const atTop = index < 0 || index === state.layers.length - 1;
+  const atBottom = index <= 0;
+  const isBackground = state.selectedLayer === "main";
+  const moveUp = $("#move-layer-up");
+  const moveDown = $("#move-layer-down");
+  const deleteButton = $("#delete-layer");
+  moveUp.disabled = atTop;
+  moveUp.title = atTop ? "すでに最前面です" : "選択レイヤーを上へ移動";
+  moveDown.disabled = atBottom;
+  moveDown.title = atBottom ? "すでに最背面です" : "選択レイヤーを下へ移動";
+  deleteButton.disabled = index < 0 || isBackground;
+  deleteButton.title = isBackground
+    ? "背景レイヤーは削除できません"
+    : "選択中のレイヤーを削除";
 }
 
 function update(next) {
@@ -272,6 +298,13 @@ paint.addEventListener("paint-change", (event) => {
     if (state) renderLayers();
     message("未保存の変更があります");
     return;
+  }
+  if (source === "delete-layer") {
+    for (const name of event.detail.deletedLayers ?? []) {
+      if (thumbnails.has(name)) URL.revokeObjectURL(thumbnails.get(name));
+      thumbnails.delete(name);
+      editedLayers.delete(name);
+    }
   }
   if (
     [
@@ -787,6 +820,22 @@ const actions = {
   redo: () => paint.redo(),
   import: () => $("#image").click(),
   add: () => paint.addLayer(),
+  "move-layer-up": async () => {
+    const moved = await paint.moveLayer(state.selectedLayer, "up");
+    message(moved ? "レイヤーを上へ移動しました" : "これ以上上へ移動できません");
+  },
+  "move-layer-down": async () => {
+    const moved = await paint.moveLayer(state.selectedLayer, "down");
+    message(moved ? "レイヤーを下へ移動しました" : "これ以上下へ移動できません");
+  },
+  "delete-layer": () => {
+    const dialog = $("#delete-layer-dialog");
+    if (dialog.open || state.selectedLayer === "main") return;
+    pendingDeleteLayer = state.selectedLayer;
+    $("#delete-layer-name").textContent = pendingDeleteLayer;
+    dialog.returnValue = "cancel";
+    dialog.showModal();
+  },
   clear: () => {
     const dialog = $("#clear-dialog");
     if (dialog.open) return;
@@ -862,7 +911,8 @@ document.addEventListener("keydown", (event) => {
     eyedropperReturn &&
     event.key === "Escape" &&
     !$("#save-dialog").open &&
-    !$("#clear-dialog").open
+    !$("#clear-dialog").open &&
+    !$("#delete-layer-dialog").open
   ) {
     event.preventDefault();
     run(() => leaveEyedropper({ status: "スポイトをキャンセルしました" }));
@@ -896,6 +946,16 @@ document.addEventListener("keydown", (event) => {
 $("#clear-dialog").addEventListener("close", () => {
   if ($("#clear-dialog").returnValue === "clear")
     run(() => paint.clearLayer(state.selectedLayer));
+});
+$("#delete-layer-dialog").addEventListener("close", () => {
+  const name = pendingDeleteLayer;
+  pendingDeleteLayer = undefined;
+  if ($("#delete-layer-dialog").returnValue === "delete" && name) {
+    run(async () => {
+      await paint.deleteLayer(name);
+      message(`「${name}」を削除しました · 元に戻すで復元できます`);
+    });
+  }
 });
 $("#save-dialog").addEventListener("close", () => {
   if ($("#save-dialog").returnValue === "download")

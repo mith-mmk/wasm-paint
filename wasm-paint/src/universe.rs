@@ -722,6 +722,18 @@ impl Universe {
         Ok(())
     }
 
+    #[wasm_bindgen(js_name = moveLayer)]
+    pub fn move_layer(&mut self, label: String, direction: String) -> Result<bool, JsValue> {
+        let direction = match direction.as_str() {
+            "up" => 1,
+            "down" => -1,
+            _ => return Err(js_error("layer move direction must be 'up' or 'down'")),
+        };
+        self.canvas
+            .move_layer(label, direction)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+
     #[wasm_bindgen(js_name = getLayerImageData)]
     pub fn get_layer_image_data(&mut self, label: String) -> Result<ImageData, JsValue> {
         let layer = self

@@ -204,6 +204,11 @@
           </h2>
           <div class="panel-body">
             <div id="layers" class="layer-list" aria-label="レイヤー一覧"></div>
+            <div class="layer-actions" role="toolbar" aria-label="選択中のレイヤー操作">
+              <button type="button" id="move-layer-up" data-action="move-layer-up" aria-label="選択レイヤーを上へ移動" title="上へ移動">↑ 上へ</button>
+              <button type="button" id="move-layer-down" data-action="move-layer-down" aria-label="選択レイヤーを下へ移動" title="下へ移動">↓ 下へ</button>
+              <button type="button" id="delete-layer" class="danger" data-action="delete-layer">削除</button>
+            </div>
             <button id="add-layer" class="add-layer" data-action="add">
               <span><img src="../tests/web-paint/assets/icons/add.svg" alt="" /></span
               >レイヤーの追加
@@ -241,6 +246,16 @@
         <div>
           <button value="cancel">キャンセル</button
           ><button value="clear" class="primary">クリア</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="delete-layer-dialog" aria-labelledby="delete-layer-title">
+      <form method="dialog">
+        <h2 id="delete-layer-title">レイヤーを削除しますか？</h2>
+        <p>「<strong id="delete-layer-name"></strong>」を削除します。この操作は元に戻すで復元できます。</p>
+        <div class="dialog-actions">
+          <button value="cancel">キャンセル</button>
+          <button value="delete" class="danger">レイヤーを削除</button>
         </div>
       </form>
     </dialog>

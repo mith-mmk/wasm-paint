@@ -66,6 +66,7 @@ paint.addEventListener("paint-state-change", (event) => {
 ```
 
 The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
+`moveLayer(name, direction)` (`direction` is `"up"` or `"down"`), `deleteLayer(name)`,
 `clearLayer(name)`, `clearCanvas()`, `fillAt(x, y, { tolerance })`, and
 `drawShape(kind, start, end, { size, filled })`. `fillAt` fills the connected region on the selected
 layer; its per-channel RGB tolerance ranges from 0 to 255. `drawShape` supports `line`, `rectangle`,
@@ -74,9 +75,10 @@ all closed shapes can also be filled. See
 [`tests/web-paint-ui.html`](tests/web-paint-ui.html) for a standalone page
 whose complete toolbar and layer UI are outside the component.
 
-The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer panel, and zoom
-controls. Pencil and brush are size presets for the existing brush engine; opacity controls the
-selected layer. Image imports fit within the existing 640 × 480 canvas and create a new layer.
+The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer panel with move and
+delete controls for the selected layer, and zoom controls. The protected background layer cannot be
+deleted; layer removal and reordering are undoable. Pencil and brush are size presets for the existing
+brush engine; opacity controls the selected layer. Image imports fit within the existing 640 × 480 canvas and create a new layer.
 The File menu also opens a landscape sample. The fill tool colors a connected region on the selected
 layer, with an adjustable color tolerance. The shape tool draws lines, rectangles, rounded
 rectangles, ellipses, triangles, diamonds, pentagons, hexagons, stars, and arrows. Closed shapes can

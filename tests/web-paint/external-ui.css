@@ -854,6 +854,28 @@ wasm-paint-tool::part(canvas) {
 .layer-row > button {
   padding: 3px;
 }
+.layer-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.layer-actions button {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.danger {
+  color: #a52a2a;
+  border-color: #e7b9b9;
+}
+.dialog-actions .danger,
+dialog .danger {
+  border-color: #a52a2a;
+  color: white;
+  background: #b53b3b;
+}
 .layer-select {
   display: flex;
   align-items: center;

@@ -255,6 +255,48 @@ impl PackedLayers {
         }
     }
 
+    fn move_layer(&mut self, label: String, direction: i8) -> Result<bool, Error> {
+        if label == "__base__" {
+            return Err(Box::new(crate::error::Error {
+                message: "The base canvas layer cannot be moved".to_string(),
+            }));
+        }
+        if direction != -1 && direction != 1 {
+            return Err(Box::new(crate::error::Error {
+                message: "Layer move direction must be -1 or 1".to_string(),
+            }));
+        }
+        let index = self
+            .sorted
+            .iter()
+            .position(|current| current == &label)
+            .ok_or_else(|| {
+                Box::new(crate::error::Error {
+                    message: "No exist Layer name".to_string(),
+                }) as Error
+            })?;
+        let target = if direction > 0 {
+            index + 1
+        } else {
+            index.saturating_sub(1)
+        };
+        if target == 0 || target >= self.sorted.len() {
+            return Ok(false);
+        }
+
+        self.sorted.swap(index, target);
+        self.reindex();
+        Ok(true)
+    }
+
+    fn reindex(&mut self) {
+        for (index, label) in self.sorted.iter().enumerate() {
+            if let Some(layer) = self.layers.get_mut(label) {
+                layer.set_z_index(index as i32);
+            }
+        }
+    }
+
     fn add(&mut self, label: String, width: u32, height: u32, x: i32, y: i32) -> Result<(), Error> {
         if self.layers.contains_key(&label) {
             return Err(Box::new(crate::error::Error {
@@ -457,14 +499,8 @@ impl PackedLayers {
 
     fn remove(&mut self, label: String) {
         self.layers.remove(&label);
-        let mut sorted: Vec<String> = Vec::new();
-        for key in &self.sorted {
-            if key != &label {
-                sorted.push(key.to_string())
-            }
-        }
-        self.sorted = sorted;
-        self.sort();
+        self.sorted.retain(|key| key != &label);
+        self.reindex();
     }
 
     fn set_next(&mut self, label: String) -> Result<usize, Error> {
@@ -651,6 +687,10 @@ impl Canvas {
 
     pub fn set_z_index(&mut self, label: String, z_index: i32) -> Result<(), Error> {
         self.layers.set_z_index(label, z_index)
+    }
+
+    pub fn move_layer(&mut self, label: String, direction: i8) -> Result<bool, Error> {
+        self.layers.move_layer(label, direction)
     }
 
     pub fn layer(&mut self, label: String) -> Option<&Layer> {

@@ -375,6 +375,46 @@ class WasmPaintTool extends HTMLElement {
     return label;
   }
 
+  async moveLayer(name, direction) {
+    await this.ready;
+    if (typeof name !== "string") throw new TypeError("Layer name must be a string.");
+    if (direction !== "up" && direction !== "down") {
+      throw new TypeError("Layer move direction must be 'up' or 'down'.");
+    }
+    this.#findLayer(name);
+    if (typeof this.#universe.moveLayer !== "function") {
+      throw new Error("the WASM package is outdated; rebuild wasm-paint");
+    }
+    const index = this.#layers.findIndex((layer) => layer.name === name);
+    const target = index + (direction === "up" ? 1 : -1);
+    if (target < 0 || target >= this.#layers.length) return false;
+    if (!this.#universe.moveLayer(name, direction)) return false;
+    const [layer] = this.#layers.splice(index, 1);
+    this.#layers.splice(target, 0, layer);
+    this.#renderLayers();
+    this.#commitEdit("move-layer", { layer: name, direction });
+    return true;
+  }
+
+  async deleteLayer(name) {
+    await this.ready;
+    if (typeof name !== "string") throw new TypeError("Layer name must be a string.");
+    if (name === "main") throw new Error("The background layer cannot be deleted.");
+    const index = this.#layers.findIndex((layer) => layer.name === name);
+    this.#findLayer(name);
+    this.#universe.deleteLayer(name);
+    this.#layers.splice(index, 1);
+    if (this.#selectedLayer === name) {
+      const replacement = this.#layers[Math.min(index, this.#layers.length - 1)];
+      this.#selectedLayer = replacement.name;
+      this.#universe.setCurrentLayer(this.#selectedLayer);
+    }
+    this.#renderLayers();
+    this.#renderNow();
+    this.#commitEdit("delete-layer", { deletedLayers: [name] });
+    return this.#selectedLayer;
+  }
+
   async selectLayer(name) {
     await this.ready;
     this.#selectLayer(name);
@@ -723,10 +763,10 @@ class WasmPaintTool extends HTMLElement {
     this.#commitEdit(source);
   }
 
-  #commitEdit(source) {
+  #commitEdit(source, extra = {}) {
     this.#renderNow();
     this.#recordHistory();
-    this.#dispatchPaintChange(source);
+    this.#dispatchPaintChange(source, extra);
     this.#dispatchStateChange();
   }
 
@@ -746,7 +786,8 @@ class WasmPaintTool extends HTMLElement {
     if (
       typeof this.#universe.getLayerImageData !== "function" ||
       typeof this.#universe.setLayerImageData !== "function" ||
-      typeof this.#universe.deleteLayer !== "function"
+      typeof this.#universe.deleteLayer !== "function" ||
+      typeof this.#universe.moveLayer !== "function"
     ) {
       throw new Error("the WASM package is outdated; rebuild wasm-paint");
     }
@@ -832,9 +873,11 @@ class WasmPaintTool extends HTMLElement {
 
   #restoreHistoryState(snapshot) {
     const targetByName = new Map(snapshot.layers.map((layer) => [layer.name, layer]));
+    const currentOrder = this.#layers.map((layer) => layer.name);
     for (const layer of [...this.#layers]) {
       if (!targetByName.has(layer.name)) {
         this.#universe.deleteLayer(layer.name);
+        currentOrder.splice(currentOrder.indexOf(layer.name), 1);
       }
     }
     const currentByName = new Map(this.#layers.map((layer) => [layer.name, layer]));
@@ -842,6 +885,7 @@ class WasmPaintTool extends HTMLElement {
       let layer = currentByName.get(target.name);
       if (!layer) {
         this.#universe.addLayer(target.name, this.#canvas.width, this.#canvas.height);
+        currentOrder.push(target.name);
         layer = { name: target.name, visible: target.visible, opacity: target.opacity };
       }
       this.#universe.setLayerImageData(target.name, target.pixels);
@@ -852,6 +896,30 @@ class WasmPaintTool extends HTMLElement {
       this.#universe.setLayerAlpha(target.name, target.opacity);
       return layer;
     });
+    for (let targetIndex = 0; targetIndex < snapshot.layers.length; targetIndex += 1) {
+      const name = snapshot.layers[targetIndex].name;
+      let currentIndex = currentOrder.indexOf(name);
+      while (currentIndex > targetIndex) {
+        if (!this.#universe.moveLayer(name, "down")) {
+          throw new Error(`Could not restore the order of layer ${name}.`);
+        }
+        [currentOrder[currentIndex - 1], currentOrder[currentIndex]] = [
+          currentOrder[currentIndex],
+          currentOrder[currentIndex - 1],
+        ];
+        currentIndex -= 1;
+      }
+      while (currentIndex < targetIndex) {
+        if (!this.#universe.moveLayer(name, "up")) {
+          throw new Error(`Could not restore the order of layer ${name}.`);
+        }
+        [currentOrder[currentIndex], currentOrder[currentIndex + 1]] = [
+          currentOrder[currentIndex + 1],
+          currentOrder[currentIndex],
+        ];
+        currentIndex += 1;
+      }
+    }
     this.#selectedLayer = snapshot.selectedLayer;
     this.#universe.setCurrentLayer(this.#selectedLayer);
     this.#renderLayers();
@@ -949,6 +1017,22 @@ class WasmPaintTool extends HTMLElement {
         description: "Add an empty layer and select it.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         execute: async () => { await this.ready; const name = this.#createLayer("Layer"); this.#renderLayers(); this.#commitEdit("webmcp-add-layer"); return `Added ${name}.`; },
+      },
+      {
+        name: this.#webmcpName("move-layer"),
+        description: "Move a layer one step up or down in the stack.",
+        inputSchema: { type: "object", properties: { name: { type: "string" }, direction: { type: "string", enum: ["up", "down"] } }, required: ["name", "direction"], additionalProperties: false },
+        execute: async ({ name, direction }) => {
+          const moved = await this.moveLayer(name, direction);
+          return moved ? `Moved ${name} ${direction}.` : `${name} is already at that end of the layer stack.`;
+        },
+      },
+      {
+        name: this.#webmcpName("delete-layer"),
+        description: "Delete a paint layer. The protected background layer cannot be deleted.",
+        inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false },
+        annotations: { consequentialHint: true },
+        execute: async ({ name }) => { await this.deleteLayer(name); return `Deleted ${name}.`; },
       },
       {
         name: this.#webmcpName("select-layer"),
