@@ -31,7 +31,7 @@ python -m http.server 8000
 Open <http://localhost:8000/tests/web-paint.html> for the demo.
 
 On Windows, run `.\test.ps1` from the repository root to start the local test server. Open
-<http://127.0.0.1:8000/test/web-paint-ui.html> to test the standalone UI.
+<http://127.0.0.1:8000/tests/web-paint-ui.html> to test the standalone UI.
 
 To embed the component in another page, load its module and add the element:
 
@@ -68,7 +68,7 @@ paint.addEventListener("paint-state-change", (event) => {
 The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
 `clearLayer(name)`, `clearCanvas()`, and `fillAt(x, y, { tolerance })`. `fillAt` fills the connected
 region on the selected layer; its per-channel RGB tolerance ranges from 0 to 255. See
-[`test/web-paint-ui.html`](test/web-paint-ui.html) for a standalone page
+[`tests/web-paint-ui.html`](tests/web-paint-ui.html) for a standalone page
 whose complete toolbar and layer UI are outside the component.
 
 The external UI provides a Japanese ribbon, tool rail, HSV color picker, layer panel, and zoom
