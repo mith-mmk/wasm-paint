@@ -5,16 +5,16 @@ use js_sys::{Array, Reflect};
 use paintcore::math;
 #[cfg(feature = "font")]
 use paintcore::path::{
-    load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle,
-    FontWeight, LoadedFont,
+    FontFaceDescriptor, FontFamily, FontOptions, FontStretch, FontStyle, FontWeight, LoadedFont,
+    load_font_from_buffer,
 };
 use paintcore::{path, prelude::*};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 use web_sys::CanvasRenderingContext2d;
 use web_sys::HtmlElement;
 use web_sys::ImageData;
@@ -718,7 +718,11 @@ impl Universe {
         if self.canvas.layer(label.clone()).is_none() {
             return Err(js_error("unknown layer"));
         }
+        let was_current = self.canvas.current() == label;
         self.canvas.delete_layer(label);
+        if was_current {
+            self.canvas.set_current("main".to_string());
+        }
         Ok(())
     }
 
@@ -2818,6 +2822,31 @@ mod tests {
             .unwrap()
             .buffer();
         assert_eq!(&top[offset..offset + 4], &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn deleting_current_layer_keeps_drawing_on_main() {
+        let mut universe = Universe::new(16, 16);
+        universe.add_layer("top".to_string(), 16, 16);
+        universe.set_current("top".to_string());
+
+        universe.delete_layer("top".to_string()).unwrap();
+
+        assert_eq!(universe.canvas.current(), "main");
+        let brush = create_test_brush(&mut universe);
+        paint_center(&mut universe, brush, 0xffff_0000);
+    }
+
+    #[test]
+    fn deleting_other_layer_preserves_current_selection() {
+        let mut universe = Universe::new(16, 16);
+        universe.add_layer("top".to_string(), 16, 16);
+        universe.add_layer("keep".to_string(), 16, 16);
+        universe.set_current("keep".to_string());
+
+        universe.delete_layer("top".to_string()).unwrap();
+
+        assert_eq!(universe.canvas.current(), "keep");
     }
 
     #[test]
