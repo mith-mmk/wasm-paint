@@ -65,6 +65,15 @@ paint.addEventListener("paint-state-change", (event) => {
 });
 ```
 
+For file saving, `exportImageSnapshot()` returns `{ blob, state }` with the PNG and its matching
+`historyId` and monotonic `revision`. Export first commits an active stroke or pending layer-opacity
+preview. Capture the save marker from this returned state so edits made during encoding or writing
+remain unsaved. `exportImage()` continues to return only the PNG `Blob`.
+
+After rebuilding the WASM package, run `node --test tests/web-paint/paint-tool.test.cjs` for the
+component's save/history regression checks. These use real WASM pixels with DOM and encoder shims;
+browser layout and PNG encoding still require the HTTP demo.
+
 The host API also includes `getState()`, `selectLayer(name)`, `setLayerVisibility(name, visible)`,
 `moveLayer(name, direction)` (`direction` is `"up"` or `"down"`), `deleteLayer(name)`,
 `clearLayer(name)`, `clearCanvas()`, `fillAt(x, y, { tolerance })`, and

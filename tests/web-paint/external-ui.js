@@ -296,7 +296,7 @@ function update(next) {
 paint.addEventListener("paint-state-change", (event) => update(event.detail));
 paint.addEventListener("paint-change", (event) => {
   const source = event.detail.source;
-  changeRevision += 1;
+  changeRevision = event.detail.revision;
   setDirty(true);
   if (source === "undo" || source === "redo") {
     for (const name of event.detail.changedLayers ?? []) {
@@ -993,8 +993,8 @@ async function saveToNewHandle(pickerRequest) {
     const handle = await pickerRequest;
     if (!/\.png$/i.test(handle.name))
       throw new Error("保存ファイル名には .png を指定してください");
-    const savedMarker = { historyId: state.historyId, revision: changeRevision };
-    const blob = await paint.exportImage();
+    const { blob, state: snapshot } = await paint.exportImageSnapshot();
+    const savedMarker = { historyId: snapshot.historyId, revision: snapshot.revision };
     await writePng(handle, blob);
     finishPngSave(handle, savedMarker, blob);
   } catch (error) {
@@ -1033,8 +1033,8 @@ function startSaveAs() {
 async function saveToCurrentHandle(handle) {
   try {
     await requestWritePermission(handle);
-    const savedMarker = { historyId: state.historyId, revision: changeRevision };
-    const blob = await paint.exportImage();
+    const { blob, state: snapshot } = await paint.exportImageSnapshot();
+    const savedMarker = { historyId: snapshot.historyId, revision: snapshot.revision };
     await writePng(handle, blob);
     finishPngSave(handle, savedMarker, blob);
   } catch (error) {

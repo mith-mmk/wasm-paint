@@ -194,6 +194,8 @@ class WasmPaintTool extends HTMLElement {
   #brushSize = 12;
   #eraserEnabled = false;
   #pointerStroke;
+  #pendingLayerOpacity = false;
+  #editRevision = 0;
   #renderQueued = false;
   #undoStack = [];
   #redoStack = [];
@@ -482,11 +484,19 @@ class WasmPaintTool extends HTMLElement {
   }
 
   async exportImage() {
+    const snapshot = await this.exportImageSnapshot();
+    return snapshot.blob;
+  }
+
+  async exportImageSnapshot() {
     await this.ready;
     if (!this.#universe) throw new Error("The paint engine did not initialize.");
+    if (this.#pointerStroke) this.#finishActiveStroke("draw");
+    if (this.#pendingLayerOpacity) this.#commitEdit("layer-opacity");
     this.#renderNow();
+    const state = this.#stateSnapshot();
     return new Promise((resolve, reject) => {
-      this.#canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not export the canvas as PNG.")), "image/png");
+      this.#canvas.toBlob((blob) => blob ? resolve({ blob, state }) : reject(new Error("Could not export the canvas as PNG.")), "image/png");
     });
   }
 
@@ -723,7 +733,10 @@ class WasmPaintTool extends HTMLElement {
     this.#universe.setLayerAlpha(name, value);
     this.#renderNow();
     if (commit) this.#commitEdit("layer-opacity");
-    else this.#dispatchStateChange();
+    else {
+      this.#pendingLayerOpacity = true;
+      this.#dispatchStateChange();
+    }
   }
 
   #clearLayer(name) {
@@ -764,6 +777,7 @@ class WasmPaintTool extends HTMLElement {
   }
 
   #commitEdit(source, extra = {}) {
+    this.#pendingLayerOpacity = false;
     this.#renderNow();
     this.#recordHistory();
     this.#dispatchPaintChange(source, extra);
@@ -771,6 +785,7 @@ class WasmPaintTool extends HTMLElement {
   }
 
   #dispatchPaintChange(source, extra = {}) {
+    this.#editRevision += 1;
     this.dispatchEvent(new CustomEvent("paint-change", {
       bubbles: true,
       composed: true,
@@ -921,6 +936,7 @@ class WasmPaintTool extends HTMLElement {
       }
     }
     this.#selectedLayer = snapshot.selectedLayer;
+    this.#pendingLayerOpacity = false;
     this.#universe.setCurrentLayer(this.#selectedLayer);
     this.#renderLayers();
     this.#renderNow();
@@ -951,6 +967,7 @@ class WasmPaintTool extends HTMLElement {
       brushSize: this.#brushSize,
       eraserEnabled: this.#eraserEnabled,
       historyId: this.#historyCurrent?.id ?? null,
+      revision: this.#editRevision,
       historyAvailable: Boolean(this.#historyCurrent),
       canUndo: this.#undoStack.length > 0,
       canRedo: this.#redoStack.length > 0,
