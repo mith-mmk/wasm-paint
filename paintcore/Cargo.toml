@@ -2,15 +2,28 @@
 name = "paintcore"
 version = "0.0.29"
 edition = "2021"
-description = "the Library for processing images and raster data"
+rust-version = "1.91"
+authors = ["Mith@mmk"]
+description = "Pure Rust raster image drawing, compositing, filtering, and transformation library."
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/mith-mmk/wasm-paint"
+documentation = "https://docs.rs/paintcore"
+readme = "README.md"
+keywords = ["image", "raster", "canvas", "drawing", "graphics"]
+categories = ["graphics", "multimedia::images"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package.metadata.docs.rs]
+all-features = true
+
 [lib]
 
 [features]
+default = []
 font = ["dep:fontcore"]
 svg-font = ["font", "fontcore/svg-fonts"]
 
 [dependencies]
 wml2.workspace = true
-fontcore = {version = "0.0.12", optional = true}
+fontcore = { version = "0.0.12", optional = true }

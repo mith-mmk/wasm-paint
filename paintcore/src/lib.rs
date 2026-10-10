@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![allow(
     dead_code,
     clippy::doc_overindented_list_items,
@@ -7,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+/// A no-op retained for compatibility with earlier paintcore releases.
 pub fn test() {}
 
 pub mod affine;

@@ -1,8 +1,18 @@
 # paintcore
 
+[![crates.io](https://img.shields.io/crates/v/paintcore)](https://crates.io/crates/paintcore)
+[![docs.rs](https://img.shields.io/docsrs/paintcore)](https://docs.rs/paintcore)
+
 `paintcore` is a standalone Pure Rust raster drawing and image-processing engine. It does not
 depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `Canvas`, `Screen`,
 `Layer`, path, text, and math APIs remain available alongside the typed painting APIs.
+
+## Install
+
+```toml
+[dependencies]
+paintcore = "0.0.29"
+```
 
 ## Features
 
@@ -95,3 +105,13 @@ allocate per pixel.
 ```text
 cargo run -p paintcore --example paint_bench --release
 ```
+
+## Data and asset scope
+
+- Raster buffers use four bytes per pixel in RGBA order.
+- Image format support is provided by the `wml2` dependency.
+- No fonts, sample images, or web-paint assets are bundled in the crate package.
+
+## License
+
+Licensed under either of Apache License, Version 2.0 or MIT license at your option.
