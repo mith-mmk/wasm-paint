@@ -174,54 +174,56 @@ pub fn composite_pixel(
     coverage: f32,
     options: DrawOptions<'_>,
 ) -> Color {
-    let source_alpha =
-        (source.alpha as f32 / 255.0) * coverage.clamp(0.0, 1.0) * options.opacity.clamp(0.0, 1.0);
+    let coverage = coverage.clamp(0.0, 1.0);
+    if coverage <= 0.0 {
+        return dest;
+    }
+    let source_alpha = (source.alpha as f32 / 255.0) * options.opacity.clamp(0.0, 1.0);
     let dest_alpha = dest.alpha as f32 / 255.0;
 
     if options.composite_op == CompositeOp::SourceOver && options.blend_mode != BlendMode::Normal {
         let source_channels = [source.red, source.green, source.blue].map(|v| v as f32 / 255.0);
         let dest_channels = [dest.red, dest.green, dest.blue].map(|v| v as f32 / 255.0);
         let out_alpha = source_alpha + dest_alpha - source_alpha * dest_alpha;
-        if out_alpha <= f32::EPSILON {
-            return Color::TRANSPARENT;
-        }
-        let mut out = [0u8; 3];
+        let mut premultiplied = [0.0; 3];
         for index in 0..3 {
             let blended = blend_channel(
                 dest_channels[index],
                 source_channels[index],
                 options.blend_mode,
             );
-            let premultiplied = source_alpha * (1.0 - dest_alpha) * source_channels[index]
+            premultiplied[index] = source_alpha * (1.0 - dest_alpha) * source_channels[index]
                 + dest_alpha * (1.0 - source_alpha) * dest_channels[index]
                 + source_alpha * dest_alpha * blended;
-            out[index] = ((premultiplied / out_alpha) * 255.0)
-                .round()
-                .clamp(0.0, 255.0) as u8;
         }
-        return Color::rgba(
-            out[0],
-            out[1],
-            out[2],
-            (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8,
-        );
+        return apply_coverage(dest, premultiplied, out_alpha, coverage);
     }
 
     let (source_factor, dest_factor) = factors(options.composite_op, source_alpha, dest_alpha);
     let out_alpha = (source_alpha * source_factor + dest_alpha * dest_factor).clamp(0.0, 1.0);
-    if out_alpha <= f32::EPSILON {
-        return Color::TRANSPARENT;
-    }
-
     let source_channels = [source.red, source.green, source.blue].map(|v| v as f32 / 255.0);
     let dest_channels = [dest.red, dest.green, dest.blue].map(|v| v as f32 / 255.0);
-    let mut out = [0u8; 3];
+    let mut premultiplied = [0.0; 3];
     for index in 0..3 {
-        let premultiplied = source_channels[index] * source_alpha * source_factor
+        premultiplied[index] = source_channels[index] * source_alpha * source_factor
             + dest_channels[index] * dest_alpha * dest_factor;
-        out[index] = ((premultiplied / out_alpha) * 255.0)
-            .round()
-            .clamp(0.0, 255.0) as u8;
+    }
+    apply_coverage(dest, premultiplied, out_alpha, coverage)
+}
+
+fn apply_coverage(dest: Color, premultiplied: [f32; 3], alpha: f32, coverage: f32) -> Color {
+    // Interpolate the operation result with the uncovered destination before
+    // quantization. Clear and Source must preserve uncovered pixels too.
+    let backdrop_alpha = dest.alpha as f32 / 255.0 * (1.0 - coverage);
+    let out_alpha = alpha * coverage + backdrop_alpha;
+    if !out_alpha.is_finite() || out_alpha <= f32::EPSILON {
+        return Color::TRANSPARENT;
+    }
+    let mut out = [0; 3];
+    for (index, channel) in [dest.red, dest.green, dest.blue].into_iter().enumerate() {
+        let value = premultiplied[index].clamp(0.0, alpha) * coverage
+            + channel as f32 / 255.0 * backdrop_alpha;
+        out[index] = (value / out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
     }
     Color::rgba(
         out[0],

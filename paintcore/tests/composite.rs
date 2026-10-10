@@ -1,8 +1,10 @@
 use paintcore::canvas::Screen;
 use paintcore::composite::{
-    composite_pixel, composite_screen, fill_rect_with_options, BlendMode, CompositeOp, DrawOptions,
+    composite_pixel, composite_screen, fill_rect_with_options, BlendMode, ClipMask, CompositeOp,
+    DrawOptions,
 };
 use paintcore::layer::Layer;
+use paintcore::mask::Mask;
 use paintcore::paint::Color;
 
 #[test]
@@ -90,4 +92,60 @@ fn fill_rect_clips_without_panicking() {
     );
     assert_eq!(&layer.buffer()[0..4], &[10, 20, 30, 255]);
     assert_eq!(&layer.buffer()[4..8], &[0, 0, 0, 0]);
+}
+
+#[test]
+fn clear_preserves_the_uncovered_destination() {
+    let dest = Color::rgb(20, 40, 60);
+    let options = DrawOptions {
+        composite_op: CompositeOp::Clear,
+        ..DrawOptions::default()
+    };
+    assert_eq!(
+        composite_pixel(dest, Color::TRANSPARENT, 0.0, options),
+        dest
+    );
+    assert_eq!(
+        composite_pixel(dest, Color::TRANSPARENT, 64.0 / 255.0, options),
+        Color::rgba(20, 40, 60, 191)
+    );
+    assert_eq!(
+        composite_pixel(dest, Color::TRANSPARENT, 1.0, options),
+        Color::TRANSPARENT
+    );
+}
+
+#[test]
+fn source_coverage_blends_with_the_uncovered_destination() {
+    let out = composite_pixel(
+        Color::rgb(0, 0, 255),
+        Color::rgb(255, 0, 0),
+        0.5,
+        DrawOptions {
+            composite_op: CompositeOp::Source,
+            ..DrawOptions::default()
+        },
+    );
+    assert_eq!(out, Color::rgba(128, 0, 128, 255));
+}
+
+#[test]
+fn clear_respects_a_partial_clip_mask() {
+    let mut dest = Layer::new("dest".to_string(), 1, 1);
+    dest.buffer_mut().copy_from_slice(&[20, 40, 60, 255]);
+    let mask = Mask::from_coverage(1, 1, vec![64]).unwrap();
+    fill_rect_with_options(
+        &mut dest,
+        0,
+        0,
+        1,
+        1,
+        Color::TRANSPARENT,
+        DrawOptions {
+            composite_op: CompositeOp::Clear,
+            clip_mask: Some(ClipMask::new(&mask, 0, 0)),
+            ..DrawOptions::default()
+        },
+    );
+    assert_eq!(dest.buffer(), &[20, 40, 60, 191]);
 }
