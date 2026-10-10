@@ -242,6 +242,12 @@ function updateLayerActions() {
     : "選択中のレイヤーを削除";
 }
 
+function isAtSavedState(next) {
+  return next.historyId !== null && savedHistoryId !== null
+    ? next.historyId === savedHistoryId
+    : changeRevision === savedRevision;
+}
+
 function update(next) {
   state = next;
   if (!saveMarkerInitialized) {
@@ -249,10 +255,7 @@ function update(next) {
     savedRevision = changeRevision;
     saveMarkerInitialized = true;
   }
-  const isAtSavedState = state.historyId !== null && savedHistoryId !== null
-    ? state.historyId === savedHistoryId
-    : changeRevision === savedRevision;
-  setDirty(!isAtSavedState);
+  setDirty(!isAtSavedState(state));
   document.querySelectorAll('[data-action="undo"]').forEach((button) => {
     button.disabled = !state.canUndo;
   });
@@ -297,7 +300,7 @@ paint.addEventListener("paint-state-change", (event) => update(event.detail));
 paint.addEventListener("paint-change", (event) => {
   const source = event.detail.source;
   changeRevision = event.detail.revision;
-  setDirty(true);
+  setDirty(!isAtSavedState(event.detail));
   if (source === "undo" || source === "redo") {
     for (const name of event.detail.changedLayers ?? []) {
       if (thumbnails.has(name)) URL.revokeObjectURL(thumbnails.get(name));
@@ -306,7 +309,7 @@ paint.addEventListener("paint-change", (event) => {
     editedLayers.clear();
     for (const name of event.detail.nonEmptyLayers ?? []) editedLayers.add(name);
     if (state) renderLayers();
-    message("未保存の変更があります");
+    message(dirty ? "未保存の変更があります" : "未保存の変更はありません");
     return;
   }
   if (source === "delete-layer") {
