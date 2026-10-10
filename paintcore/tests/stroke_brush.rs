@@ -118,6 +118,80 @@ fn dash_and_offset_define_on_off_intervals() {
 }
 
 #[test]
+fn a_continuous_dash_preserves_joins_and_only_caps_its_endpoints() {
+    let commands = vec![
+        Command::MoveTo(10.0, 30.0),
+        Command::Line(20.0, 20.0),
+        Command::Line(30.0, 30.0),
+    ];
+    for join in [StrokeJoin::Miter, StrokeJoin::Round, StrokeJoin::Bevel] {
+        for cap in [StrokeCap::Butt, StrokeCap::Round, StrokeCap::Square] {
+            let solid = StrokeStyle {
+                width: 10.0,
+                join,
+                cap,
+                miter_limit: 10.0,
+                ..StrokeStyle::default()
+            };
+            let dashed = StrokeStyle {
+                dash: vec![100.0, 1.0],
+                ..solid.clone()
+            };
+            let solid_mask = rasterize_stroke_mask(&commands, 40, 40, 0.0, 0.0, &solid);
+            let dash_mask = rasterize_stroke_mask(&commands, 40, 40, 0.0, 0.0, &dashed);
+            assert_eq!(solid_mask, dash_mask, "join={join:?}, cap={cap:?}");
+        }
+    }
+}
+
+#[test]
+fn dash_gaps_do_not_receive_a_join() {
+    let commands = vec![
+        Command::MoveTo(10.0, 30.0),
+        Command::Line(20.0, 20.0),
+        Command::Line(30.0, 30.0),
+    ];
+    let mask = rasterize_stroke_mask(
+        &commands,
+        40,
+        40,
+        0.0,
+        0.0,
+        &StrokeStyle {
+            width: 10.0,
+            dash: vec![10.0, 10.0],
+            miter_limit: 10.0,
+            ..StrokeStyle::default()
+        },
+    );
+    assert_eq!(mask.get(20, 13), 0);
+}
+
+#[test]
+fn a_continuous_dash_joins_across_the_close_seam() {
+    let commands = vec![
+        Command::MoveTo(8.0, 8.0),
+        Command::Line(16.0, 8.0),
+        Command::Line(16.0, 16.0),
+        Command::Line(8.0, 16.0),
+        Command::Close,
+    ];
+    let solid = StrokeStyle {
+        width: 4.0,
+        cap: StrokeCap::Square,
+        ..StrokeStyle::default()
+    };
+    let dashed = StrokeStyle {
+        dash: vec![100.0, 1.0],
+        ..solid.clone()
+    };
+    assert_eq!(
+        rasterize_stroke_mask(&commands, 24, 24, 0.0, 0.0, &solid),
+        rasterize_stroke_mask(&commands, 24, 24, 0.0, 0.0, &dashed)
+    );
+}
+
+#[test]
 fn public_fill_path_honors_fill_rule_and_paint() {
     let commands = vec![
         Command::MoveTo(2.0, 2.0),

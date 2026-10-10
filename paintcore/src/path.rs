@@ -1481,44 +1481,32 @@ fn normalized_dash(style: &StrokeStyle) -> Vec<f32> {
     dash
 }
 
-fn styled_stroke_segments(
+type StyledStrokeJoin = ((f32, f32), (f32, f32), (f32, f32));
+
+fn styled_stroke_geometry(
     subpaths: &[FlattenedSubpath],
     style: &StrokeStyle,
-) -> Vec<StyledStrokeSegment> {
+) -> (Vec<StyledStrokeSegment>, Vec<StyledStrokeJoin>) {
     let dash = normalized_dash(style);
-    if dash.is_empty() {
-        return subpaths
-            .iter()
-            .flat_map(|subpath| {
-                let segment_count = subpath.points.len().saturating_sub(1);
-                subpath
-                    .points
-                    .windows(2)
-                    .enumerate()
-                    .filter(|(_, points)| points[0] != points[1])
-                    .map(move |(index, points)| StyledStrokeSegment {
-                        start: points[0],
-                        end: points[1],
-                        start_cap: !subpath.closed && index == 0,
-                        end_cap: !subpath.closed && index + 1 == segment_count,
-                    })
-            })
-            .collect();
-    }
-
     let dash_total: f32 = dash.iter().sum();
-    if !dash_total.is_finite() || dash_total <= f32::EPSILON {
-        return Vec::new();
+    if !dash.is_empty() && (!dash_total.is_finite() || dash_total <= f32::EPSILON) {
+        return (Vec::new(), Vec::new());
     }
-    let mut result = Vec::new();
+    let mut result: Vec<StyledStrokeSegment> = Vec::new();
+    let mut joins = Vec::new();
     for subpath in subpaths {
+        let subpath_start = result.len();
         let mut dash_index = 0usize;
-        let mut offset = style.dash_offset.rem_euclid(dash_total);
-        while offset >= dash[dash_index] {
-            offset -= dash[dash_index];
-            dash_index = (dash_index + 1) % dash.len();
+        let mut dash_remaining = f32::INFINITY;
+        if !dash.is_empty() {
+            let mut offset = style.dash_offset.rem_euclid(dash_total);
+            while offset >= dash[dash_index] {
+                offset -= dash[dash_index];
+                dash_index = (dash_index + 1) % dash.len();
+            }
+            dash_remaining = dash[dash_index] - offset;
         }
-        let mut dash_remaining = dash[dash_index] - offset;
+        let mut continuing_segment: Option<usize> = None;
 
         for points in subpath.points.windows(2) {
             let start = points[0];
@@ -1535,23 +1523,58 @@ fn styled_stroke_segments(
                 if dash_index & 1 == 0 && take > f32::EPSILON {
                     let from = position / length;
                     let to = (position + take) / length;
+                    let segment_start = if position == 0.0 {
+                        start
+                    } else {
+                        (start.0 + dx * from, start.1 + dy * from)
+                    };
+                    let segment_end = if take >= length - position {
+                        end
+                    } else {
+                        (start.0 + dx * to, start.1 + dy * to)
+                    };
+                    let connected =
+                        continuing_segment.filter(|&index| result[index].end == segment_start);
+                    if let Some(index) = connected {
+                        result[index].end_cap = false;
+                    }
                     result.push(StyledStrokeSegment {
-                        start: (start.0 + dx * from, start.1 + dy * from),
-                        end: (start.0 + dx * to, start.1 + dy * to),
-                        start_cap: true,
+                        start: segment_start,
+                        end: segment_end,
+                        start_cap: connected.is_none(),
                         end_cap: true,
                     });
+                    continuing_segment = Some(result.len() - 1);
                 }
                 position += take;
                 dash_remaining -= take;
                 if dash_remaining <= f32::EPSILON {
                     dash_index = (dash_index + 1) % dash.len();
                     dash_remaining = dash[dash_index];
+                    continuing_segment = None;
+                }
+            }
+        }
+
+        let segments = &mut result[subpath_start..];
+        if segments.len() >= 2 {
+            let last = segments.len() - 1;
+            let closes = subpath.closed
+                && segments[0].start == subpath.points[0]
+                && segments[last].end == subpath.points[0];
+            if closes {
+                segments[0].start_cap = false;
+                segments[last].end_cap = false;
+                joins.push((segments[last].start, segments[0].start, segments[0].end));
+            }
+            for pair in segments.windows(2) {
+                if !pair[0].end_cap && !pair[1].start_cap && pair[0].end == pair[1].start {
+                    joins.push((pair[0].start, pair[0].end, pair[1].end));
                 }
             }
         }
     }
-    result
+    (result, joins)
 }
 
 fn styled_segment_covers(
@@ -1689,11 +1712,10 @@ fn rasterize_styled_stroke_coverage(
     bounds.max_x += expansion;
     bounds.max_y += expansion;
     let (origin_x, origin_y, width, height) = coverage_bounds_for_target(&bounds, target_size)?;
-    let segments = styled_stroke_segments(subpaths, style);
+    let (segments, joins) = styled_stroke_geometry(subpaths, style);
     if segments.is_empty() {
         return None;
     }
-    let use_joins = normalized_dash(style).is_empty();
     let row_weight = 1.0 / GLYPH_AA_SUBPIXEL_ROW_COUNT as f32;
     let mut coverage = vec![0.0_f32; width as usize * height as usize];
     for y in 0..height as i32 {
@@ -1709,23 +1731,9 @@ fn rasterize_styled_stroke_coverage(
                 let segment_hit = segments
                     .iter()
                     .any(|segment| styled_segment_covers(sample, *segment, radius, style.cap));
-                let join_hit = use_joins
-                    && subpaths.iter().any(|subpath| {
-                        let internal = subpath.points.windows(3).any(|points| {
-                            join_covers(sample, points[0], points[1], points[2], radius, style)
-                        });
-                        let closing = subpath.closed
-                            && subpath.points.len() >= 3
-                            && join_covers(
-                                sample,
-                                subpath.points[subpath.points.len() - 2],
-                                subpath.points[0],
-                                subpath.points[1],
-                                radius,
-                                style,
-                            );
-                        internal || closing
-                    });
+                let join_hit = joins.iter().any(|&(previous, vertex, next)| {
+                    join_covers(sample, previous, vertex, next, radius, style)
+                });
                 if segment_hit || join_hit {
                     pixel_coverage += row_weight;
                 }
