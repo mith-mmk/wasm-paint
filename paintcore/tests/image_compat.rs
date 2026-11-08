@@ -93,7 +93,41 @@ fn grayscale_and_brighten_delegate_to_existing_algorithms() {
 }
 
 #[test]
-fn resize_exact_reuses_affine_for_each_sampler_and_scale() {
+fn resize_exact_one_pixel_fills_the_entire_destination() {
+    let image = RgbaImage::from_raw(1, 1, vec![255, 0, 0, 255]).unwrap();
+    let resized = image
+        .resize_exact(2, 2, InterpolationAlgorithm::NearestNeighbor)
+        .unwrap();
+    assert_eq!(resized.as_raw(), [255, 0, 0, 255].repeat(4));
+}
+
+#[test]
+fn resize_exact_nearest_preserves_rectangular_pixel_blocks_and_identity() {
+    let red = [255, 0, 0, 255];
+    let green = [0, 255, 0, 128];
+    let blue = [0, 0, 255, 0];
+    let yellow = [255, 255, 0, 255];
+    let original = [red, green, blue, yellow].concat();
+    let image = RgbaImage::from_raw(2, 2, original.clone()).unwrap();
+    let enlarged = image
+        .resize_exact(4, 6, InterpolationAlgorithm::NearestNeighbor)
+        .unwrap();
+    let top = [red, red, green, green].concat().repeat(3);
+    let bottom = [blue, blue, yellow, yellow].concat().repeat(3);
+    assert_eq!(enlarged.as_raw(), [top, bottom].concat());
+    let reduced = enlarged
+        .resize_exact(2, 2, InterpolationAlgorithm::NearestNeighbor)
+        .unwrap();
+    assert_eq!(reduced.as_raw(), original);
+    let identity = image
+        .resize_exact(2, 2, InterpolationAlgorithm::NearestNeighbor)
+        .unwrap();
+    assert_eq!(identity.as_raw(), original);
+    assert_eq!(image.as_raw(), original, "resize must not mutate input");
+}
+
+#[test]
+fn resize_exact_matches_existing_resize_for_each_sampler_and_uniform_scale() {
     let image = source();
     for algorithm in [
         InterpolationAlgorithm::NearestNeighbor,
@@ -101,11 +135,15 @@ fn resize_exact_reuses_affine_for_each_sampler_and_scale() {
         InterpolationAlgorithm::Bicubic,
         InterpolationAlgorithm::Lanczos3,
     ] {
-        for (width, height) in [(1, 1), (2, 2), (4, 3)] {
+        for (width, height) in [(1, 1), (2, 2), (4, 4)] {
             let mut expected = Layer::try_new("expected".into(), width, height).unwrap();
-            let mut affine = Affine::new();
-            affine.scale(width as f32 / 2.0, height as f32 / 2.0);
-            affine.conversion(image.as_layer(), &mut expected, algorithm.clone());
+            Affine::resize(
+                image.as_layer(),
+                &mut expected,
+                width as f32 / 2.0,
+                algorithm.clone(),
+                paintcore::image::ImageAlign::LeftUp,
+            );
             let resized = image
                 .resize_exact(width, height, algorithm.clone())
                 .unwrap();

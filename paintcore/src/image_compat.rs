@@ -166,7 +166,25 @@ impl RgbaImage {
             width as f32 / self.width() as f32,
             height as f32 / self.height() as f32,
         );
-        affine.conversion(&self.layer, &mut result.layer, algorithm);
+        // A resize maps the source origin to the destination origin. The
+        // general conversion helper instead pivots around the output center.
+        // Use the same zero-origin sampling entry point as Affine::resize,
+        // while allowing independent horizontal and vertical scales.
+        affine.conversion_with_area_center(
+            &self.layer,
+            &mut result.layer,
+            0.0,
+            0.0,
+            self.width() as f32,
+            self.height() as f32,
+            0,
+            0,
+            width as i32,
+            height as i32,
+            0.0,
+            0.0,
+            algorithm,
+        );
         Ok(result)
     }
 
