@@ -55,9 +55,9 @@ Optional codecs, ImageBufferEx and high-bit-depth features are not enabled by
 this version bump. Legacy Canvas/Layer storage is still RGBA8. Upgrading alone
 does not make existing drawing routines retain 16-bit or HDR pixels.
 
-The separate WML2 error/warning API PR must be merged and released before using
-its unpublished API in a registry-backed paintcore release. This stage can be
-tested against that PR with a local Cargo patch without committing a Git/path
+The separate WML2 error/warning API PR (#106) has been merged but must be released
+before using its unpublished API in a registry-backed paintcore release. This stage can be
+tested against that revision with a local Cargo patch without committing a Git/path
 dependency or claiming the unreleased API is in 0.0.42.
 
 ## Validation and next stages
@@ -85,7 +85,8 @@ Windows x86_64, Rust/Cargo 1.99.0; isolated checkout based on
   117 tests and 4 doctests passed; 6 existing external-font tests ignored.
 - `cargo check --workspace --features font,svg-font --target wasm32-unknown-unknown`
   passed. This is compilation, not a browser/runtime test.
-- Local WML2 PR #106 patch at `60bade9c3a08a1ded3543c709cbf4975b462a906`:
+- Local WML2 PR #106 patch at `60bade9c3a08a1ded3543c709cbf4975b462a906`
+  and merged main `0ff8ac0d97f419c4ed0fc3c00a8b658ad14cb3b6`:
   the same all-features 117 tests and 4 doctests passed, with 6 ignored.
   No local path/Git override is committed.
 - Normal Clippy passed with existing warnings. Changed-file rustfmt and
