@@ -19,3 +19,37 @@ fn decode_image_layer_decodes_png_as_rgba_layer() {
     assert_eq!(layer.height(), 2);
     assert_eq!(layer.buffer(), rgba.as_slice());
 }
+
+#[test]
+fn legacy_layer_callback_still_decodes_default_codec_outputs() {
+    // Use opaque, palette-friendly colors for the lossless formats. JPEG is a
+    // lossy smoke check only; the other formats must retain exact RGB pixels.
+    let rgba = vec![
+        255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255,
+    ];
+    for format in [
+        ImageFormat::Bmp,
+        ImageFormat::Gif,
+        ImageFormat::Png,
+        ImageFormat::Tiff,
+        ImageFormat::Webp,
+    ] {
+        let mut source = ImageBuffer::from_buffer(2, 2, rgba.clone());
+        let encoded = image_to(&mut source, format, None).expect("encode default codec");
+        let layer =
+            decode_image_layer("codec".into(), &encoded, 0).expect("decode through Layer callback");
+        assert_eq!((layer.width(), layer.height()), (2, 2));
+        assert_eq!(layer.buffer(), rgba);
+    }
+    let mut source = ImageBuffer::from_buffer(2, 2, rgba);
+    let encoded = image_to(&mut source, ImageFormat::Jpeg, None).unwrap();
+    let layer = decode_image_layer("jpeg".into(), &encoded, 0).unwrap();
+    assert_eq!((layer.width(), layer.height()), (2, 2));
+    assert_eq!(layer.buffer().len(), 16);
+    assert!(layer
+        .buffer()
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .all(|pixel| pixel[3] == 255));
+}
