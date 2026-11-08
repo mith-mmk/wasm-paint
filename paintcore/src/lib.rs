@@ -24,6 +24,7 @@ pub mod fill;
 pub mod filter;
 pub mod grayscale;
 pub mod image;
+pub mod image_compat;
 pub mod layer;
 pub mod line;
 pub mod mask;

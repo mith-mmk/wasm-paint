@@ -36,6 +36,30 @@ Feature flags:
 - `font`: OpenType font support, including raster and COLR layers
 - `svg-font`: OpenType SVG glyph support (verified with Noto Color Emoji)
 
+## Image-rs-style workflows
+
+`paintcore::image_compat` is an additive functional-compatibility API backed by
+the existing paintcore routines and WML2 0.0.42. It is not a drop-in replacement
+for image-rs and does not depend on `image`. The first stage provides checked
+RGBA8 storage, memory/reader/path decoding with retained warnings, memory/writer
+encoding, exact-size affine resampling, grayscale and brightness adjustment.
+
+```rust
+use paintcore::image_compat::{load_from_memory, ImageFormat, RgbaImage};
+
+let image = RgbaImage::from_raw(1, 1, vec![255, 0, 0, 128])?;
+let png = image.encode_to_vec(ImageFormat::Png)?;
+let decoded = load_from_memory(&png)?;
+if let Some(warnings) = decoded.warnings {
+    eprintln!("{warnings}");
+}
+let output = decoded.image.brighten(16)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+See [the staged compatibility contract](../docs/image-compat.md) for semantics,
+WML2 upgrade notes, and the next stages. Existing drawing APIs are unchanged.
+
 ## Color and alpha
 
 `Screen::buffer()` stores straight-alpha bytes in `[R, G, B, A]` order. Compositing converts to
