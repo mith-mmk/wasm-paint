@@ -1,4 +1,4 @@
-# Image-rs-style API, stage 1
+# Image-rs-style API
 
 The goal is functional compatibility with common image-rs workflows while
 keeping paintcore's existing internal implementation. This is not Rust source,
@@ -55,8 +55,37 @@ stale EXIF dimensions/orientation or source color metadata. Encoding embeds no
 source metadata implicitly. Explicit metadata/color management is a later stage.
 
 The initial encoder bridge copies pixels into the existing WML2 ImageBuffer.
-Borrowed encoding, a save-path policy, crop/views, generic pixel types, image-rs
+Borrowed encoding, a save-path policy, generic pixel types, image-rs
 trait adapters, high precision, and animation iterators are not claimed here.
+
+## Checked pixels and borrowed rectangles
+
+`RgbaImage::get_pixel` and `get_pixel_mut` borrow `[u8; 4]` pixels and return
+`None` for out-of-bounds coordinates, rather than panicking or clamping.
+`pixels` and `pixels_mut` provide exact-size, double-ended row-major iterators.
+Mutable access replaces raw samples without blending or changing buffer size.
+Like `as_raw_mut`, it leaves source metadata available for inspection; encoding
+still does not embed that metadata implicitly.
+
+`view(x, y, width, height)` validates and borrows a read-only `RgbaView` without
+allocating or copying pixels. Pixel/row coordinates are relative to the view.
+Rows retain the parent image's stride, so `row` and `rows` expose only the bytes
+inside the rectangle. There is deliberately no whole-view `as_raw` slice that
+could include unrelated pixels between rows. Mutable views and arbitrary
+external strides are not part of this stage.
+
+`crop` and `RgbaView::to_image` copy a rectangle to an independent packed
+`RgbaImage`. They preserve every RGBA sample, including hidden RGB at zero alpha,
+and do not apply the source layer's position, visibility, or global opacity.
+As with the existing processing adapters, source metadata is not copied.
+
+Rectangle ranges must fit entirely within the parent image. Invalid rectangles
+return `InvalidParameter` without clipping; subtraction-based validation avoids
+coordinate addition overflow. Empty rectangles are allowed at the right/bottom
+edges if both ranges fit. A zero-width view yields `height` empty rows; a
+zero-height view yields no rows. Copying any empty view returns immediately,
+including representable zero-area images with very large dimensions on wasm32.
+No drawing/codec algorithms, dependencies, or high-depth storage are changed.
 
 ## WML2 0.0.23 to 0.0.42
 
@@ -89,7 +118,7 @@ the existing processing routines. Test both native paintcore and the WASM
 workspace, including optional font features. CI completion is not a delivery gate.
 
 Next, expose custom limits and structured error diagnostics after WML2's public
-contract is available, then add checked crop/views and more operation adapters.
+contract is available, then add more operation adapters.
 Add Gray/RGB/RGBA16 and explicit color conversion separately before HDR/F32.
 Keep codecs in WML2 and UI/document/undo concerns outside this compatibility API.
 
@@ -133,3 +162,23 @@ were 1.136/1.143 s for UHD gradient, 0.521/0.500 s for transformed pattern, and
 0.021/0.021 s for brush stroke. Allocation counts were unchanged at 3/0/330.
 This is a smoke measurement, not a statistically controlled performance claim.
 No CI completion was awaited.
+
+## Pixel/view verification, 2026-11-09
+
+Windows x86_64, Rust/Cargo 1.99.0; isolated checkout based on merged main
+`8164fc98e648d4d8be9f2e630820482c6fa47db6`:
+
+- `cargo test -p paintcore --no-default-features`: 119 tests and 5 doctests passed.
+- `cargo test -p paintcore --all-features`: 128 tests and 5 doctests passed;
+  6 existing external-font tests ignored.
+- Nine new tests cover borrowed storage, row-major mutation, parent stride,
+  independent crops, hidden RGB, metadata separation, invalid/overflowing bounds,
+  huge zero-area shapes, and every valid rectangle for source dimensions 0..=4.
+- `cargo check --workspace --features font,svg-font --target wasm32-unknown-unknown`
+  passed. This is compilation, not browser/runtime verification.
+- Normal all-target/all-feature Clippy passed with existing warnings and no
+  diagnostics in the new API/tests. Changed-file rustfmt and `git diff --check`
+  passed. Strict Clippy and legacy workspace WASM `--all-features` were not rerun;
+  their pre-existing failures are recorded above.
+- Independent static review found no actionable correctness/API issues.
+  CI completion is not awaited; no release or merge is included in this stage.

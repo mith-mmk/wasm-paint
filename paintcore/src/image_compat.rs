@@ -47,6 +47,78 @@ pub struct RgbaImage {
     layer: Layer,
 }
 
+/// A read-only rectangle borrowing an existing [`RgbaImage`] without copying.
+///
+/// Coordinates are local to the view. Each row is packed RGBA8, but neighboring
+/// rows may have gaps in the parent buffer. Use [`Self::rows`] rather than
+/// assuming the whole rectangle is contiguous. Layer position/opacity are not
+/// applied. A view cannot outlive its image or coexist with mutable pixel access.
+#[derive(Clone, Copy)]
+pub struct RgbaView<'a> {
+    image: &'a RgbaImage,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+}
+
+impl RgbaView<'_> {
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
+    /// Borrows one pixel, or returns `None` outside this view's dimensions.
+    pub fn get_pixel(&self, x: u32, y: u32) -> Option<&[u8; 4]> {
+        if x >= self.width || y >= self.height {
+            return None;
+        }
+        self.image.get_pixel(self.x + x, self.y + y)
+    }
+
+    /// Borrows a row of exactly `width * 4` bytes, excluding parent-row padding.
+    /// An in-bounds row of a zero-width view is empty; other invalid rows are `None`.
+    pub fn row(&self, y: u32) -> Option<&[u8]> {
+        if y >= self.height {
+            return None;
+        }
+        if self.width == 0 {
+            return Some(&self.image.as_raw()[..0]);
+        }
+        let start = self.image.pixel_offset(self.x, self.y + y)?;
+        Some(&self.image.as_raw()[start..start + self.width as usize * 4])
+    }
+
+    /// Iterates exactly `height` rows, from top to bottom, without allocating.
+    pub fn rows(&self) -> impl ExactSizeIterator<Item = &[u8]> + DoubleEndedIterator + '_ {
+        (0..self.height).map(|y| self.row(y).expect("validated view row"))
+    }
+
+    /// Copies this rectangle into an independent packed image.
+    /// Raw samples, including RGB at zero alpha, are unchanged. Source metadata
+    /// is not copied because its dimensions/orientation may no longer apply.
+    pub fn to_image(&self) -> ImageResult<RgbaImage> {
+        let mut result = RgbaImage::new(self.width, self.height)?;
+        if self.width != 0 && self.height != 0 {
+            for (source, destination) in self.rows().zip(
+                result
+                    .as_raw_mut()
+                    .chunks_exact_mut(self.width as usize * 4),
+            ) {
+                destination.copy_from_slice(source);
+            }
+        }
+        Ok(result)
+    }
+}
+
 fn invalid_parameter(message: &str) -> Box<dyn std::error::Error> {
     Box::new(ImgError::new_const(
         ImgErrorKind::InvalidParameter,
@@ -104,6 +176,77 @@ impl RgbaImage {
     /// Mutates samples without exposing a resizable buffer.
     pub fn as_raw_mut(&mut self) -> &mut [u8] {
         self.layer.buffer_mut()
+    }
+
+    // The validated full buffer bounds this multiplication, including on wasm32.
+    // Check coordinates first so huge zero-area shapes cannot overflow offsets.
+    fn pixel_offset(&self, x: u32, y: u32) -> Option<usize> {
+        if x >= self.width() || y >= self.height() {
+            return None;
+        }
+        Some((y as usize * self.width() as usize + x as usize) * 4)
+    }
+
+    /// Borrows a straight RGBA8 pixel, or returns `None` for invalid coordinates.
+    pub fn get_pixel(&self, x: u32, y: u32) -> Option<&[u8; 4]> {
+        let offset = self.pixel_offset(x, y)?;
+        self.as_raw()[offset..offset + 4].try_into().ok()
+    }
+
+    /// Mutably borrows a pixel without blending or changing the buffer's shape.
+    /// Invalid coordinates return `None` rather than clipping or panicking.
+    pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut [u8; 4]> {
+        let offset = self.pixel_offset(x, y)?;
+        (&mut self.as_raw_mut()[offset..offset + 4]).try_into().ok()
+    }
+
+    /// Iterates borrowed pixels in row-major order without allocating.
+    pub fn pixels(&self) -> std::slice::Iter<'_, [u8; 4]> {
+        self.as_raw().as_chunks::<4>().0.iter()
+    }
+
+    /// Iterates mutable pixels in row-major order without resizing the buffer.
+    pub fn pixels_mut(&mut self) -> std::slice::IterMut<'_, [u8; 4]> {
+        self.as_raw_mut().as_chunks_mut::<4>().0.iter_mut()
+    }
+
+    /// Borrows a rectangle without copying. Out-of-bounds rectangles are errors,
+    /// not silently clamped. Empty rectangles may start on the right/bottom edge
+    /// when both coordinate ranges still fit within the image.
+    ///
+    /// ```
+    /// use paintcore::image_compat::RgbaImage;
+    /// let mut image = RgbaImage::new(3, 2)?;
+    /// *image.get_pixel_mut(2, 1).unwrap() = [10, 20, 30, 0];
+    /// let view = image.view(1, 0, 2, 2)?;
+    /// assert_eq!(view.get_pixel(1, 1), Some(&[10, 20, 30, 0]));
+    /// let owned = view.to_image()?;
+    /// assert_eq!(owned.dimensions(), (2, 2));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn view(&self, x: u32, y: u32, width: u32, height: u32) -> ImageResult<RgbaView<'_>> {
+        if x > self.width()
+            || y > self.height()
+            || width > self.width() - x
+            || height > self.height() - y
+        {
+            return Err(invalid_parameter(
+                "view rectangle is outside image dimensions",
+            ));
+        }
+        Ok(RgbaView {
+            image: self,
+            x,
+            y,
+            width,
+            height,
+        })
+    }
+
+    /// Returns an independent, checked rectangular copy with no source metadata.
+    /// Uses the same bounds and empty-rectangle policy as [`Self::view`].
+    pub fn crop(&self, x: u32, y: u32, width: u32, height: u32) -> ImageResult<Self> {
+        self.view(x, y, width, height)?.to_image()
     }
 
     pub fn into_raw(self) -> Vec<u8> {
