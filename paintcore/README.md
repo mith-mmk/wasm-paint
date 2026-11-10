@@ -11,7 +11,7 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 
 ```toml
 [dependencies]
-paintcore = "0.0.30"
+paintcore = "0.0.31"
 ```
 
 ## Features
@@ -36,9 +36,9 @@ Feature flags:
 - `font`: OpenType font support, including raster and COLR layers
 - `svg-font`: OpenType SVG glyph support (verified with Noto Color Emoji)
 
-## Vertical text (fontcore 0.0.14)
+## Vertical text (fontcore 0.0.15)
 
-Enable `font` to use the published fontcore 0.0.14 dependency, shared with the
+Enable `font` to use the published fontcore 0.0.15 dependency, shared with the
 Wasm crate. Existing horizontal text calls keep their default direction.
 
 ```rust,no_run
@@ -91,7 +91,7 @@ cargo run -p paintcore --features font --example vertical_text -- FONT OUTPUT.pn
 ## Image-rs-style workflows
 
 `paintcore::image_compat` is an additive functional-compatibility API backed by
-the existing paintcore routines and WML2 0.0.42. It is not a drop-in replacement
+the existing paintcore routines and WML2 0.0.44. It is not a drop-in replacement
 for image-rs and does not depend on `image`. The first stage provides checked
 RGBA8 storage, memory/reader/path decoding with retained warnings, memory/writer
 encoding, exact-size affine resampling, grayscale and brightness adjustment.

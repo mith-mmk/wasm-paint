@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.31 - 2026-11-10
+
+- Update the registry dependencies to WML2 0.0.44 and optional fontcore 0.0.15,
+  integrating bin-rs 0.0.11 at their reader boundaries.
+- Keep the paintcore API and feature flags unchanged. Rust 1.91 remains the
+  minimum supported version. Consumers passing fontcore types across crate
+  boundaries should use fontcore 0.0.15 alongside paintcore 0.0.31.
+
+This release does not include the independent RGBA view work in PR #2 or the
+other feature work in PR #4. The wasm-paint wrapper is not published as part of
+this release.
+
 ## 0.0.30 - 2026-11-10
 
 - Add image-rs-style RGBA8 load, save, resize, rotate, flip, and Layer conversion
