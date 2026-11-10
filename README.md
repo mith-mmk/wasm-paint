@@ -23,12 +23,18 @@ Build the generated WASM JavaScript package, then serve the repository root over
 
 ```sh
 cd wasm-paint
-wasm-pack build -t web
+wasm-pack build -t web -- --features font
 cd ..
 python -m http.server 8000
 ```
 
 Open <http://localhost:8000/tests/web-paint.html> for the demo.
+
+The standalone `tests/web-paint-ui.html` text tool supports standard vertical,
+mixed CJK/Latin, and sideways text through fontcore. Choose a local font file
+for these modes; the existing horizontal/system-font renderer is unchanged.
+See [text controls and limits](tests/web-paint/README-text.md). Add `svg-font`
+to the build features only when OpenType SVG font support is also needed.
 
 On Windows, run `.\test.ps1` from the repository root to start the local test server. Open
 <http://127.0.0.1:8000/tests/web-paint-ui.html> to test the standalone UI.

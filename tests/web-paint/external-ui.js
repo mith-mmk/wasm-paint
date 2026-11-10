@@ -1,4 +1,5 @@
 import { shapePathCommands } from "./paint-tool.js";
+import { fontTextImageData } from "./font-text.js";
 
 const $ = (selector) => document.querySelector(selector);
 const paint = $("wasm-paint-tool");
@@ -30,7 +31,9 @@ const textStyle = {
   bold: false,
   italic: false,
   align: "left",
+  flow: "horizontal",
 };
+let textFontBytes, textFontName = "未選択", textPreviewTimer, fontSelection = 0, textFontLoading = false;
 let ready = false,
   sampleLoading = false;
 const tools = [
@@ -682,7 +685,76 @@ function renderTextPanel(target) {
   const note = document.createElement("p");
   note.className = "text-panel-note";
   note.textContent = "右側で色を選び、キャンバスをクリックして入力します。配置後は画像レイヤーになります。";
-  target.append(fontSetting, sizeSetting, toggles, alignSetting, note);
+  const flowSetting = document.createElement("label");
+  flowSetting.className = "text-setting";
+  flowSetting.append(document.createTextNode("文字方向"));
+  const flow = document.createElement("select");
+  flow.id = "text-flow";
+  flow.setAttribute("aria-label", "文字方向");
+  for (const [value, label] of [["horizontal", "横書き（ブラウザー）"], ["vertical", "縦書き（標準）"], ["mixed", "縦書き（和欧混植）"], ["sideways", "縦書き（横倒し）"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    flow.append(option);
+  }
+  flow.value = textStyle.flow;
+  flowSetting.append(flow);
+  const fileSetting = document.createElement("label");
+  fileSetting.className = "text-setting";
+  const fileLabel = document.createElement("span");
+  fileLabel.textContent = `縦書きフォント: ${textFontName}`;
+  const file = document.createElement("input");
+  file.id = "text-font-file";
+  file.type = "file";
+  file.accept = ".ttf,.otf,.ttc,.woff,.woff2";
+  file.setAttribute("aria-label", "縦書き用フォントファイル");
+  file.addEventListener("change", () => run(async () => {
+    const selected = file.files?.[0];
+    if (!selected) return;
+    const selection = ++fontSelection;
+    textFontBytes = undefined;
+    textFontLoading = true;
+    textFontName = `${selected.name}（読み込み中）`;
+    fileLabel.textContent = `縦書きフォント: ${textFontName}`;
+    syncTextDraftStyle();
+    try {
+      if (selected.size > 64 * 1024 * 1024) throw new Error("フォントは64MiB以下を選択してください。");
+      const bytes = new Uint8Array(await selected.arrayBuffer());
+      if (selection !== fontSelection) return;
+      textFontBytes = bytes;
+      textFontName = selected.name;
+    } catch (error) {
+      if (selection !== fontSelection) return;
+      textFontName = "読み込み失敗（再選択してください）";
+      throw error;
+    } finally {
+      if (selection === fontSelection) {
+        textFontLoading = false;
+        fileLabel.textContent = `縦書きフォント: ${textFontName}`;
+        syncTextDraftStyle();
+      }
+    }
+  }));
+  fileSetting.append(fileLabel, file);
+  const updateFlowControls = () => {
+    const vertical = textStyle.flow !== "horizontal";
+    fontFamily.disabled = vertical;
+    for (const button of toggles.querySelectorAll("button")) button.disabled = vertical;
+    fileSetting.hidden = !vertical;
+    [...align.options].forEach((option, index) => {
+      option.textContent = (vertical ? ["上揃え", "中央揃え", "下揃え"] : ["左揃え", "中央揃え", "右揃え"])[index];
+    });
+    note.textContent = vertical
+      ? "ローカルフォントを選択（外部送信なし）。選択した書体そのものを使用します（太字・斜体の合成なし）。和欧混植・横倒しは単一行のみ。自動折返しなし。入力欄は編集用、下のプレビューが実際の配置です。配置後は画像レイヤーになります。"
+      : "右側で色を選び、キャンバスをクリックして入力します。配置後は画像レイヤーになります。";
+  };
+  flow.addEventListener("change", () => {
+    textStyle.flow = flow.value;
+    updateFlowControls();
+    syncTextDraftStyle();
+  });
+  updateFlowControls();
+  target.append(flowSetting, fontSetting, fileSetting, sizeSetting, toggles, alignSetting, note);
 }
 
 function textFont(style, scale = 1) {
@@ -704,8 +776,9 @@ function updateTextEditorStyle() {
   const scaleY = textDraft.canvas.getBoundingClientRect().height / textDraft.canvas.height;
   input.style.font = textFont(textDraft.style, scaleY);
   input.style.color = textDraft.style.color;
-  input.style.textAlign = textDraft.style.align;
+  input.style.textAlign = textDraft.style.flow === "horizontal" ? textDraft.style.align : "left";
   input.style.caretColor = textDraft.style.color;
+  scheduleTextPreview();
   resizeTextEditor();
 }
 
@@ -792,20 +865,56 @@ function cancelTextDraft() {
   message("文字入力を取り消しました");
 }
 
+function renderFontText(draft, text) {
+  if (textFontLoading && !draft.fontBytes) throw new Error("フォントを読み込み中です。完了後に配置してください。");
+  return fontTextImageData({ width: draft.canvas.width, height: draft.canvas.height,
+    fontBytes: draft.fontBytes ?? textFontBytes, text, fontSize: draft.style.fontSize,
+    color: draft.style.color, flow: draft.style.flow, ...draft.point, align: draft.style.align });
+}
+
+function scheduleTextPreview() {
+  clearTimeout(textPreviewTimer);
+  const preview = $("#text-preview");
+  const status = $("#text-preview-status");
+  preview.hidden = true;
+  status.textContent = "";
+  if (!textDraft || textDraft.style.flow === "horizontal") return;
+  textPreviewTimer = setTimeout(() => {
+    if (!textDraft || textDraft.style.flow === "horizontal") return;
+    const value = $("#text-value").value;
+    if (!value.trim()) return;
+    try {
+      const image = renderFontText(textDraft, value);
+      preview.width = image.width;
+      preview.height = image.height;
+      preview.getContext("2d").putImageData(image, 0, 0);
+      preview.hidden = false;
+      status.textContent = "配置プレビュー（キャンバス全体）";
+    } catch (error) {
+      status.textContent = String(error.message ?? error);
+    }
+  }, 120);
+}
+$("#text-value").addEventListener("input", scheduleTextPreview);
+
 async function textImageBlob(draft, text) {
   const output = document.createElement("canvas");
   output.width = draft.canvas.width;
   output.height = draft.canvas.height;
   const context = output.getContext("2d", { alpha: true });
-  context.font = textFont(draft.style);
-  context.fillStyle = draft.style.color;
-  context.textAlign = draft.style.align;
-  context.textBaseline = "top";
-  const maxWidth = textWidthLimit(output, draft);
-  const lines = wrapCanvasText(context, text, maxWidth);
-  const lineHeight = Math.ceil(draft.style.fontSize * 1.25);
-  for (let index = 0; index < lines.length; index += 1) {
-    context.fillText(lines[index], draft.point.x, draft.point.y + index * lineHeight, maxWidth);
+  if (draft.style.flow !== "horizontal") {
+    context.putImageData(renderFontText(draft, text), 0, 0);
+  } else {
+    context.font = textFont(draft.style);
+    context.fillStyle = draft.style.color;
+    context.textAlign = draft.style.align;
+    context.textBaseline = "top";
+    const maxWidth = textWidthLimit(output, draft);
+    const lines = wrapCanvasText(context, text, maxWidth);
+    const lineHeight = Math.ceil(draft.style.fontSize * 1.25);
+    for (let index = 0; index < lines.length; index += 1) {
+      context.fillText(lines[index], draft.point.x, draft.point.y + index * lineHeight, maxWidth);
+    }
   }
   return new Promise((resolve, reject) => {
     output.toBlob((blob) => blob ? resolve(blob) : reject(new Error("文字画像を作成できませんでした")), "image/png");
@@ -815,7 +924,9 @@ async function textImageBlob(draft, text) {
 async function commitTextDraft() {
   if (textCommitPromise) return textCommitPromise;
   if (!textDraft) return;
-  const draft = textDraft;
+  if (textDraft.style.flow !== "horizontal" && textFontLoading) throw new Error("フォントを読み込み中です。完了後に配置してください。");
+  const originalDraft = textDraft;
+  const draft = { ...textDraft, style: { ...textDraft.style }, fontBytes: textFontBytes };
   const value = $("#text-value").value;
   if (!value.trim()) {
     cancelTextDraft();
@@ -832,7 +943,7 @@ async function commitTextDraft() {
       const blob = await textImageBlob(draft, value);
       const name = await paint.loadImage(blob);
       thumbnails.set(name, URL.createObjectURL(blob));
-      if (textDraft === draft) {
+      if (textDraft === originalDraft) {
         textDraft = undefined;
         $("#text-editor").hidden = true;
         input.value = "";
