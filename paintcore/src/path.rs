@@ -22,8 +22,8 @@ use std::cmp::Ordering;
 pub use fontcore::commands;
 #[cfg(feature = "font")]
 pub use fontcore::{
-    load_font_from_buffer, FontFaceDescriptor, FontFamily, FontOptions, FontRef, FontStretch,
-    FontStyle, FontVariant, FontWeight,
+    load_font_from_buffer, FontEngine, FontFaceDescriptor, FontFamily, FontFile, FontOptions,
+    FontRef, FontStretch, FontStyle, FontVariant, FontWeight, TextDirection,
 };
 #[cfg(feature = "font")]
 pub type LoadedFont = fontcore::FontFace;
@@ -2217,6 +2217,40 @@ pub fn glyph_renderer_info() -> String {
 #[cfg(feature = "font")]
 pub fn layout_text(text: &str, options: FontOptions<'_>) -> Result<GlyphRun, Error> {
     fontcore::text2commands(text, options)
+        .map(Into::into)
+        .map_err(|error| Box::new(error) as Error)
+}
+
+/// Shapes one LTR outline line and rotates it clockwise through fontcore.
+///
+/// Positions, paths, bounds and advances are already in y-down pixel coordinates;
+/// pass the returned run directly to [`draw_glyphs`] without another rotation.
+/// The engine's direction is overridden for this call only. This single-face API
+/// rejects tabs/line breaks and non-current-color, clipped, stroked or raster/SVG
+/// layers. See [`FontEngine::shape_sideways_ltr`] for the full contract.
+#[cfg(feature = "font")]
+pub fn layout_text_sideways_ltr(text: &str, engine: &FontEngine<'_>) -> Result<GlyphRun, Error> {
+    engine
+        .shape_sideways_ltr(text)
+        .map(Into::into)
+        .map_err(|error| Box::new(error) as Error)
+}
+
+/// Shapes one LTR outline line with upright CJK and clockwise sideways groups.
+///
+/// Orientation, vertical alternates, centering, kerning and glyph placement are
+/// resolved by fontcore, not recomputed by the renderer. Pass the returned run
+/// directly to [`draw_glyphs`]. This opt-in operation is single-face/single-line
+/// only: no family fallback, BiDi, color layers or complete CSS text layout.
+/// Fontcore errors are preserved; no partial run is returned. See
+/// [`FontEngine::shape_vertical_mixed_ltr`] for the precise orientation policy.
+#[cfg(feature = "font")]
+pub fn layout_text_vertical_mixed_ltr(
+    text: &str,
+    engine: &FontEngine<'_>,
+) -> Result<GlyphRun, Error> {
+    engine
+        .shape_vertical_mixed_ltr(text)
         .map(Into::into)
         .map_err(|error| Box::new(error) as Error)
 }

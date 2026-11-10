@@ -88,3 +88,20 @@ fn draw_text_decorations_draws_underlines_from_glyph_bounds() {
         .any(|pixel| pixel[0] > 0 && pixel[1] == 0 && pixel[2] == 0);
     assert!(has_red);
 }
+
+#[test]
+fn glyph_run_bounds_skips_no_ink_glyphs() {
+    let empty = PositionedGlyph::new(Glyph::new(Vec::new()), 0.0, 0.0);
+    let run = GlyphRun::new(vec![
+        empty.clone(),
+        PositionedGlyph::new(glyph_with_bounds(-4.0, 2.0, 8.0, 10.0), 20.0, 30.0),
+        empty.clone(),
+    ]);
+    let bounds = glyph_run_bounds(&run, 1.0, 2.0).unwrap();
+    assert_eq!(
+        (bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y),
+        (17.0, 34.0, 29.0, 42.0)
+    );
+    assert!(glyph_run_bounds(&GlyphRun::new(vec![empty]), 0.0, 0.0).is_none());
+    assert!(glyph_run_bounds(&GlyphRun::default(), 0.0, 0.0).is_none());
+}
