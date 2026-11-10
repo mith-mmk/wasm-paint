@@ -75,10 +75,55 @@ Optional codecs, ImageBufferEx and high-bit-depth features are not enabled by
 this version bump. Legacy Canvas/Layer storage is still RGBA8. Upgrading alone
 does not make existing drawing routines retain 16-bit or HDR pixels.
 
-The separate WML2 error/warning API PR (#106) has been merged but must be released
-before using its unpublished API in a registry-backed paintcore release. This stage can be
-tested against that revision with a local Cargo patch without committing a Git/path
-dependency or claiming the unreleased API is in 0.0.42.
+### WML2 0.0.43 follow-up
+
+The workspace now requires published WML2 0.0.43, including the public error and
+warning accessors from #106. Existing codec feature selection is unchanged.
+The compatibility API adds `load_from_memory_with_limits`, native
+`read_with_limits`, and `open_with_limits`. Existing entry points delegate with
+`DecodeLimits::default()` and keep their signatures, first-frame behavior, metadata,
+warnings, and boxed errors. `DecodeLimits` is WML2's existing type, not a parallel
+paintcore policy. Each call scopes the budget independently, including after failure.
+
+The memory path borrows a `Cursor<&[u8]>` through the same `bin-rs 0.0.10`
+`StreamReader` adapter already used by WML2. This avoids an input-sized reader
+copy and still decodes directly into the existing paintcore Layer callback.
+`bin-rs` becomes a direct dependency for this boundary, not a new codec or drawing
+engine. Native readers continue to stream; path format detection uses contents.
+
+`ImgError`, `ImgErrorKind`, `DecodeLimitExceeded`, `ImgWarning`, and `ImgWarnings`
+are re-exported from this module so callers can inspect the original types:
+
+```rust
+use paintcore::image_compat::{load_from_memory_with_limits, DecodeLimits,
+    DecodeLimitExceeded, ImgError};
+let limits = DecodeLimits { input_bytes: 1024 * 1024, ..DecodeLimits::default() };
+match load_from_memory_with_limits(bytes, limits) {
+    Ok(decoded) => {
+        if let Some(warnings) = decoded.warnings {
+            for warning in warnings.iter() { eprintln!("{warning}"); }
+        }
+    }
+    Err(error) => {
+        if let Some(image_error) = error.downcast_ref::<ImgError>() {
+            eprintln!("{:?}", image_error.kind());
+        }
+        if let Some(limit) = error.source()
+            .and_then(|source| source.downcast_ref::<DecodeLimitExceeded>()) {
+            eprintln!("{}: {} > {}", limit.resource(), limit.requested(), limit.limit());
+        }
+    }
+}
+```
+
+Not every boxed error is an `ImgError`, and not every codec-specific bound uses
+`DecodeLimitExceeded`. Legacy `OutOfMemory` includes policy-limit failures as well
+as other failures. The limit's resource label is human-readable, not a stable
+machine identifier. Warnings retain order and individual display values but have
+no common typed category/severity contract. Neither errors nor warnings promise
+whole-file validation. Limits are independent budgets, not a total allocation cap.
+Use `DecodeLimits::unlimited()` only as an explicit caller policy.
+
 
 ## Validation and next stages
 
@@ -88,8 +133,8 @@ writer failures, native readers/paths, default codec roundtrips, and equality to
 the existing processing routines. Test both native paintcore and the WASM
 workspace, including optional font features. CI completion is not a delivery gate.
 
-Next, expose custom limits and structured error diagnostics after WML2's public
-contract is available, then add checked crop/views and more operation adapters.
+Custom limits and WML2 diagnostic accessors are now available. Checked crop/views
+remain in the separate PR #2, followed by more operation adapters.
 Add Gray/RGB/RGBA16 and explicit color conversion separately before HDR/F32.
 Keep codecs in WML2 and UI/document/undo concerns outside this compatibility API.
 

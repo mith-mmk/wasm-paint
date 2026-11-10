@@ -26,4 +26,6 @@ svg-font = ["font", "fontcore/svg-fonts"]
 
 [dependencies]
 wml2.workspace = true
+# The same reader adapter WML2 uses, allowing limits without copying input.
+bin-rs = "0.0.10"
 fontcore = { workspace = true, optional = true }

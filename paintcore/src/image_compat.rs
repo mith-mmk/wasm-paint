@@ -19,16 +19,17 @@
 use crate::affine::{Affine, InterpolationAlgorithm};
 use crate::canvas::Screen;
 use crate::layer::{checked_buffer_len, Layer};
+use bin_rs::reader::StreamReader;
 use std::collections::HashMap;
 use std::io::Write;
-#[cfg(not(target_family = "wasm"))]
 use wml2::draw::DecodeOptions;
 use wml2::draw::{image_to, ImageBuffer};
-use wml2::error::{ImgError, ImgErrorKind};
 use wml2::metadata::DataMap;
-use wml2::warning::ImgWarnings;
 
+pub use wml2::error::{ImgError, ImgErrorKind};
+pub use wml2::limits::{DecodeLimitExceeded, DecodeLimits};
 pub use wml2::util::ImageFormat;
+pub use wml2::warning::{ImgWarning, ImgWarnings};
 
 /// Preserves original WML2, callback, allocation, and I/O error types.
 pub type ImageResult<T> = Result<T, Box<dyn std::error::Error>>;
@@ -227,8 +228,42 @@ impl RgbaImage {
 /// Decodes the first image using the existing paintcore Layer callback.
 /// WML2's default resource budgets apply; warnings are never silently discarded.
 pub fn load_from_memory(bytes: &[u8]) -> ImageResult<DecodedImage> {
+    load_from_memory_with_limits(bytes, DecodeLimits::default())
+}
+
+/// Decodes the first image with explicit WML2 resource budgets.
+///
+/// Input is borrowed through a seekable reader, not copied into a second input
+/// buffer. The existing Layer callback still owns the decoded RGBA8 pixels.
+/// Limits are independent budgets, not a total peak-memory bound; using
+/// [`DecodeLimits::unlimited`] explicitly disables them. Warnings and original
+/// errors are preserved, including [`DecodeLimitExceeded`] in error sources.
+///
+/// ```
+/// use paintcore::image_compat::{load_from_memory_with_limits, DecodeLimits};
+/// let limits = DecodeLimits { input_bytes: 1024 * 1024, ..DecodeLimits::default() };
+/// assert!(load_from_memory_with_limits(b"not an image", limits).is_err());
+/// ```
+pub fn load_from_memory_with_limits(
+    bytes: &[u8],
+    limits: DecodeLimits,
+) -> ImageResult<DecodedImage> {
+    decode_reader_with_limits(std::io::Cursor::new(bytes), limits)
+}
+
+fn decode_reader_with_limits<R: std::io::BufRead + std::io::Seek>(
+    reader: R,
+    limits: DecodeLimits,
+) -> ImageResult<DecodedImage> {
     let mut layer = Layer::try_new("_decoded_image_".into(), 0, 0)?;
-    let warnings = crate::image::draw_image(&mut layer, bytes, 0)?;
+    let warnings = wml2::draw::image_decoder_with_limits(
+        &mut StreamReader::new(reader),
+        &mut DecodeOptions {
+            debug_flag: 0,
+            drawer: &mut layer,
+        },
+        limits,
+    )?;
     Ok(DecodedImage {
         image: RgbaImage::from_layer(layer)?,
         warnings,
@@ -238,22 +273,32 @@ pub fn load_from_memory(bytes: &[u8]) -> ImageResult<DecodedImage> {
 /// Decodes from a buffered seekable reader without reading the whole file first.
 #[cfg(not(target_family = "wasm"))]
 pub fn read<R: std::io::BufRead + std::io::Seek>(reader: R) -> ImageResult<DecodedImage> {
-    let mut layer = Layer::try_new("_decoded_image_".into(), 0, 0)?;
-    let warnings = wml2::draw::image_reader(
-        reader,
-        &mut DecodeOptions {
-            debug_flag: 0,
-            drawer: &mut layer,
-        },
-    )?;
-    Ok(DecodedImage {
-        image: RgbaImage::from_layer(layer)?,
-        warnings,
-    })
+    read_with_limits(reader, DecodeLimits::default())
+}
+
+/// Decodes a native buffered seekable reader with explicit WML2 budgets.
+/// I/O errors remain downcastable to their original type. Takes the reader by
+/// value; pass `&mut reader` to retain ownership. Position follows the decoder.
+#[cfg(not(target_family = "wasm"))]
+pub fn read_with_limits<R: std::io::BufRead + std::io::Seek>(
+    reader: R,
+    limits: DecodeLimits,
+) -> ImageResult<DecodedImage> {
+    decode_reader_with_limits(reader, limits)
 }
 
 /// Opens a native path. Format detection is based on contents, not the suffix.
 #[cfg(not(target_family = "wasm"))]
 pub fn open<P: AsRef<std::path::Path>>(path: P) -> ImageResult<DecodedImage> {
-    read(std::io::BufReader::new(std::fs::File::open(path)?))
+    open_with_limits(path, DecodeLimits::default())
+}
+
+/// Opens and decodes a native path with explicit WML2 budgets.
+/// File-open failures preserve their original I/O error type.
+#[cfg(not(target_family = "wasm"))]
+pub fn open_with_limits<P: AsRef<std::path::Path>>(
+    path: P,
+    limits: DecodeLimits,
+) -> ImageResult<DecodedImage> {
+    read_with_limits(std::io::BufReader::new(std::fs::File::open(path)?), limits)
 }

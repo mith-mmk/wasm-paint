@@ -192,3 +192,12 @@ cargo run -p paintcore --example paint_bench --release
 ## License
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
+
+## Decode limits and diagnostics (next unreleased version)
+
+The image workflow now uses WML2 0.0.43. `image_compat` offers
+`load_from_memory_with_limits` plus native `read_with_limits` and `open_with_limits`.
+They accept WML2's re-exported `DecodeLimits`; existing calls keep default budgets.
+Decode results preserve individual warnings (`ImgWarnings::iter`), and errors
+retain their original type, `ImgError::kind`, and `DecodeLimitExceeded` source.
+See [the compatibility notes](../docs/image-compat.md) for semantics and limits.
