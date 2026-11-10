@@ -31,7 +31,9 @@ impl Default for TextDecorationOptions {
 pub fn glyph_run_bounds(run: &GlyphRun, offset_x: f32, offset_y: f32) -> Option<GlyphBounds> {
     let mut bounds: Option<GlyphBounds> = None;
     for glyph in &run.glyphs {
-        let glyph_bounds = glyph.glyph.metrics.bounds?;
+        let Some(glyph_bounds) = glyph.glyph.metrics.bounds else {
+            continue;
+        };
         let current = GlyphBounds {
             min_x: offset_x + glyph.x + glyph_bounds.min_x,
             min_y: offset_y + glyph.y + glyph_bounds.min_y,
@@ -51,6 +53,9 @@ pub fn glyph_run_bounds(run: &GlyphRun, offset_x: f32, offset_y: f32) -> Option<
     bounds
 }
 
+/// Draws horizontal decorations from the run's ink bounds.
+///
+/// This helper does not rotate decorations for vertical glyph runs.
 pub fn draw_text_decorations(
     screen: &mut dyn Screen,
     run: &GlyphRun,

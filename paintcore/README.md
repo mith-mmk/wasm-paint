@@ -36,6 +36,58 @@ Feature flags:
 - `font`: OpenType font support, including raster and COLR layers
 - `svg-font`: OpenType SVG glyph support (verified with Noto Color Emoji)
 
+## Vertical text (fontcore 0.0.14)
+
+Enable `font` to use the published fontcore 0.0.14 dependency, shared with the
+Wasm crate. Existing horizontal text calls keep their default direction.
+
+```rust,no_run
+# #[cfg(feature = "font")]
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use paintcore::prelude::*;
+
+let face = load_font_from_buffer(&std::fs::read("font.ttf")?)?;
+let options = FontOptions::new(&face).with_font_size(36.0);
+let mut canvas = Layer::tmp(400, 800);
+
+// Standard vertical flow; newlines move to the next column on the left.
+draw_text_with_options(
+    &mut canvas, "縦書き", options.clone().with_vertical_flow(),
+    300.0, 30.0, 0xff20_2020,
+)?;
+
+// Opt-in single-face mixed orientation: upright CJK and clockwise Latin groups.
+let engine = face.engine().with_options(options);
+let run = layout_text_vertical_mixed_ltr("日本語ABC 123", &engine)?;
+draw_glyphs(&mut canvas, &run, 200.0, 30.0, 0xff20_2020)?;
+# Ok(())
+# }
+# #[cfg(not(feature = "font"))]
+# fn main() {}
+```
+
+`layout_text_sideways_ltr` rotates an entire horizontal LTR line clockwise.
+Both helpers take a borrowed `FontEngine`, preserve its options, and return a
+paintcore `GlyphRun`. Positions, paths, bounds and advances are already resolved
+in y-down pixel coordinates. Do not rotate them again. Drawing offsets are the
+logical origin, not necessarily the top-left ink corner; `glyph_run_bounds`
+returns ink bounds and skips spaces/no-ink glyphs.
+
+Mixed/sideways modes deliberately retain fontcore's limits: one face and one
+line, current-color unclipped fill outlines only. Tabs/line-break controls return
+`InvalidInput`; unsupported color, raster or raw SVG layers return `Unsupported`
+without a partial run. Mixed orientation is an explicit Unicode policy, not
+full CSS layout: no BiDi, family fallback, multiline mixing, tate-chu-yoko or
+rotated fallback for `Tr` characters without an alternate. Existing
+`draw_text_decorations` remains horizontal-only.
+
+Render a local font to PNG (top: horizontal; left to right: standard vertical, mixed,
+sideways). No font is downloaded or redistributed by the example:
+
+```text
+cargo run -p paintcore --features font --example vertical_text -- FONT OUTPUT.png
+```
+
 ## Image-rs-style workflows
 
 `paintcore::image_compat` is an additive functional-compatibility API backed by
@@ -134,7 +186,8 @@ cargo run -p paintcore --example paint_bench --release
 
 - Raster buffers use four bytes per pixel in RGBA order.
 - Image format support is provided by the `wml2` dependency.
-- No fonts, sample images, or web-paint assets are bundled in the crate package.
+- No production fonts, sample images, or web-paint assets are bundled in the crate
+  package. Small MIT synthetic fonts in `tests/fixtures` support deterministic tests.
 
 ## License
 
