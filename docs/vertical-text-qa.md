@@ -56,4 +56,4 @@ font can be loaded through the file picker. End-to-end browser font selection,
 placement, draft correction, cancel, undo/redo and PNG download have not yet been
 fully verified. The real Wasm and component tests above do not replace that check.
 
-This is a Draft PR, not a release or merge. No CI completion is claimed.
+The initial verification above was recorded for Draft PR #3 before merge or release. No CI completion is claimed.

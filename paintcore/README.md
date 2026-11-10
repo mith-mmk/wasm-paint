@@ -11,7 +11,7 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 
 ```toml
 [dependencies]
-paintcore = "0.0.29"
+paintcore = "0.0.30"
 ```
 
 ## Features
