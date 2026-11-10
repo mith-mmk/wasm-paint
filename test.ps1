@@ -15,13 +15,13 @@ $requiredFiles = @(
 )
 
 if (@($requiredFiles | Where-Object { -not (Test-Path -LiteralPath $_) }).Count -gt 0) {
-    throw 'Generated WASM files are missing. Build them first: Push-Location wasm-paint; wasm-pack build -t web; Pop-Location'
+    throw 'Generated WASM files are missing. Build them first: Push-Location wasm-paint; wasm-pack build -t web -- --features font; Pop-Location'
 }
 
 $bindings = Get-Content -LiteralPath (Join-Path $packageDir 'paint.d.ts') -Raw
-foreach ($method in @('deleteLayer', 'moveLayer', 'getLayerImageData', 'setLayerImageData', 'floodFill', 'fillPathSolid', 'strokeStyledPath')) {
+foreach ($method in @('deleteLayer', 'moveLayer', 'getLayerImageData', 'setLayerImageData', 'floodFill', 'fillPathSolid', 'strokeStyledPath', 'drawTextFlow', 'measureTextFlow')) {
     if ($bindings -notmatch "\b$method\s*\(") {
-        throw "Generated WASM bindings are outdated. Rebuild them with: Push-Location wasm-paint; wasm-pack build -t web; Pop-Location"
+        throw "Generated WASM bindings are outdated. Rebuild them with: Push-Location wasm-paint; wasm-pack build -t web -- --features font; Pop-Location"
     }
 }
 

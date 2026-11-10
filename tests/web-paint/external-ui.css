@@ -1593,3 +1593,9 @@ dialog .primary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Fontcore preview is isolated from document pixels and scales the whole canvas. */
+#text-preview { width: 100%; max-height: 220px; object-fit: contain; border: 1px solid #aaa; background: #eee; }
+#text-preview[hidden] { display: none; }
+#text-preview-status { display: block; white-space: normal; overflow-wrap: anywhere; }
+#text-font-file { max-width: 220px; }

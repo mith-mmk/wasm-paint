@@ -1974,6 +1974,76 @@ impl Universe {
             .map_err(|error| js_error(&error.to_string()))
     }
 
+    /// Additive single-face flow API. Coordinates use the shaped run origin.
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = drawTextFlow)]
+    pub fn draw_text_flow(
+        &mut self,
+        text: String,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: u32,
+        flow: String,
+    ) -> Result<(), JsValue> {
+        if !x.is_finite() || !y.is_finite() {
+            return Err(js_error("text origin must be finite"));
+        }
+        let glyphs = self.layout_text_flow(&text, font_size, &flow)?;
+        path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
+            .map_err(|error| js_error(&error.to_string()))
+    }
+
+    /// Conservative ink bounds [min_x, min_y, max_x, max_y], or empty for no ink.
+    #[cfg(feature = "font")]
+    #[wasm_bindgen(js_name = measureTextFlow)]
+    pub fn measure_text_flow(
+        &self,
+        text: String,
+        font_size: f32,
+        flow: String,
+    ) -> Result<Vec<f32>, JsValue> {
+        let glyphs = self.layout_text_flow(&text, font_size, &flow)?;
+        Ok(glyph_run_bounds(&glyphs)
+            .map(|b| vec![b.min_x, b.min_y, b.max_x, b.max_y])
+            .unwrap_or_default())
+    }
+
+    #[cfg(feature = "font")]
+    fn layout_text_flow(
+        &self,
+        text: &str,
+        font_size: f32,
+        flow: &str,
+    ) -> Result<path::GlyphRun, JsValue> {
+        if !font_size.is_finite() || font_size <= 0.0 {
+            return Err(js_error("font_size must be a positive finite value"));
+        }
+        let font = self
+            .font
+            .as_ref()
+            .ok_or_else(|| js_error("font is not loaded"))?;
+        let options = FontOptions::new(font).with_font_size(font_size);
+        let result = match flow {
+            "horizontal" => path::layout_text(text, options),
+            "vertical" => path::layout_text(text, options.with_vertical_flow()),
+            "mixed" => path::layout_text_vertical_mixed_ltr(
+                text,
+                &path::FontEngine::new(font).with_options(options),
+            ),
+            "sideways" => path::layout_text_sideways_ltr(
+                text,
+                &path::FontEngine::new(font).with_options(options),
+            ),
+            _ => {
+                return Err(js_error(
+                    "unknown text flow; expected horizontal, vertical, mixed, or sideways",
+                ));
+            }
+        };
+        result.map_err(|error| js_error(&error.to_string()))
+    }
+
     #[cfg(feature = "font")]
     #[wasm_bindgen(js_name = drawTexLike)]
     pub fn draw_tex_like(
