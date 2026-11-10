@@ -117,8 +117,8 @@ writer failures, native readers/paths, default codec roundtrips, and equality to
 the existing processing routines. Test both native paintcore and the WASM
 workspace, including optional font features. CI completion is not a delivery gate.
 
-Next, expose custom limits and structured error diagnostics after WML2's public
-contract is available, then add more operation adapters.
+Work on checked crop/views is tracked in PR #2, and custom decode limits and
+WML2 diagnostics in PR #4. Further stages add more operation adapters.
 Add Gray/RGB/RGBA16 and explicit color conversion separately before HDR/F32.
 Keep codecs in WML2 and UI/document/undo concerns outside this compatibility API.
 
