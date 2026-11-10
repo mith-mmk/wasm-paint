@@ -80,16 +80,26 @@ does not make existing drawing routines retain 16-bit or HDR pixels.
 The workspace now requires published WML2 0.0.43, including the public error and
 warning accessors from #106. Existing codec feature selection is unchanged.
 The compatibility API adds `load_from_memory_with_limits`, native
-`read_with_limits`, and `open_with_limits`. Existing entry points delegate with
-`DecodeLimits::default()` and keep their signatures, first-frame behavior, metadata,
+`read_with_limits`, and `open_with_limits`. Native `read` and `open` delegate with
+`DecodeLimits::default()`. Existing `load_from_memory` retains its original
+`draw_image` reader path, including its low-level error behavior. All existing
+entry points keep default budgets, signatures, first-frame behavior, metadata,
 warnings, and boxed errors. `DecodeLimits` is WML2's existing type, not a parallel
 paintcore policy. Each call scopes the budget independently, including after failure.
 
-The memory path borrows a `Cursor<&[u8]>` through the same `bin-rs 0.0.10`
+The new `load_from_memory_with_limits` path borrows a `Cursor<&[u8]>` through
+the same `bin-rs 0.0.10`
 `StreamReader` adapter already used by WML2. This avoids an input-sized reader
 copy and still decodes directly into the existing paintcore Layer callback.
 `bin-rs` becomes a direct dependency for this boundary, not a new codec or drawing
 engine. Native readers continue to stream; path format detection uses contents.
+
+For normal inputs the new memory API preserves pixels, metadata and warnings.
+Its borrowed `StreamReader` can produce different low-level truncation errors
+from the existing API's copying `BytesReader`: for example, a truncated BMP
+header returns `std::io::Error` with `UnexpectedEof` in the new API, while
+`load_from_memory` continues to return `Other`. Error text can also differ.
+WML2 error kinds and decoder warnings are not remapped.
 
 `ImgError`, `ImgErrorKind`, `DecodeLimitExceeded`, `ImgWarning`, and `ImgWarnings`
 are re-exported from this module so callers can inspect the original types:
@@ -133,8 +143,8 @@ writer failures, native readers/paths, default codec roundtrips, and equality to
 the existing processing routines. Test both native paintcore and the WASM
 workspace, including optional font features. CI completion is not a delivery gate.
 
-Custom limits and WML2 diagnostic accessors are now available. Checked crop/views
-remain in the separate PR #2, followed by more operation adapters.
+Work on checked crop/views is tracked in PR #2, and custom decode limits and
+WML2 diagnostics in PR #4. Further stages add more operation adapters.
 Add Gray/RGB/RGBA16 and explicit color conversion separately before HDR/F32.
 Keep codecs in WML2 and UI/document/undo concerns outside this compatibility API.
 

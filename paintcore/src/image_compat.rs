@@ -228,7 +228,12 @@ impl RgbaImage {
 /// Decodes the first image using the existing paintcore Layer callback.
 /// WML2's default resource budgets apply; warnings are never silently discarded.
 pub fn load_from_memory(bytes: &[u8]) -> ImageResult<DecodedImage> {
-    load_from_memory_with_limits(bytes, DecodeLimits::default())
+    let mut layer = Layer::try_new("_decoded_image_".into(), 0, 0)?;
+    let warnings = crate::image::draw_image(&mut layer, bytes, 0)?;
+    Ok(DecodedImage {
+        image: RgbaImage::from_layer(layer)?,
+        warnings,
+    })
 }
 
 /// Decodes the first image with explicit WML2 resource budgets.
@@ -238,6 +243,8 @@ pub fn load_from_memory(bytes: &[u8]) -> ImageResult<DecodedImage> {
 /// Limits are independent budgets, not a total peak-memory bound; using
 /// [`DecodeLimits::unlimited`] explicitly disables them. Warnings and original
 /// errors are preserved, including [`DecodeLimitExceeded`] in error sources.
+/// Unlike [`load_from_memory`], the borrowed reader can report `UnexpectedEof`
+/// instead of `Other` for truncated input; low-level error text may also differ.
 ///
 /// ```
 /// use paintcore::image_compat::{load_from_memory_with_limits, DecodeLimits};
