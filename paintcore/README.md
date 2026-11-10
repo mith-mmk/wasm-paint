@@ -14,6 +14,11 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 paintcore = "0.0.31"
 ```
 
+Version 0.0.31 uses WML2 0.0.44 and optional fontcore 0.0.15. Callers sharing
+these crates' public types with paintcore must align their direct dependency
+versions, or use paintcore re-exports where available; these type identities
+changed from paintcore 0.0.30.
+
 ## Features
 
 - RGBA `Color` with explicit ARGB, RGB, and RGBA integer conversion methods
