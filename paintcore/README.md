@@ -11,10 +11,10 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 
 ```toml
 [dependencies]
-paintcore = "0.0.31"
+paintcore = "0.0.32"
 ```
 
-Version 0.0.31 uses WML2 0.0.44 and optional fontcore 0.0.15. Callers sharing
+Version 0.0.32 uses WML2 0.0.44 and optional fontcore 0.0.15. Callers sharing
 these crates' public types with paintcore must align their direct dependency
 versions, or use paintcore re-exports where available; these type identities
 changed from paintcore 0.0.30.
@@ -101,7 +101,7 @@ for image-rs and does not depend on `image`. The first stage provides checked
 RGBA8 storage, memory/reader/path decoding with retained warnings, memory/writer
 encoding, exact-size affine resampling, grayscale and brightness adjustment.
 Checked pixel borrowing/iteration, zero-copy read-only rectangular views, and
-owned crops are available in the next unreleased version. Bounds are checked without silent clipping;
+owned crops are available since 0.0.32. Bounds are checked without silent clipping;
 cropping preserves raw RGBA8 samples and leaves the source unchanged.
 
 ```rust
@@ -201,7 +201,7 @@ cargo run -p paintcore --example paint_bench --release
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.
 
-## Decode limits and diagnostics (next unreleased version)
+## Decode limits and diagnostics (since 0.0.32)
 
 The image workflow now uses WML2 0.0.43. `image_compat` offers
 `load_from_memory_with_limits` plus native `read_with_limits` and `open_with_limits`.
