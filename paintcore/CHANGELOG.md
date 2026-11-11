@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.33 - 2026-11-11
+
+- Update registry dependencies to bin-rs 0.1.0, WML2 0.0.45, and optional
+  fontcore 0.0.16, aligning reader adapters across the dependency graph.
+- No paintcore implementation or signatures are edited. Feature flags and the
+  Rust 1.91 minimum remain unchanged. Callers sharing WML2 or fontcore types
+  must align their direct dependencies, or use paintcore re-exports where
+  available, because these dependency updates change public Rust type identities.
+
+The wasm-paint wrapper is not published as part of this release.
+
 ## 0.0.32 - 2026-11-11
 
 - Add checked RGBA8 pixel access and mutation, exact-size pixel iterators,

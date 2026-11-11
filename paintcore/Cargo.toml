@@ -1,6 +1,6 @@
 [package]
 name = "paintcore"
-version = "0.0.32"
+version = "0.0.33"
 edition = "2021"
 rust-version = "1.91"
 authors = ["Mith@mmk"]
@@ -27,5 +27,5 @@ svg-font = ["font", "fontcore/svg-fonts"]
 [dependencies]
 wml2.workspace = true
 # The same reader adapter WML2 uses, allowing limits without copying input.
-bin-rs = "0.0.11"
+bin-rs = "0.1.0"
 fontcore = { workspace = true, optional = true }

@@ -11,13 +11,13 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 
 ```toml
 [dependencies]
-paintcore = "0.0.32"
+paintcore = "0.0.33"
 ```
 
-Version 0.0.32 uses WML2 0.0.44 and optional fontcore 0.0.15. Callers sharing
+Version 0.0.33 uses WML2 0.0.45 and optional fontcore 0.0.16. Callers sharing
 these crates' public types with paintcore must align their direct dependency
 versions, or use paintcore re-exports where available; these type identities
-changed from paintcore 0.0.30.
+change again from paintcore 0.0.32. Reader adapters use bin-rs 0.1.0.
 
 ## Features
 
@@ -41,9 +41,9 @@ Feature flags:
 - `font`: OpenType font support, including raster and COLR layers
 - `svg-font`: OpenType SVG glyph support (verified with Noto Color Emoji)
 
-## Vertical text (fontcore 0.0.15)
+## Vertical text (fontcore 0.0.16)
 
-Enable `font` to use the published fontcore 0.0.15 dependency, shared with the
+Enable `font` to use the published fontcore 0.0.16 dependency, shared with the
 Wasm crate. Existing horizontal text calls keep their default direction.
 
 ```rust,no_run
@@ -96,7 +96,7 @@ cargo run -p paintcore --features font --example vertical_text -- FONT OUTPUT.pn
 ## Image-rs-style workflows
 
 `paintcore::image_compat` is an additive functional-compatibility API backed by
-the existing paintcore routines and WML2 0.0.44. It is not a drop-in replacement
+the existing paintcore routines and WML2 0.0.45. It is not a drop-in replacement
 for image-rs and does not depend on `image`. The first stage provides checked
 RGBA8 storage, memory/reader/path decoding with retained warnings, memory/writer
 encoding, exact-size affine resampling, grayscale and brightness adjustment.
@@ -203,7 +203,7 @@ Licensed under either of Apache License, Version 2.0 or MIT license at your opti
 
 ## Decode limits and diagnostics (since 0.0.32)
 
-The image workflow uses WML2 0.0.44. `image_compat` offers
+The image workflow uses WML2 0.0.45. `image_compat` offers
 `load_from_memory_with_limits` plus native `read_with_limits` and `open_with_limits`.
 They accept WML2's re-exported `DecodeLimits`; existing calls keep default budgets.
 Only the new memory helper uses a borrowed input reader; `load_from_memory`
