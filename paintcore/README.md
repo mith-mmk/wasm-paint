@@ -203,7 +203,7 @@ Licensed under either of Apache License, Version 2.0 or MIT license at your opti
 
 ## Decode limits and diagnostics (since 0.0.32)
 
-The image workflow now uses WML2 0.0.43. `image_compat` offers
+The image workflow uses WML2 0.0.44. `image_compat` offers
 `load_from_memory_with_limits` plus native `read_with_limits` and `open_with_limits`.
 They accept WML2's re-exported `DecodeLimits`; existing calls keep default budgets.
 Only the new memory helper uses a borrowed input reader; `load_from_memory`
