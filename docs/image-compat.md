@@ -75,9 +75,9 @@ Optional codecs, ImageBufferEx and high-bit-depth features are not enabled by
 this version bump. Legacy Canvas/Layer storage is still RGBA8. Upgrading alone
 does not make existing drawing routines retain 16-bit or HDR pixels.
 
-### WML2 0.0.43 follow-up
+### Decode options follow-up (unreleased)
 
-The workspace now requires published WML2 0.0.43, including the public error and
+The workspace requires published WML2 0.0.44, including the public error and
 warning accessors from #106. Existing codec feature selection is unchanged.
 The compatibility API adds `load_from_memory_with_limits`, native
 `read_with_limits`, and `open_with_limits`. Native `read` and `open` delegate with
@@ -88,11 +88,14 @@ warnings, and boxed errors. `DecodeLimits` is WML2's existing type, not a parall
 paintcore policy. Each call scopes the budget independently, including after failure.
 
 The new `load_from_memory_with_limits` path borrows a `Cursor<&[u8]>` through
-the same `bin-rs 0.0.10`
+the same `bin-rs 0.0.11`
 `StreamReader` adapter already used by WML2. This avoids an input-sized reader
 copy and still decodes directly into the existing paintcore Layer callback.
 `bin-rs` becomes a direct dependency for this boundary, not a new codec or drawing
 engine. Native readers continue to stream; path format detection uses contents.
+Small `BufReader` capacities are supported by bin-rs 0.0.11. Reader positions
+follow the codec: a nonzero starting cursor is not a general substream
+abstraction, because some codecs seek to absolute file offsets.
 
 For normal inputs the new memory API preserves pixels, metadata and warnings.
 Its borrowed `StreamReader` can produce different low-level truncation errors
