@@ -101,7 +101,7 @@ for image-rs and does not depend on `image`. The first stage provides checked
 RGBA8 storage, memory/reader/path decoding with retained warnings, memory/writer
 encoding, exact-size affine resampling, grayscale and brightness adjustment.
 Checked pixel borrowing/iteration, zero-copy read-only rectangular views, and
-owned crops are also available. Bounds are checked without silent clipping;
+owned crops are available in the next unreleased version. Bounds are checked without silent clipping;
 cropping preserves raw RGBA8 samples and leaves the source unchanged.
 
 ```rust
