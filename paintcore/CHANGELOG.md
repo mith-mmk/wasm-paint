@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.0.32 - 2026-11-11
+
+- Add checked RGBA8 pixel access and mutation, exact-size pixel iterators,
+  zero-copy read-only rectangular views, and independent owned crops. Bounds
+  are checked without clipping; crops preserve hidden RGB at zero alpha and
+  omit source metadata.
+- Add explicit decode-limit memory, native reader, and path helpers, and
+  re-export the original WML2 error, warning, and limit types. Limits are
+  independent budgets, not a total peak-memory cap.
+- Use bin-rs 0.0.11 directly for reader adapters while retaining WML2 0.0.44
+  and optional fontcore 0.0.15. The legacy `load_from_memory` reader path and
+  truncated-input error behavior remain unchanged.
+
+These APIs are additive. Feature flags and the Rust 1.91 minimum are unchanged.
+The wasm-paint wrapper is not published as part of this release.
+
 ## 0.0.31 - 2026-11-10
 
 - Update the registry dependencies to WML2 0.0.44 and optional fontcore 0.0.15,

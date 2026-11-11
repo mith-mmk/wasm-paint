@@ -104,7 +104,7 @@ Optional codecs, ImageBufferEx and high-bit-depth features are not enabled by
 this version bump. Legacy Canvas/Layer storage is still RGBA8. Upgrading alone
 does not make existing drawing routines retain 16-bit or HDR pixels.
 
-### Decode options follow-up (unreleased)
+### Decode options (since 0.0.32)
 
 The workspace requires published WML2 0.0.44, including the public error and
 warning accessors from #106. Existing codec feature selection is unchanged.
