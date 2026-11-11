@@ -104,10 +104,68 @@ Optional codecs, ImageBufferEx and high-bit-depth features are not enabled by
 this version bump. Legacy Canvas/Layer storage is still RGBA8. Upgrading alone
 does not make existing drawing routines retain 16-bit or HDR pixels.
 
-The separate WML2 error/warning API PR (#106) has been merged but must be released
-before using its unpublished API in a registry-backed paintcore release. This stage can be
-tested against that revision with a local Cargo patch without committing a Git/path
-dependency or claiming the unreleased API is in 0.0.42.
+### Decode options follow-up (unreleased)
+
+The workspace requires published WML2 0.0.44, including the public error and
+warning accessors from #106. Existing codec feature selection is unchanged.
+The compatibility API adds `load_from_memory_with_limits`, native
+`read_with_limits`, and `open_with_limits`. Native `read` and `open` delegate with
+`DecodeLimits::default()`. Existing `load_from_memory` retains its original
+`draw_image` reader path, including its low-level error behavior. All existing
+entry points keep default budgets, signatures, first-frame behavior, metadata,
+warnings, and boxed errors. `DecodeLimits` is WML2's existing type, not a parallel
+paintcore policy. Each call scopes the budget independently, including after failure.
+
+The new `load_from_memory_with_limits` path borrows a `Cursor<&[u8]>` through
+the same `bin-rs 0.0.11`
+`StreamReader` adapter already used by WML2. This avoids an input-sized reader
+copy and still decodes directly into the existing paintcore Layer callback.
+`bin-rs` becomes a direct dependency for this boundary, not a new codec or drawing
+engine. Native readers continue to stream; path format detection uses contents.
+Small `BufReader` capacities are supported by bin-rs 0.0.11. Reader positions
+follow the codec: a nonzero starting cursor is not a general substream
+abstraction, because some codecs seek to absolute file offsets.
+
+For normal inputs the new memory API preserves pixels, metadata and warnings.
+Its borrowed `StreamReader` can produce different low-level truncation errors
+from the existing API's copying `BytesReader`: for example, a truncated BMP
+header returns `std::io::Error` with `UnexpectedEof` in the new API, while
+`load_from_memory` continues to return `Other`. Error text can also differ.
+WML2 error kinds and decoder warnings are not remapped.
+
+`ImgError`, `ImgErrorKind`, `DecodeLimitExceeded`, `ImgWarning`, and `ImgWarnings`
+are re-exported from this module so callers can inspect the original types:
+
+```rust
+use paintcore::image_compat::{load_from_memory_with_limits, DecodeLimits,
+    DecodeLimitExceeded, ImgError};
+let limits = DecodeLimits { input_bytes: 1024 * 1024, ..DecodeLimits::default() };
+match load_from_memory_with_limits(bytes, limits) {
+    Ok(decoded) => {
+        if let Some(warnings) = decoded.warnings {
+            for warning in warnings.iter() { eprintln!("{warning}"); }
+        }
+    }
+    Err(error) => {
+        if let Some(image_error) = error.downcast_ref::<ImgError>() {
+            eprintln!("{:?}", image_error.kind());
+        }
+        if let Some(limit) = error.source()
+            .and_then(|source| source.downcast_ref::<DecodeLimitExceeded>()) {
+            eprintln!("{}: {} > {}", limit.resource(), limit.requested(), limit.limit());
+        }
+    }
+}
+```
+
+Not every boxed error is an `ImgError`, and not every codec-specific bound uses
+`DecodeLimitExceeded`. Legacy `OutOfMemory` includes policy-limit failures as well
+as other failures. The limit's resource label is human-readable, not a stable
+machine identifier. Warnings retain order and individual display values but have
+no common typed category/severity contract. Neither errors nor warnings promise
+whole-file validation. Limits are independent budgets, not a total allocation cap.
+Use `DecodeLimits::unlimited()` only as an explicit caller policy.
+
 
 ## Validation and next stages
 
