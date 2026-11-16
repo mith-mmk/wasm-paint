@@ -13,3 +13,13 @@ Package: https://crates.io/crates/fontcore/0.0.14
 | vertical-metrics.ttf | generate_vertical_flow.py | 2a7a07fb0f7d87fac2b55b959146a0e79d88a91b5e3aab096ad9772ecab3c745 |
 | mixed-vertical-ltr.ttc | generate_mixed_vertical_ltr.py | 935199f14f5e2660076e5cb5cc95da4f8b981762307f0607cee3634c97f03c6e |
 | colr-vertical-origin.ttc | generate_colr_vertical_origin.py | f9cd0d0db9a26406f8776d4fb682ca3817a445f9460808d6472a64259201937f |
+
+## Mapped text fixtures
+
+`european-fallback.ttc` and `bidi-layout.ttf` are copied unchanged from
+fontcore 0.0.19, under the same MIT license. Generators are
+`generate_european_fallback.py` and `generate_bidi_layout.py` upstream.
+
+- `european-fallback.ttc` SHA-256: `c046ffae054304ac4f8d37fac8d64606fd843481befa86fd1d9e9a4c98e5d2bd`
+
+- `bidi-layout.ttf` SHA-256: `89b4791d6f45dad0185a2b19f5deec695090c5a8cf6ab21604635f21e28e34f8`

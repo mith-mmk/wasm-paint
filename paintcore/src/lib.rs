@@ -27,6 +27,8 @@ pub mod image;
 pub mod image_compat;
 pub mod layer;
 pub mod line;
+#[cfg(feature = "font")]
+pub mod mapped_text;
 pub mod mask;
 pub mod math;
 pub mod paint;

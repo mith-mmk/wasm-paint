@@ -211,3 +211,37 @@ keeps its original reader and low-level error behavior.
 Decode results preserve individual warnings (`ImgWarnings::iter`), and errors
 retain their original type, `ImgError::kind`, and `DecodeLimitExceeded` source.
 See [the compatibility notes](../docs/image-compat.md) for semantics and limits.
+
+
+## Mapped text and caret integration (`font`)
+
+The additive `mapped_text` module uses fontcore 0.0.19. Existing `path::GlyphRun`
+and `layout_text` APIs remain unchanged. `MappedTextLayout` retains an immutable
+paintcore render run **and** the original fontcore layout/mappings, avoiding the
+loss of source ranges during the old render-only conversion.
+
+- `shape` / `from_shaped`: single-direction mapped text (including pre-shaped
+  composite-font results); `shape_family`: family fallback with face provenance.
+- `shape_hard_lines`: explicit LF/CRLF lines, including empty/trailing lines.
+- `shape_bidi`: bounded horizontal BiDi paragraphs.
+- `shape_vertical_mixed_ltr`: fontcore's pre-transformed vertical mixed run.
+- `placed(x, y)`: use one baseline translation for both `draw`, `hit_test` and
+  `caret_positions`. Results retain UTF-8 position, affinity, quality and, where
+  applicable, line/group index. The render cache is built once.
+
+`source()` provides the original source objects. Single/vertical source ranges
+are global; hard-line ranges inside `shaped()` are line-local (add content start),
+and BiDi ranges inside a visual run are run-local (add run byte-range start).
+Caret results are always global in the original UTF-8 string. Do not treat these
+indices as JS UTF-16 offsets or glyph indices. Source envelopes are conservative,
+not exact scalar causality. A boundary may have multiple visual carets.
+
+Limitations are inherited rather than hidden: ligature-internal carets are
+approximate (GDEF is not used in 0.0.19); soft wrapping, some cross-run joining and
+upper-layout family fallback are unsupported. Mixed vertical is a single-face,
+single-column API. Nearest-caret testing is not glyph ink containment. The adapter
+supports translation only; zoom/rotation must be handled consistently by the
+caller. Non-finite or overflowing query coordinates return errors.
+
+This is a library integration, not a canvas editor or IME implementation. No
+paintcore release/version bump is included in this change.
