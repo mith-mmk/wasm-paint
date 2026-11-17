@@ -22,3 +22,6 @@ pub use crate::polygram::*;
 pub use crate::rect::*;
 pub use crate::spline::*;
 pub use crate::text::*;
+
+#[cfg(feature = "font")]
+pub use crate::mapped_text::*;
