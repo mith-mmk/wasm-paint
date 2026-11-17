@@ -1,0 +1,63 @@
+{
+  "primary_reference": "resvg 0.45.1",
+  "secondary_CairoSVG": "2.9.1",
+  "synthetic": true,
+  "results": [
+    {
+      "fixture": "fill-stroke-opacity.svg",
+      "rendered": true,
+      "cairo_mae": 4.78125,
+      "mae": 0.0,
+      "coverage_delta": 0,
+      "comparison_pass": true
+    },
+    {
+      "fixture": "group-clip-opacity.svg",
+      "rendered": true,
+      "cairo_mae": 0.019992828369140625,
+      "mae": 0.0105438232421875,
+      "coverage_delta": 0,
+      "comparison_pass": true
+    },
+    {
+      "fixture": "group-opacity-nested.svg",
+      "rendered": true,
+      "cairo_mae": 0.06687545776367188,
+      "mae": 0.12041854858398438,
+      "coverage_delta": 76,
+      "comparison_pass": true
+    },
+    {
+      "fixture": "group-opacity-overlap.svg",
+      "rendered": true,
+      "cairo_mae": 0.0,
+      "mae": 0.0,
+      "coverage_delta": 0,
+      "comparison_pass": true
+    },
+    {
+      "fixture": "use-clip-transform.svg",
+      "rendered": true,
+      "cairo_mae": 13.5625,
+      "mae": 0.03125,
+      "coverage_delta": 0,
+      "comparison_pass": true
+    },
+    {
+      "fixture": "use-opacity-gradient.svg",
+      "rendered": true,
+      "cairo_mae": 3.6982421875,
+      "mae": 0.1982421875,
+      "coverage_delta": 0,
+      "comparison_pass": true
+    },
+    {
+      "fixture": "use-style-transform.svg",
+      "rendered": true,
+      "cairo_mae": 0.00466156005859375,
+      "mae": 0.046146392822265625,
+      "coverage_delta": 26,
+      "comparison_pass": true
+    }
+  ]
+}

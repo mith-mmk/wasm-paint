@@ -139,3 +139,47 @@ any glyph in the run. Existing bitmap/decode failures are not transactional.
 
 Fontcore integration revision for the expanded sample:
 `7d04cb51acfc2ade5a0ce5a2e57401ae16243027`.
+
+## Fourth stage: isolated opacity and painted local use
+
+General local `use` of shapes, groups and other `use` elements now expands with
+inherited styles and correct instance transforms. External references, symbols,
+nested SVG viewports and unsupported content still fail explicitly. Expansion
+checks cycles and limits use depth to 32, tree depth to 128, visits to 16,384,
+paint nodes to 4,096 and geometry/gradient commands to 100,000 (including hidden
+geometry). Clip definitions retain the narrower third-stage subset.
+
+Group opacity, element fill+stroke opacity and clipped groups use isolated RGBA
+surfaces, then composite once. This follows SVG's object/group compositing model:
+https://www.w3.org/TR/SVG11/masking.html . No public command contract or production
+rendering crate was added. Preparation and scratch allocation happen before any
+SVG/run drawing. Isolation is limited to depth 16, 64 MiB simultaneous scratch,
+and 64 million cumulative full-canvas group pixels. These conservative limits
+can reject large canvases; bounded subregion surfaces remain future work.
+
+The sample is now **21 rendered / 23 inputs**: glasses, test tube and petri dish
+add real Noto group-opacity coverage; DTD dog/rocket remain rejected. All rendered
+Noto samples have RGBA MAE below 0.33/255 against CairoSVG. A separate scan of 100
+assets found these three group-opacity examples but no general painted `use`;
+this does not prove absence throughout Noto. See `noto-group-discovery.json`.
+
+Seven authored semantic fixtures cover overlapping/nested groups, fill+stroke,
+clipping and transformed/styled/nested `use`. The independent primary reference
+is pinned resvg 0.45.1 (test-only adapter, no production dependency). All pass:
+RGBA MAE at most 0.199/255, coverage delta at most 76 pixels at 256px. CairoSVG
+is also measured but differs on fill+stroke opacity, nested use opacity and
+use/clip translation; these disagreements are preserved in the results, not
+silently normalized away. Six fixtures additionally pass synthetic-SFNT →
+fontcore extraction → typed context → paintcore comparison. The overlap fixture
+has both legacy Path and SVG alternatives and matches exactly, verifying no
+duplicate painting. The seventh use/clip case is standalone renderer coverage.
+
+```sh
+python3 tools/run_svg_semantics.py docs/svg-probe/output/semantics --check
+```
+
+Remaining unsupported features include masks/filters, CSS, text/images, path
+arcs, rounded rects, nonuniform strokes, objectBoundingBox/multi-child/nested
+clip definitions and external resources. Unsupported features remain errors,
+not partial rendering. Fontcore integration SHA remains
+`7d04cb51acfc2ade5a0ce5a2e57401ae16243027`.

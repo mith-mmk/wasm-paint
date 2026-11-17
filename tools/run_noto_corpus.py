@@ -3,7 +3,7 @@
 Usage: run_noto_corpus.py FONTCORE_DIR OUTPUT_DIR [--download] [--check]
 Requires fontTools, CairoSVG, Pillow, cargo. Downloads only on explicit --download.
 Generated fonts, references and renderer outputs retain Noto's Apache-2.0 license.
-This samples 20 artworks, not the entire Noto corpus or official Noto SVG fonts.
+This samples pinned representative artworks, not the entire Noto corpus or official Noto SVG fonts.
 """
 import hashlib
 import json

@@ -2172,7 +2172,7 @@ pub struct SvgRenderTransform {
 fn prepare_svg_glyph(
     glyph: &PositionedGlyph,
     transform: Option<SvgRenderTransform>,
-) -> Result<Option<Vec<crate::svg_render::SvgPreparedLayer>>, Error> {
+) -> Result<Option<Vec<crate::svg_render::SvgPreparedNode>>, Error> {
     let svg: Vec<_> = glyph
         .glyph
         .layers
@@ -2226,7 +2226,15 @@ pub fn draw_svg_document(
     default_color: u32,
 ) -> Result<(), Error> {
     let layers = crate::svg_render::parse_document(document, transform.viewport_units_to_pixels)?;
-    draw_svg_layers(screen, &layers, origin_x, origin_y, default_color);
+    let mut scratch = svg_group_scratch(screen, std::iter::once(layers.as_slice()))?;
+    draw_svg_nodes(
+        screen,
+        &layers,
+        origin_x,
+        origin_y,
+        default_color,
+        &mut scratch,
+    );
     Ok(())
 }
 
@@ -2255,14 +2263,159 @@ pub fn draw_glyphs_with_svg_transforms(
         .zip(transforms)
         .map(|(g, t)| prepare_svg_glyph(g, *t))
         .collect::<Result<Vec<_>, _>>()?;
+    // Preflight all documents and allocate the maximum reusable group stack
+    // before an earlier glyph can change pixels.
+    let mut scratch = svg_group_scratch(screen, prepared.iter().filter_map(|p| p.as_deref()))?;
     for (index, glyph) in glyphs.glyphs.iter().enumerate() {
         if let Some(layers) = &prepared[index] {
-            draw_svg_layers(screen, layers, offset_x, offset_y, default_color);
+            draw_svg_nodes(
+                screen,
+                layers,
+                offset_x,
+                offset_y,
+                default_color,
+                &mut scratch,
+            );
         } else {
             draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)?;
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "svg-font")]
+fn svg_group_stats(nodes: &[crate::svg_render::SvgPreparedNode]) -> (usize, usize) {
+    let mut depth = 0;
+    let mut groups = 0;
+    for node in nodes {
+        if let crate::svg_render::SvgPreparedNode::Group { children, .. } = node {
+            let (child_depth, child_groups) = svg_group_stats(children);
+            depth = depth.max(child_depth + 1);
+            groups += child_groups + 1;
+        }
+    }
+    (depth, groups)
+}
+
+#[cfg(feature = "svg-font")]
+fn svg_group_scratch<'a>(
+    screen: &dyn Screen,
+    documents: impl IntoIterator<Item = &'a [crate::svg_render::SvgPreparedNode]>,
+) -> Result<Vec<Layer>, Error> {
+    const MAX_GROUP_DEPTH: usize = 16;
+    const MAX_SCRATCH_BYTES: u64 = 64 * 1024 * 1024;
+    const MAX_GROUP_PIXELS: u64 = 64 * 1024 * 1024;
+    let mut depth = 0;
+    let mut groups = 0u64;
+    for nodes in documents {
+        let (d, g) = svg_group_stats(nodes);
+        depth = depth.max(d);
+        groups = groups.saturating_add(g as u64);
+    }
+    let pixels = u64::from(screen.width()) * u64::from(screen.height());
+    let bytes = pixels.saturating_mul(4).saturating_mul(depth as u64);
+    if depth > MAX_GROUP_DEPTH
+        || bytes > MAX_SCRATCH_BYTES
+        || pixels.saturating_mul(groups) > MAX_GROUP_PIXELS
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "SVG isolated-group surface/depth/work budget exceeded",
+        )
+        .into());
+    }
+    let mut scratch = Vec::with_capacity(depth);
+    for _ in 0..depth {
+        scratch.push(Layer::try_new(
+            "svg-isolated-group".into(),
+            screen.width(),
+            screen.height(),
+        )?);
+    }
+    Ok(scratch)
+}
+
+#[cfg(feature = "svg-font")]
+fn svg_clip_mask(
+    screen: &dyn Screen,
+    clips: &[crate::svg_render::SvgPreparedClip],
+    offset_x: f32,
+    offset_y: f32,
+) -> Option<Mask> {
+    let mut mask: Option<Mask> = None;
+    for clip in clips {
+        let next = rasterize_path_mask(
+            &clip.commands,
+            screen.width(),
+            screen.height(),
+            offset_x,
+            offset_y,
+            clip.rule,
+        );
+        if let Some(current) = &mut mask {
+            for (a, b) in current.coverage_mut().iter_mut().zip(next.coverage()) {
+                *a = ((*a as u32 * *b as u32 + 127) / 255) as u8;
+            }
+        } else {
+            mask = Some(next);
+        }
+    }
+    mask
+}
+
+#[cfg(feature = "svg-font")]
+fn draw_svg_nodes(
+    screen: &mut dyn Screen,
+    nodes: &[crate::svg_render::SvgPreparedNode],
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+    scratch: &mut [Layer],
+) {
+    for node in nodes {
+        match node {
+            crate::svg_render::SvgPreparedNode::Paint(layer) => draw_svg_layers(
+                screen,
+                std::slice::from_ref(layer),
+                offset_x,
+                offset_y,
+                default_color,
+            ),
+            crate::svg_render::SvgPreparedNode::Group {
+                children,
+                opacity,
+                clips,
+            } => {
+                // Exact maximum depth was checked and allocated before drawing.
+                let (surface, remaining) = scratch
+                    .split_first_mut()
+                    .expect("preflighted SVG group depth");
+                surface.buffer_mut().fill(0);
+                draw_svg_nodes(
+                    surface,
+                    children,
+                    offset_x,
+                    offset_y,
+                    default_color,
+                    remaining,
+                );
+                let clip = svg_clip_mask(screen, clips, offset_x, offset_y);
+                crate::composite::composite_screen(
+                    surface,
+                    screen,
+                    0,
+                    0,
+                    DrawOptions {
+                        opacity: *opacity,
+                        clip_mask: clip
+                            .as_ref()
+                            .map(|m| crate::composite::ClipMask::new(m, 0, 0)),
+                        ..DrawOptions::default()
+                    },
+                );
+            }
+        }
+    }
 }
 
 #[cfg(feature = "svg-font")]
@@ -2287,24 +2440,7 @@ fn draw_svg_layers(
             }
             _ => {}
         }
-        let mut clip_mask: Option<Mask> = None;
-        for clip in &prepared.clips {
-            let next = rasterize_path_mask(
-                &clip.commands,
-                screen.width(),
-                screen.height(),
-                offset_x,
-                offset_y,
-                clip.rule,
-            );
-            if let Some(current) = &mut clip_mask {
-                for (a, b) in current.coverage_mut().iter_mut().zip(next.coverage()) {
-                    *a = ((*a as u32 * *b as u32 + 127) / 255) as u8;
-                }
-            } else {
-                clip_mask = Some(next);
-            }
-        }
+        let clip_mask = svg_clip_mask(screen, &prepared.clips, offset_x, offset_y);
         let options = DrawOptions {
             opacity: prepared.opacity,
             clip_mask: clip_mask

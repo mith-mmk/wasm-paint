@@ -140,17 +140,20 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                     k,
                     "transform" | "clipPathUnits" | "clip-rule" | "clip-path" | "style"
                 ),
-                "use" => matches!(
-                    k,
-                    "href"
-                        | "x"
-                        | "y"
-                        | "transform"
-                        | "clip-rule"
-                        | "clip-path"
-                        | "overflow"
-                        | "style"
-                ),
+                "use" => {
+                    graphics
+                        || matches!(
+                            k,
+                            "href"
+                                | "x"
+                                | "y"
+                                | "transform"
+                                | "clip-rule"
+                                | "clip-path"
+                                | "overflow"
+                                | "style"
+                        )
+                }
                 "radialGradient" => gradient || matches!(k, "cx" | "cy" | "r" | "fx" | "fy"),
                 "linearGradient" => gradient || matches!(k, "x1" | "y1" | "x2" | "y2"),
                 "stop" => matches!(k, "offset" | "stop-color" | "stop-opacity" | "style"),
@@ -220,7 +223,6 @@ struct State {
     rule: FillRule,
     stroke: String,
     stroke_style: StrokeStyle,
-    clips: std::sync::Arc<Vec<SvgPreparedClip>>,
 }
 /// Rendering-only state, deliberately not part of the public glyph command ABI.
 #[derive(Debug, Clone)]
@@ -234,6 +236,33 @@ pub(crate) struct SvgPreparedLayer {
 pub(crate) struct SvgPreparedClip {
     pub(crate) commands: Vec<Command>,
     pub(crate) rule: FillRule,
+}
+#[derive(Debug, Clone)]
+pub(crate) enum SvgPreparedNode {
+    Paint(SvgPreparedLayer),
+    Group {
+        children: Vec<SvgPreparedNode>,
+        opacity: f32,
+        clips: Vec<SvgPreparedClip>,
+    },
+}
+#[derive(Default)]
+struct ExpansionBudget {
+    visits: usize,
+    paints: usize,
+    commands: usize,
+}
+impl ExpansionBudget {
+    fn commands(&mut self, n: usize) -> Result<()> {
+        self.commands = self
+            .commands
+            .checked_add(n)
+            .ok_or_else(|| unsupported("expanded command overflow"))?;
+        if self.commands > 100_000 {
+            return Err(unsupported("expanded command limit"));
+        }
+        Ok(())
+    }
 }
 impl std::ops::Deref for SvgPreparedLayer {
     type Target = PathGlyphLayer;
@@ -649,6 +678,9 @@ fn clip<'a, 'i>(
     // clip-rule is inherited in the definition tree, unlike transforms.
     let mut inherited_rule = FillRule::NonZero;
     let ancestors: Vec<_> = n.ancestors().skip(1).filter(|n| n.is_element()).collect();
+    if ancestors.len() > 128 {
+        return Err(unsupported("clip definition nesting limit"));
+    }
     for ancestor in ancestors.into_iter().rev() {
         inherited_rule = clip_rule(&props(ancestor)?, inherited_rule)?;
     }
@@ -743,21 +775,28 @@ fn clip<'a, 'i>(
         rule,
     })
 }
-fn visit(
-    n: Node<'_, '_>,
-    state: &State,
-    ids: &HashMap<String, Node<'_, '_>>,
-    out: &mut Vec<SvgPreparedLayer>,
+fn visit<'a, 'i>(
+    n: Node<'a, 'i>,
+    inherited: &State,
+    ids: &HashMap<String, Node<'a, 'i>>,
+    out: &mut Vec<SvgPreparedNode>,
     depth: usize,
+    use_stack: &mut Vec<roxmltree::NodeId>,
+    budget: &mut ExpansionBudget,
 ) -> Result<()> {
     if depth > 128 {
         return Err(unsupported("element nesting limit"));
+    }
+    budget.visits += 1;
+    if budget.visits > 16_384 {
+        return Err(unsupported("expanded element limit"));
     }
     let tag = n.tag_name().name();
     if !matches!(
         tag,
         "svg"
             | "g"
+            | "use"
             | "path"
             | "circle"
             | "ellipse"
@@ -794,31 +833,32 @@ fn visit(
     {
         return Err(unsupported("SVG viewport position"));
     }
-    let mut state = state.clone();
+    let mut state = inherited.clone();
     state.matrix = mul(
         state.matrix,
         transform(p.get("transform").copied().unwrap_or(""))?,
     );
+    if tag == "use" {
+        let x = p.get("x").map(|v| number(v)).unwrap_or(Ok(0.))?;
+        let y = p.get("y").map(|v| number(v)).unwrap_or(Ok(0.))?;
+        state.matrix = mul(state.matrix, [1., 0., 0., 1., x, y]);
+        if p.get("overflow").is_some_and(|v| *v != "visible") {
+            return Err(unsupported("use viewport overflow"));
+        }
+    }
     if !state.matrix.iter().all(|n| n.is_finite() && n.abs() <= 1e7) {
         return Err(unsupported("cumulative transform limit"));
     }
+    let mut clips = Vec::new();
     if let Some(value) = p.get("clip-path").filter(|v| **v != "none") {
-        if state.clips.len() >= 16 {
-            return Err(unsupported("inherited clip depth limit"));
-        }
         let id = local_reference(value)?;
-        let prepared_clip = clip(
+        let c = clip(
             *ids.get(id).ok_or_else(|| unsupported("missing clipPath"))?,
             state.matrix,
             ids,
         )?;
-        if state.clips.iter().map(|c| c.commands.len()).sum::<usize>()
-            + prepared_clip.commands.len()
-            > 100_000
-        {
-            return Err(unsupported("inherited clip command limit"));
-        }
-        std::sync::Arc::make_mut(&mut state.clips).push(prepared_clip);
+        budget.commands(c.commands.len())?;
+        clips.push(c);
     }
     let opacity = p
         .get("opacity")
@@ -867,30 +907,24 @@ fn visit(
             _ => return Err(unsupported("fill-rule")),
         };
     }
+
     let geometry = matches!(
         tag,
         "path" | "circle" | "ellipse" | "rect" | "line" | "polyline" | "polygon"
     );
-    if opacity < 1.
-        && (!geometry
-            || (state.fill != "none"
-                && tag != "line"
-                && state.stroke != "none"
-                && state.stroke_style.width > 0.))
-    {
-        return Err(unsupported(
-            "opacity requires isolated group or fill+stroke compositing",
-        ));
-    }
-    if geometry
+    if (geometry || tag == "use")
         && n.children()
             .filter(|n| n.is_element())
             .any(|n| !matches!(n.tag_name().name(), "title" | "desc"))
     {
-        return Err(unsupported("rendering children inside path"));
+        return Err(unsupported("rendering children inside geometry/use"));
     }
+    let mut children = Vec::new();
     if geometry {
         let commands = shape(tag, &p, state.matrix)?;
+        // Charge even invisible geometry so repeated fill=none use expansion
+        // cannot evade the work budget.
+        budget.commands(commands.len())?;
         let paint_for = |value: &str| -> Result<GlyphPaint> {
             let value = value.trim();
             if value == "currentColor" {
@@ -909,25 +943,22 @@ fn visit(
             }
         };
         let mut add = |path: PathGlyphLayer, stroke_style: Option<StrokeStyle>| -> Result<()> {
-            if out.len() >= 4096 {
-                return Err(unsupported("painted layer limit"));
+            budget.paints += 1;
+            if budget.paints > 4096 {
+                return Err(unsupported("expanded paint limit"));
             }
-            let total: usize = out
-                .iter()
-                .map(|l| {
-                    l.path.commands.len() + l.clips.iter().map(|c| c.commands.len()).sum::<usize>()
-                })
-                .sum();
-            let clip_commands: usize = state.clips.iter().map(|c| c.commands.len()).sum();
-            if total + path.commands.len() + clip_commands > 100_000 {
-                return Err(unsupported("total path command limit"));
-            }
-            out.push(SvgPreparedLayer {
+            let stops = match &path.paint {
+                GlyphPaint::LinearGradient(g) => g.stops.len(),
+                GlyphPaint::RadialGradient(g) => g.stops.len(),
+                _ => 0,
+            };
+            budget.commands(path.commands.len() + stops)?;
+            children.push(SvgPreparedNode::Paint(SvgPreparedLayer {
                 path,
                 stroke_style,
-                clips: state.clips.as_ref().clone(),
-                opacity,
-            });
+                clips: Vec::new(),
+                opacity: 1.,
+            }));
             Ok(())
         };
         if !commands.is_empty() {
@@ -957,9 +988,66 @@ fn visit(
                 add(layer, Some(style))?;
             }
         }
+    } else if tag == "use" {
+        let id = p
+            .get("href")
+            .and_then(|v| v.strip_prefix('#'))
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| unsupported("external or missing use href"))?;
+        let target = *ids
+            .get(id)
+            .ok_or_else(|| unsupported("missing use target"))?;
+        if !matches!(
+            target.tag_name().name(),
+            "g" | "use" | "path" | "circle" | "ellipse" | "rect" | "line" | "polyline" | "polygon"
+        ) {
+            return Err(unsupported("use target must be group or geometry"));
+        }
+        if use_stack.len() >= 32 || use_stack.contains(&target.id()) {
+            return Err(unsupported("cyclic or deep use expansion"));
+        }
+        use_stack.push(target.id());
+        let result = visit(
+            target,
+            &state,
+            ids,
+            &mut children,
+            depth + 1,
+            use_stack,
+            budget,
+        );
+        use_stack.pop();
+        result?;
+    } else {
+        for child in n.children().filter(|n| n.is_element()) {
+            visit(
+                child,
+                &state,
+                ids,
+                &mut children,
+                depth + 1,
+                use_stack,
+                budget,
+            )?;
+        }
     }
-    for child in n.children().filter(|n| n.is_element()) {
-        visit(child, &state, ids, out, depth + 1)?;
+    // Only a single paint may absorb element opacity/clip. Containers and
+    // dual fill+stroke require an isolated boundary, including fractional clips.
+    if geometry && children.len() == 1 {
+        let SvgPreparedNode::Paint(mut layer) = children.pop().unwrap() else {
+            unreachable!()
+        };
+        layer.opacity = opacity;
+        layer.clips = clips;
+        out.push(SvgPreparedNode::Paint(layer));
+    } else if opacity < 1. || !clips.is_empty() {
+        out.push(SvgPreparedNode::Group {
+            children,
+            opacity,
+            clips,
+        });
+    } else {
+        out.extend(children);
     }
     Ok(())
 }
@@ -967,7 +1055,7 @@ fn visit(
 pub(crate) fn parse_document(
     document: &str,
     units_to_pixels: [f32; 6],
-) -> Result<Vec<SvgPreparedLayer>> {
+) -> Result<Vec<SvgPreparedNode>> {
     if document.len() > 4 * 1024 * 1024 {
         return Err(unsupported("document size limit"));
     }
@@ -1078,10 +1166,17 @@ pub(crate) fn parse_document(
         rule: FillRule::NonZero,
         stroke: "none".into(),
         stroke_style: StrokeStyle::default(),
-        clips: std::sync::Arc::new(Vec::new()),
     };
     let mut out = Vec::new();
-    visit(root, &state, &ids, &mut out, 0)?;
+    visit(
+        root,
+        &state,
+        &ids,
+        &mut out,
+        0,
+        &mut Vec::new(),
+        &mut ExpansionBudget::default(),
+    )?;
     Ok(out)
 }
 
@@ -1089,7 +1184,39 @@ pub(crate) fn parse_document(
 mod tests {
     use super::*;
     fn parse(layer: &SvgGlyphLayer) -> Result<Vec<SvgPreparedLayer>> {
-        parse_document(&layer.document, [2., 0., 0., 2., 0., 0.])
+        fn flatten(
+            nodes: Vec<SvgPreparedNode>,
+            clips: Vec<SvgPreparedClip>,
+            opacity: f32,
+            out: &mut Vec<SvgPreparedLayer>,
+        ) {
+            for node in nodes {
+                match node {
+                    SvgPreparedNode::Paint(mut p) => {
+                        p.clips.splice(0..0, clips.clone());
+                        p.opacity *= opacity;
+                        out.push(p);
+                    }
+                    SvgPreparedNode::Group {
+                        children,
+                        clips: local,
+                        opacity: o,
+                    } => {
+                        let mut c = clips.clone();
+                        c.extend(local);
+                        flatten(children, c, opacity * o, out);
+                    }
+                }
+            }
+        }
+        let mut out = Vec::new();
+        flatten(
+            parse_document(&layer.document, [2., 0., 0., 2., 0., 0.])?,
+            Vec::new(),
+            1.,
+            &mut out,
+        );
+        Ok(out)
     }
     fn svg(body: &str) -> SvgGlyphLayer {
         SvgGlyphLayer {
@@ -1210,7 +1337,10 @@ mod tests {
         assert_eq!(layers[0].clips[0].rule, FillRule::EvenOdd);
         let source="<svg viewBox='0 0 10 10' clip-rule='evenodd'><clipPath id='c'><rect width='2' height='2'/></clipPath><rect width='5' height='5' clip-path='url(#c)'/></svg>";
         assert_eq!(
-            parse_document(source, ID).unwrap()[0].clips[0].rule,
+            match &parse_document(source, ID).unwrap()[0] {
+                SvgPreparedNode::Paint(p) => p.clips[0].rule,
+                _ => panic!("expected paint"),
+            },
             FillRule::EvenOdd
         );
     }
@@ -1226,15 +1356,85 @@ mod tests {
         ] {assert!(parse(&svg(&format!("{definition}<rect width='2' height='2' clip-path='url(#c)'/>"))).is_err());}
     }
     #[test]
-    fn leaf_opacity_does_not_leak_and_group_or_dual_paint_opacity_is_rejected() {
+    fn leaf_opacity_does_not_leak_and_isolated_groups_are_accepted() {
         let layers=parse(&svg("<path d='M0 0 L1 0 L1 1 Z' opacity='.5'/><rect width='2' height='2'/><line x2='2' stroke='red' opacity='.25'/>")).unwrap();
         assert_eq!(layers[0].opacity, 0.5);
         assert_eq!(layers[1].opacity, 1.);
         assert_eq!(layers[2].opacity, 0.25);
-        assert!(parse(&svg("<g opacity='.5'><rect width='2' height='2'/></g>")).is_err());
+        assert!(parse(&svg("<g opacity='.5'><rect width='2' height='2'/></g>")).is_ok());
         assert!(parse(&svg(
             "<rect width='2' height='2' stroke='red' opacity='.5'/>"
         ))
-        .is_err());
+        .is_ok());
+    }
+    #[test]
+    fn group_clip_and_opacity_are_single_boundaries_not_child_effects() {
+        let source="<svg viewBox='0 0 10 10'><clipPath id='c'><rect width='5' height='5'/></clipPath><g clip-path='url(#c)' opacity='.5'><rect width='5' height='5'/><rect x='2' width='5' height='5'/></g></svg>";
+        let nodes = parse_document(source, ID).unwrap();
+        let SvgPreparedNode::Group {
+            children,
+            opacity,
+            clips,
+        } = &nodes[0]
+        else {
+            panic!("expected isolated group")
+        };
+        assert_eq!(*opacity, 0.5);
+        assert_eq!(clips.len(), 1);
+        assert_eq!(children.len(), 2);
+        for node in children {
+            let SvgPreparedNode::Paint(p) = node else {
+                panic!("expected paint")
+            };
+            assert_eq!(p.opacity, 1.);
+            assert!(p.clips.is_empty());
+        }
+    }
+    #[test]
+    fn dual_fill_stroke_opacity_is_isolated() {
+        let nodes=parse_document("<svg viewBox='0 0 10 10'><rect width='5' height='5' fill='red' stroke='blue' opacity='.5'/></svg>",ID).unwrap();
+        let SvgPreparedNode::Group {
+            children, opacity, ..
+        } = &nodes[0]
+        else {
+            panic!("expected group")
+        };
+        assert_eq!(*opacity, 0.5);
+        assert_eq!(children.len(), 2);
+    }
+    #[test]
+    fn local_use_transform_and_inherited_style_follow_shadow_tree_order() {
+        let source="<svg viewBox='0 0 10 10'><defs><g id='s' transform='translate(1 0)'><rect width='1' height='1'/><rect x='2' width='1' height='1' fill='blue'/></g></defs><use href='#s' x='3' transform='scale(2)' fill='red'/></svg>";
+        let nodes = parse_document(source, ID).unwrap();
+        let SvgPreparedNode::Paint(a) = &nodes[0] else {
+            panic!("expected paint")
+        };
+        let SvgPreparedNode::Paint(b) = &nodes[1] else {
+            panic!("expected paint")
+        };
+        assert!(matches!(a.path.commands[0], Command::MoveTo(8., 0.)));
+        assert!(matches!(a.path.paint, GlyphPaint::Solid(0xffff0000)));
+        assert!(matches!(b.path.paint, GlyphPaint::Solid(0xff0000ff)));
+    }
+    #[test]
+    fn general_use_cycles_external_and_exponential_expansion_are_bounded() {
+        for source in [
+            "<g id='a'><use href='#a'/></g>",
+            "<use href='https://example.com/a'/>",
+            "<symbol id='s'/><use href='#s'/>",
+            "<defs><svg id='s' viewBox='0 0 1 1'/></defs><use href='#s'/>",
+        ] {
+            assert!(parse(&svg(source)).is_err());
+        }
+        let mut source = String::from("<defs><g id='a0'><rect width='1' height='1'/></g>");
+        for i in 1..20 {
+            source.push_str(&format!(
+                "<g id='a{i}'><use href='#a{}'/><use href='#a{}'/></g>",
+                i - 1,
+                i - 1
+            ));
+        }
+        source.push_str("</defs><use href='#a19'/>");
+        assert!(parse(&svg(&source)).is_err());
     }
 }
