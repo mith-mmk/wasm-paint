@@ -1,5 +1,8 @@
 # OpenType SVG extraction → paintcore probe
 
+For the subsequent bounded renderer and typed-coordinate E2E path, see
+[RENDERER.md](RENDERER.md). The baseline failure measurements below are historical.
+
 This is a **failure-reproduction harness**, not a claim of SVG support. It uses
 fontcore's public load → shape → GlyphRun conversion → paintcore draw path.
 The synthetic font cmap maps A to glyph 5; VS16 selects the color presentation.

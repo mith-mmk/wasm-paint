@@ -38,6 +38,8 @@ pub mod point;
 pub mod polygram;
 pub mod rect;
 pub mod spline;
+#[cfg(feature = "svg-font")]
+mod svg_render;
 pub mod text;
 pub mod utils;
 

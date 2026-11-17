@@ -2150,31 +2150,147 @@ fn draw_raster_layer(
     Ok(())
 }
 
+/// Explicit SVG viewport-unit to positioned-run pixel transform, including the
+/// glyph origin and SVG layer offsets exactly once. Never inferred from glyph
+/// advance/ascender bounds or from untrusted data attributes inside the SVG.
 #[cfg(feature = "svg-font")]
-fn unsupported_svg() -> Error {
-    std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "raw SVG glyph rendering is not implemented; use a supported SVG renderer",
-    )
-    .into()
+#[derive(Debug, Clone, Copy)]
+pub struct SvgRenderTransform {
+    pub viewport_units_to_pixels: [f32; 6],
 }
 
 #[cfg(feature = "svg-font")]
-fn validate_svg_layers(glyph: &Glyph) -> Result<(), Error> {
-    // A raw layer can be the full-fidelity alternative to preceding Path layers.
-    // Do not draw those partial paths, or later double-paint both alternatives.
-    if glyph
+fn prepare_svg_glyph(
+    glyph: &PositionedGlyph,
+    transform: Option<SvgRenderTransform>,
+) -> Result<Option<PositionedGlyph>, Error> {
+    let svg: Vec<_> = glyph
+        .glyph
         .layers
         .iter()
-        .any(|layer| matches!(layer, GlyphLayer::Svg(_)))
+        .filter_map(|l| {
+            if let GlyphLayer::Svg(svg) = l {
+                Some(svg)
+            } else {
+                None
+            }
+        })
+        .collect();
+    if svg.is_empty() {
+        return Ok(None);
+    }
+    let transform = transform.ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "raw SVG requires an explicit viewport-unit to pixel transform",
+        )
+    })?;
+    if svg.len() != 1
+        || glyph
+            .glyph
+            .layers
+            .iter()
+            .any(|l| matches!(l, GlyphLayer::Raster(_)))
     {
-        return Err(unsupported_svg());
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "ambiguous mixed SVG glyph representation",
+        )
+        .into());
+    }
+    let matrix = transform.viewport_units_to_pixels;
+    let layers = crate::svg_render::parse_document(&svg[0].document, matrix)?
+        .into_iter()
+        .map(GlyphLayer::Path)
+        .collect();
+    Ok(Some(PositionedGlyph::new(Glyph::new(layers), 0.0, 0.0)))
+}
+
+/// Render a standalone SVG with an explicit viewport-unit to pixel transform.
+/// SVG viewBox/width/height are resolved first, then this transform, then origin.
+#[cfg(feature = "svg-font")]
+pub fn draw_svg_document(
+    screen: &mut dyn Screen,
+    document: &str,
+    transform: SvgRenderTransform,
+    origin_x: f32,
+    origin_y: f32,
+    default_color: u32,
+) -> Result<(), Error> {
+    let layers = crate::svg_render::parse_document(document, transform.viewport_units_to_pixels)?;
+    for layer in &layers {
+        draw_path_layer(screen, layer, origin_x, origin_y, default_color);
     }
     Ok(())
 }
 
-/// Draw one glyph. With `svg-font`, raw SVG layers are rejected before any pixels
-/// are changed, including when accompanied by an approximate Path fallback.
+/// Draw a run with caller-provided SVG placement, one entry per positioned glyph.
+/// A raw SVG replaces its approximate Path layers. All SVGs are validated before
+/// drawing. Existing glyph bounds are not reinterpreted as SVG viewport metadata.
+#[cfg(feature = "svg-font")]
+pub fn draw_glyphs_with_svg_transforms(
+    screen: &mut dyn Screen,
+    glyphs: &GlyphRun,
+    transforms: &[Option<SvgRenderTransform>],
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+) -> Result<(), Error> {
+    if transforms.len() != glyphs.glyphs.len() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "one SVG transform entry is required per glyph",
+        )
+        .into());
+    }
+    let prepared = glyphs
+        .glyphs
+        .iter()
+        .zip(transforms)
+        .map(|(g, t)| prepare_svg_glyph(g, *t))
+        .collect::<Result<Vec<_>, _>>()?;
+    for (index, glyph) in glyphs.glyphs.iter().enumerate() {
+        draw_prepared_glyph(
+            screen,
+            prepared[index].as_ref().unwrap_or(glyph),
+            offset_x,
+            offset_y,
+            default_color,
+        )?;
+    }
+    Ok(())
+}
+
+fn draw_prepared_glyph(
+    screen: &mut dyn Screen,
+    glyph: &PositionedGlyph,
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+) -> Result<(), Error> {
+    let origin_x = glyph.x + offset_x;
+    let origin_y = glyph.y + offset_y;
+    for layer in &glyph.glyph.layers {
+        match layer {
+            GlyphLayer::Path(layer) => {
+                draw_path_layer(screen, layer, origin_x, origin_y, default_color)
+            }
+            GlyphLayer::Raster(layer) => draw_raster_layer(screen, layer, origin_x, origin_y)?,
+            #[cfg(feature = "svg-font")]
+            GlyphLayer::Svg(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "SVG glyph was not prepared",
+                )
+                .into())
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Draw one legacy glyph. Raw SVG is rejected before changing destination pixels.
+/// Raw SVG needs the separate explicit-transform API; legacy bounds are ambiguous.
 pub fn draw_glyph(
     screen: &mut dyn Screen,
     glyph: &PositionedGlyph,
@@ -2183,35 +2299,19 @@ pub fn draw_glyph(
     default_color: u32,
 ) -> Result<(), Error> {
     #[cfg(feature = "svg-font")]
-    validate_svg_layers(&glyph.glyph)?;
-    let origin_x = glyph.x + offset_x;
-    let origin_y = glyph.y + offset_y;
-
-    for layer in &glyph.glyph.layers {
-        match layer {
-            GlyphLayer::Path(layer) => {
-                draw_path_layer(screen, layer, origin_x, origin_y, default_color)
-            }
-            GlyphLayer::Raster(layer) => draw_raster_layer(screen, layer, origin_x, origin_y)?,
-            #[cfg(feature = "svg-font")]
-            GlyphLayer::Svg(_) => return Err(unsupported_svg()),
-        }
-    }
-
-    Ok(())
+    let prepared = prepare_svg_glyph(glyph, None)?;
+    #[cfg(feature = "svg-font")]
+    let glyph = prepared.as_ref().unwrap_or(glyph);
+    draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)
 }
 
 /// Draws parsed glyphs prepared by the font parser.
 ///
-/// With `svg-font`, the entire run is checked for raw SVG before drawing. Such a
-/// run returns an `Unsupported` I/O error without changing the destination. This
-/// is not a general transaction guarantee for unrelated raster/decode errors.
-///
-/// The parser is responsible for:
-/// - converting font units into pixel space
-/// - resolving fallback fonts
-/// - converting SVG glyph payloads into `PathGlyphLayer`s
-/// - leaving PNG or other bitmap glyph payloads as `RasterGlyphLayer`s
+/// With `svg-font`, raw SVG is rejected before drawing. Use the separate
+/// explicit-transform API for supported SVG. This is not a
+/// transaction guarantee for unrelated raster/decode errors.
+/// The font parser supplies pixel-space outlines, metrics and bitmap payloads;
+/// paintcore handles its supported subset of raw SVG payloads privately.
 pub fn draw_glyphs(
     screen: &mut dyn Screen,
     glyphs: &GlyphRun,
@@ -2220,11 +2320,17 @@ pub fn draw_glyphs(
     default_color: u32,
 ) -> Result<(), Error> {
     #[cfg(feature = "svg-font")]
-    for glyph in &glyphs.glyphs {
-        validate_svg_layers(&glyph.glyph)?;
-    }
-    for glyph in &glyphs.glyphs {
-        draw_glyph(screen, glyph, offset_x, offset_y, default_color)?;
+    let prepared = glyphs
+        .glyphs
+        .iter()
+        .map(|g| prepare_svg_glyph(g, None))
+        .collect::<Result<Vec<_>, _>>()?;
+    for (index, glyph) in glyphs.glyphs.iter().enumerate() {
+        #[cfg(feature = "svg-font")]
+        let glyph = prepared[index].as_ref().unwrap_or(glyph);
+        #[cfg(not(feature = "svg-font"))]
+        let _ = index;
+        draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)?;
     }
     Ok(())
 }

@@ -37,6 +37,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let mut canvas = Layer::tmp(256, 256);
         let result = draw_glyphs(&mut canvas, &selected, 0.0, y, 0xff00_0000);
+        if let Err(error) = &result {
+            eprintln!("{kind}: {error}");
+        }
         let painted = canvas
             .buffer()
             .chunks_exact(4)
