@@ -71,15 +71,42 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
     let mut p = HashMap::new();
     for a in n.attributes() {
         let k = a.name();
-        if a.namespace().is_some() {
+        if a.namespace() == Some("http://www.w3.org/XML/1998/namespace")
+            && k == "space"
+            && matches!(a.value(), "preserve" | "default")
+        {
+            continue;
+        }
+        if n.tag_name().name() == "svg"
+            && k == "version"
+            && matches!(a.value(), "1.0" | "1.1" | "2.0")
+        {
+            continue;
+        }
+        if a.namespace().is_some()
+            && !(a.namespace() == Some("http://www.w3.org/1999/xlink")
+                && k == "href"
+                && matches!(n.tag_name().name(), "linearGradient" | "radialGradient"))
+        {
             return Err(unsupported("namespaced attribute"));
         }
         let shared = matches!(k, "id" | "data-name");
         let graphics = matches!(
             k,
-            "transform" | "fill" | "fill-rule" | "stroke" | "stroke-width" | "style"
+            "transform"
+                | "fill"
+                | "fill-rule"
+                | "stroke"
+                | "stroke-width"
+                | "stroke-linecap"
+                | "stroke-linejoin"
+                | "stroke-miterlimit"
+                | "style"
         );
-        let gradient = matches!(k, "gradientUnits" | "gradientTransform" | "spreadMethod");
+        let gradient = matches!(
+            k,
+            "gradientUnits" | "gradientTransform" | "spreadMethod" | "href"
+        );
         let allowed = shared
             || match n.tag_name().name() {
                 "svg" => {
@@ -97,6 +124,11 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                 }
                 "g" => graphics,
                 "path" => graphics || k == "d",
+                "circle" => graphics || matches!(k, "cx" | "cy" | "r"),
+                "ellipse" => graphics || matches!(k, "cx" | "cy" | "rx" | "ry"),
+                "rect" => graphics || matches!(k, "x" | "y" | "width" | "height" | "rx" | "ry"),
+                "line" => graphics || matches!(k, "x1" | "y1" | "x2" | "y2"),
+                "polyline" | "polygon" => graphics || k == "points",
                 "defs" => false,
                 "radialGradient" => gradient || matches!(k, "cx" | "cy" | "r" | "fx" | "fy"),
                 "linearGradient" => gradient || matches!(k, "x1" | "y1" | "x2" | "y2"),
@@ -109,6 +141,9 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                 n.tag_name().name()
             )));
         }
+        if k == "href" && p.contains_key(k) {
+            return Err(unsupported("ambiguous gradient href"));
+        }
         p.insert(k, a.value());
     }
     if let Some(style) = n.attribute("style") {
@@ -117,10 +152,31 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                 .split_once(':')
                 .ok_or_else(|| unsupported("malformed style"))?;
             let k = k.trim();
+            // Background capture affects filter compositing only. Filters and text
+            // are unsupported, so these producer hints cannot affect this subset.
+            if k == "enable-background" {
+                let tokens: Vec<_> = v.split_whitespace().collect();
+                if tokens.first() == Some(&"new")
+                    && (tokens.len() == 1
+                        || (tokens.len() == 5 && tokens[1..].iter().all(|s| number(s).is_ok())))
+                {
+                    continue;
+                }
+                return Err(unsupported("enable-background value"));
+            }
             if !(if n.tag_name().name() == "stop" {
                 matches!(k, "stop-color" | "stop-opacity")
             } else {
-                matches!(k, "fill" | "fill-rule" | "stroke" | "stroke-width")
+                matches!(
+                    k,
+                    "fill"
+                        | "fill-rule"
+                        | "stroke"
+                        | "stroke-width"
+                        | "stroke-linecap"
+                        | "stroke-linejoin"
+                        | "stroke-miterlimit"
+                )
             }) {
                 return Err(unsupported(&format!("style {k}")));
             }
@@ -135,6 +191,19 @@ struct State {
     fill: String,
     rule: FillRule,
     stroke: String,
+    stroke_style: StrokeStyle,
+}
+/// Rendering-only state, deliberately not part of the public glyph command ABI.
+#[derive(Debug, Clone)]
+pub(crate) struct SvgPreparedLayer {
+    pub(crate) path: PathGlyphLayer,
+    pub(crate) stroke_style: Option<StrokeStyle>,
+}
+impl std::ops::Deref for SvgPreparedLayer {
+    type Target = PathGlyphLayer;
+    fn deref(&self) -> &Self::Target {
+        &self.path
+    }
 }
 fn path(data: &str, m: Matrix) -> Result<Vec<Command>> {
     use svgtypes::PathSegment::*;
@@ -254,8 +323,133 @@ fn path(data: &str, m: Matrix) -> Result<Vec<Command>> {
     }
     Ok(out)
 }
-fn gradient(n: Node<'_, '_>, m: Matrix) -> Result<GlyphPaint> {
-    let p = props(n)?;
+
+fn shape(tag: &str, p: &HashMap<&str, &str>, m: Matrix) -> Result<Vec<Command>> {
+    let get = |k: &str, default: f32| p.get(k).map(|v| number(v)).unwrap_or(Ok(default));
+    if tag == "path" {
+        return path(p.get("d").copied().unwrap_or(""), m);
+    }
+    let data = match tag {
+        "line" => format!(
+            "M{} {} L{} {}",
+            get("x1", 0.)?,
+            get("y1", 0.)?,
+            get("x2", 0.)?,
+            get("y2", 0.)?
+        ),
+        "rect" => {
+            let x = get("x", 0.)?;
+            let y = get("y", 0.)?;
+            let w = get("width", 0.)?;
+            let h = get("height", 0.)?;
+            if w < 0. || h < 0. {
+                return Err(unsupported("negative rectangle dimensions"));
+            }
+            if get("rx", 0.)? != 0. || get("ry", 0.)? != 0. {
+                return Err(unsupported("rounded rectangles"));
+            }
+            if w == 0. || h == 0. {
+                return Ok(Vec::new());
+            }
+            format!("M{x} {y} h{w} v{h} h{} Z", -w)
+        }
+        "circle" | "ellipse" => {
+            let cx = get("cx", 0.)?;
+            let cy = get("cy", 0.)?;
+            let rx = if tag == "circle" {
+                get("r", 0.)?
+            } else {
+                get("rx", 0.)?
+            };
+            let ry = if tag == "circle" { rx } else { get("ry", 0.)? };
+            if rx < 0. || ry < 0. {
+                return Err(unsupported("negative ellipse radius"));
+            }
+            if rx == 0. || ry == 0. {
+                return Ok(Vec::new());
+            }
+            let k = 0.5522848;
+            let dx = k * rx;
+            let dy = k * ry;
+            format!("M{} {cy} C{} {} {} {} {cx} {} C{} {} {} {} {} {cy} C{} {} {} {} {cx} {} C{} {} {} {} {} {cy} Z",cx+rx,cx+rx,cy+dy,cx+dx,cy+ry,cy+ry,cx-dx,cy+ry,cx-rx,cy+dy,cx-rx,cx-rx,cy-dy,cx-dx,cy-ry,cy-ry,cx+dx,cy-ry,cx+rx,cy-dy,cx+rx)
+        }
+        "polyline" | "polygon" => {
+            let values: Vec<_> =
+                svgtypes::NumberListParser::from(p.get("points").copied().unwrap_or(""))
+                    .collect::<std::result::Result<_, _>>()
+                    .map_err(|_| unsupported("invalid polygon points"))?;
+            if values.len() % 2 != 0 || values.len() > 200_000 {
+                return Err(unsupported("invalid or excessive polygon points"));
+            }
+            if values.is_empty() {
+                return Ok(Vec::new());
+            }
+            let mut d = String::new();
+            for (i, p) in values.chunks_exact(2).enumerate() {
+                d.push_str(&format!(
+                    "{}{} {} ",
+                    if i == 0 { "M" } else { "L" },
+                    p[0],
+                    p[1]
+                ));
+            }
+            if tag == "polygon" {
+                d.push('Z');
+            }
+            d
+        }
+        _ => return Err(unsupported("shape")),
+    };
+    path(&data, m)
+}
+
+fn gradient<'a, 'i>(
+    n: Node<'a, 'i>,
+    m: Matrix,
+    ids: &HashMap<String, Node<'a, 'i>>,
+) -> Result<GlyphPaint> {
+    let mut chain = Vec::new();
+    let mut current = n;
+    loop {
+        if chain.len() >= 32 || chain.iter().any(|v: &Node<'a, 'i>| v.id() == current.id()) {
+            return Err(unsupported("cyclic or deep gradient inheritance"));
+        }
+        if !matches!(
+            current.tag_name().name(),
+            "linearGradient" | "radialGradient"
+        ) {
+            return Err(unsupported("gradient href target"));
+        }
+        if current
+            .children()
+            .filter(|n| n.is_element())
+            .any(|n| n.tag_name().name() != "stop")
+        {
+            return Err(unsupported("gradient child"));
+        }
+        chain.push(current);
+        let p = props(current)?;
+        match p.get("href") {
+            Some(href) => {
+                let id = href
+                    .strip_prefix('#')
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| unsupported("external gradient href"))?;
+                current = *ids
+                    .get(id)
+                    .ok_or_else(|| unsupported("missing gradient href"))?;
+            }
+            None => break,
+        }
+    }
+    let mut p = HashMap::new();
+    for node in chain.iter().rev() {
+        p.extend(props(*node)?);
+    }
+    let stops_node = chain
+        .iter()
+        .find(|node| node.children().any(|n| n.is_element()))
+        .copied();
     if p.get("gradientUnits").copied() != Some("userSpaceOnUse") {
         return Err(unsupported("only userSpaceOnUse gradients are implemented"));
     }
@@ -263,7 +457,11 @@ fn gradient(n: Node<'_, '_>, m: Matrix) -> Result<GlyphPaint> {
         p.get(k).map(|v| number(v)).unwrap_or(Ok(default))
     };
     let mut stops = Vec::new();
-    for child in n.children().filter(|n| n.is_element()) {
+    for child in stops_node
+        .into_iter()
+        .flat_map(|node| node.children())
+        .filter(|n| n.is_element())
+    {
         if child.tag_name().name() != "stop" {
             return Err(unsupported("gradient child"));
         }
@@ -280,12 +478,22 @@ fn gradient(n: Node<'_, '_>, m: Matrix) -> Result<GlyphPaint> {
         let offset = offset
             .clamp(0., 1.)
             .max(stops.last().map(|s: &GradientStop| s.offset).unwrap_or(0.));
-        if s.get("stop-opacity").is_some_and(|s| *s != "1") {
-            return Err(unsupported("stop-opacity"));
+        let opacity = match s.get("stop-opacity") {
+            Some(v) => {
+                if let Some(v) = v.strip_suffix('%') {
+                    number(v)? / 100.
+                } else {
+                    number(v)?
+                }
+            }
+            None => 1.,
         }
+        .clamp(0., 1.);
+        let value = color(s.get("stop-color").copied().unwrap_or("black"))?;
+        let alpha = (((value >> 24) as f32) * opacity).round() as u32;
         stops.push(GradientStop {
             offset,
-            color: color(s.get("stop-color").copied().unwrap_or("black"))?,
+            color: (value & 0x00ff_ffff) | (alpha << 24),
         });
     }
     if stops.is_empty() {
@@ -360,21 +568,37 @@ fn visit(
     n: Node<'_, '_>,
     state: &State,
     ids: &HashMap<String, Node<'_, '_>>,
-    out: &mut Vec<PathGlyphLayer>,
+    out: &mut Vec<SvgPreparedLayer>,
     depth: usize,
 ) -> Result<()> {
     if depth > 128 {
         return Err(unsupported("element nesting limit"));
     }
     let tag = n.tag_name().name();
-    if !matches!(tag, "svg" | "g" | "path" | "defs" | "title" | "desc") {
+    if !matches!(
+        tag,
+        "svg"
+            | "g"
+            | "path"
+            | "circle"
+            | "ellipse"
+            | "rect"
+            | "line"
+            | "polyline"
+            | "polygon"
+            | "defs"
+            | "title"
+            | "desc"
+            | "linearGradient"
+            | "radialGradient"
+    ) {
         return Err(unsupported(&format!("element {tag}")));
     }
     if matches!(tag, "title" | "desc") {
         return Ok(());
     }
     let p = props(n)?;
-    if tag == "defs" {
+    if matches!(tag, "defs" | "linearGradient" | "radialGradient") {
         return Ok(());
     }
     if tag == "svg" && depth != 0 {
@@ -383,7 +607,7 @@ fn visit(
     if tag == "svg"
         && ["x", "y"]
             .iter()
-            .any(|k| p.get(k).is_some_and(|s| *s != "0"))
+            .any(|k| p.get(k).is_some_and(|s| !matches!(*s, "0" | "0px")))
     {
         return Err(unsupported("SVG viewport position"));
     }
@@ -401,9 +625,35 @@ fn visit(
     if let Some(stroke) = p.get("stroke") {
         state.stroke = stroke.to_string();
     }
-    if state.stroke != "none" {
-        return Err(unsupported("stroke painting"));
+    if let Some(v) = p.get("stroke-width") {
+        state.stroke_style.width = number(v)?;
+        if state.stroke_style.width < 0. {
+            return Err(unsupported("negative stroke width"));
+        }
     }
+    if let Some(v) = p.get("stroke-linecap") {
+        state.stroke_style.cap = match *v {
+            "butt" => StrokeCap::Butt,
+            "round" => StrokeCap::Round,
+            "square" => StrokeCap::Square,
+            _ => return Err(unsupported("stroke-linecap")),
+        };
+    }
+    if let Some(v) = p.get("stroke-linejoin") {
+        state.stroke_style.join = match *v {
+            "miter" => StrokeJoin::Miter,
+            "round" => StrokeJoin::Round,
+            "bevel" => StrokeJoin::Bevel,
+            _ => return Err(unsupported("stroke-linejoin")),
+        };
+    }
+    if let Some(v) = p.get("stroke-miterlimit") {
+        state.stroke_style.miter_limit = number(v)?;
+        if state.stroke_style.miter_limit < 1. {
+            return Err(unsupported("stroke-miterlimit below one"));
+        }
+    }
+
     if let Some(rule) = p.get("fill-rule") {
         state.rule = match *rule {
             "nonzero" => FillRule::NonZero,
@@ -411,37 +661,73 @@ fn visit(
             _ => return Err(unsupported("fill-rule")),
         };
     }
-    if tag == "path"
+    let geometry = matches!(
+        tag,
+        "path" | "circle" | "ellipse" | "rect" | "line" | "polyline" | "polygon"
+    );
+    if geometry
         && n.children()
             .filter(|n| n.is_element())
             .any(|n| !matches!(n.tag_name().name(), "title" | "desc"))
     {
         return Err(unsupported("rendering children inside path"));
     }
-    if tag == "path" {
-        let commands = path(p.get("d").copied().unwrap_or(""), state.matrix)?;
-        if state.fill != "none" && !commands.is_empty() {
-            let fill = state.fill.trim();
-            let paint = if fill == "currentColor" {
-                GlyphPaint::CurrentColor
-            } else if let Some(id) = fill.strip_prefix("url(#").and_then(|s| s.strip_suffix(')')) {
+    if geometry {
+        let commands = shape(tag, &p, state.matrix)?;
+        let paint_for = |value: &str| -> Result<GlyphPaint> {
+            let value = value.trim();
+            if value == "currentColor" {
+                Ok(GlyphPaint::CurrentColor)
+            } else if let Some(id) = value
+                .strip_prefix("url(#")
+                .and_then(|s| s.strip_suffix(')'))
+            {
                 gradient(
                     *ids.get(id).ok_or_else(|| unsupported("missing gradient"))?,
                     state.matrix,
-                )?
+                    ids,
+                )
             } else {
-                GlyphPaint::Solid(color(fill)?)
-            };
+                Ok(GlyphPaint::Solid(color(value)?))
+            }
+        };
+        let mut add = |path: PathGlyphLayer, stroke_style: Option<StrokeStyle>| -> Result<()> {
             if out.len() >= 4096 {
                 return Err(unsupported("painted layer limit"));
             }
-            let total: usize = out.iter().map(|l| l.commands.len()).sum();
-            if total + commands.len() > 100_000 {
+            let total: usize = out.iter().map(|l| l.path.commands.len()).sum();
+            if total + path.commands.len() > 100_000 {
                 return Err(unsupported("total path command limit"));
             }
-            let mut layer = PathGlyphLayer::new(commands, paint);
-            layer.fill_rule = state.rule;
-            out.push(layer);
+            out.push(SvgPreparedLayer { path, stroke_style });
+            Ok(())
+        };
+        if !commands.is_empty() {
+            if state.fill != "none" && tag != "line" {
+                let mut layer = PathGlyphLayer::new(commands.clone(), paint_for(&state.fill)?);
+                layer.fill_rule = state.rule;
+                add(layer, None)?;
+            }
+            if state.stroke != "none" && state.stroke_style.width > 0. {
+                let m = state.matrix;
+                let sx = m[0].hypot(m[1]);
+                let sy = m[2].hypot(m[3]);
+                let dot = m[0] * m[2] + m[1] * m[3];
+                if sx <= f32::EPSILON
+                    || (sx - sy).abs() > 1e-5 * sx.max(sy)
+                    || dot.abs() > 1e-5 * sx * sy
+                {
+                    return Err(unsupported("nonuniform or skewed stroke transform"));
+                }
+                let mut style = state.stroke_style.clone();
+                style.width *= sx;
+                if !style.width.is_finite() || style.width > 1e7 {
+                    return Err(unsupported("excessive transformed stroke width"));
+                }
+                let layer =
+                    PathGlyphLayer::stroke(commands, paint_for(&state.stroke)?, style.width);
+                add(layer, Some(style))?;
+            }
         }
     }
     for child in n.children().filter(|n| n.is_element()) {
@@ -453,7 +739,7 @@ fn visit(
 pub(crate) fn parse_document(
     document: &str,
     units_to_pixels: [f32; 6],
-) -> Result<Vec<PathGlyphLayer>> {
+) -> Result<Vec<SvgPreparedLayer>> {
     if document.len() > 4 * 1024 * 1024 {
         return Err(unsupported("document size limit"));
     }
@@ -563,6 +849,7 @@ pub(crate) fn parse_document(
         fill: "black".into(),
         rule: FillRule::NonZero,
         stroke: "none".into(),
+        stroke_style: StrokeStyle::default(),
     };
     let mut out = Vec::new();
     visit(root, &state, &ids, &mut out, 0)?;
@@ -572,7 +859,7 @@ pub(crate) fn parse_document(
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn parse(layer: &SvgGlyphLayer) -> Result<Vec<PathGlyphLayer>> {
+    fn parse(layer: &SvgGlyphLayer) -> Result<Vec<SvgPreparedLayer>> {
         parse_document(&layer.document, [2., 0., 0., 2., 0., 0.])
     }
     fn svg(body: &str) -> SvgGlyphLayer {
@@ -623,5 +910,53 @@ mod tests {
         let mut layer = svg("<path d='M0 0 L1 1'/>");
         layer.document = layer.document.replace("viewBox=", "x='1' viewBox=");
         assert!(parse(&layer).is_err());
+    }
+    #[test]
+    fn basic_shapes_preserve_closure_and_scaled_stroke_style() {
+        let layers=parse(&svg("<circle cx='2' cy='2' r='1'/><ellipse cx='4' cy='4' rx='2' ry='1'/><rect x='1' y='1' width='2' height='3'/><polygon points='1,1 2,1 2,2'/><polyline fill='none' stroke='red' points='0,0 2,2'/><line x1='1' y1='2' x2='3' y2='4' stroke='blue' stroke-width='3' stroke-linecap='round' stroke-linejoin='bevel' stroke-miterlimit='10'/>")).unwrap();
+        assert_eq!(layers.len(), 6);
+        assert!(matches!(layers[0].commands.last(), Some(Command::Close)));
+        assert!(matches!(layers[3].commands.last(), Some(Command::Close)));
+        assert!(!matches!(layers[4].commands.last(), Some(Command::Close)));
+        let style = layers[5].stroke_style.as_ref().unwrap();
+        assert_eq!(style.width, 6.);
+        assert_eq!(style.cap, StrokeCap::Round);
+        assert_eq!(style.join, StrokeJoin::Bevel);
+        assert_eq!(style.miter_limit, 10.);
+    }
+    #[test]
+    fn stroke_nonuniform_transform_is_not_silently_approximated() {
+        assert!(parse(&svg(
+            "<path d='M0 0 L2 2' stroke='red' transform='scale(2 1)'/>"
+        ))
+        .is_err());
+    }
+    #[test]
+    fn inherited_gradient_stops_keep_opacity_and_local_overrides() {
+        let layers=parse(&svg("<radialGradient id='base' gradientUnits='userSpaceOnUse' cx='4' cy='4' r='3'><stop offset='0' stop-color='#ff0000' stop-opacity='.5'/><stop offset='1' stop-color='blue'/></radialGradient><radialGradient id='copy' href='#base' cx='5'/><rect width='10' height='10' fill='url(#copy)'/>")).unwrap();
+        let GlyphPaint::RadialGradient(g) = &layers[0].paint else {
+            panic!("expected gradient")
+        };
+        assert_eq!(g.cx, 5.);
+        assert_eq!(g.cy, 4.);
+        assert_eq!(g.fx, 5.);
+        assert_eq!(g.stops[0].color, 0x80ff0000);
+    }
+    #[test]
+    fn cyclic_and_external_gradient_references_fail() {
+        for reference in ["#b", "https://example.com/gradient"] {
+            let source=format!("<linearGradient id='a' href='{reference}'/><linearGradient id='b' href='#a'/><rect width='2' height='2' fill='url(#a)'/>");
+            assert!(parse(&svg(&source)).is_err());
+        }
+    }
+    #[test]
+    fn known_adobe_metadata_is_accepted_but_other_styles_are_not() {
+        let source="<svg xmlns='http://www.w3.org/2000/svg' version='1.1' xml:space='preserve' x='0px' y='0px' viewBox='0 0 128 128' style='enable-background:new 0 0 128 128;'><rect width='2' height='2'/></svg>";
+        assert!(parse_document(source, ID).is_ok());
+        assert!(parse_document(
+            &source.replace("enable-background:new 0 0 128 128", "filter:url(#x)"),
+            ID
+        )
+        .is_err());
     }
 }

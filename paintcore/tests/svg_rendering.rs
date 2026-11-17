@@ -129,3 +129,39 @@ fn root_viewport_is_resolved_before_explicit_transform() {
     let b="<svg width='16' height='16' viewBox='0 0 16 16'><path fill='#00ff00' d='M0 0H8V8H0Z'/></svg>";
     assert_eq!(render(vec![svg(a)]), render(vec![svg(b)]));
 }
+
+#[test]
+fn screen_offset_moves_gradient_and_geometry_together() {
+    let doc = "<svg width='16' height='16' viewBox='0 0 16 16'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='16' y2='0'><stop offset='0' stop-color='red'/><stop offset='1' stop-color='blue'/></linearGradient></defs><path fill='url(#g)' d='M0 0H16V16H0Z'/></svg>";
+    let t = SvgRenderTransform {
+        viewport_units_to_pixels: [1., 0., 0., 1., 0., 0.],
+    };
+    let mut a = Layer::tmp(40, 40);
+    let mut b = Layer::tmp(40, 40);
+    draw_svg_document(&mut a, doc, t, 0., 0., 0xff000000).unwrap();
+    draw_svg_document(&mut b, doc, t, 10., 7., 0xff000000).unwrap();
+    for y in 0..16 {
+        for x in 0..16 {
+            assert_eq!(
+                &a.buffer()[(y * 40 + x) * 4..][..4],
+                &b.buffer()[((y + 7) * 40 + x + 10) * 4..][..4]
+            );
+        }
+    }
+}
+
+#[test]
+fn stroke_cap_is_not_lost_in_private_svg_adapter() {
+    let round="<svg viewBox='0 0 16 16'><line x1='4' y1='8' x2='12' y2='8' stroke='red' stroke-width='4' stroke-linecap='round'/></svg>";
+    let butt = round.replace("round", "butt");
+    let a = render(vec![svg(round)]);
+    let b = render(vec![svg(&butt)]);
+    assert!(a[(8 * 20 + 2) * 4 + 3] > 0);
+    assert_eq!(b[(8 * 20 + 2) * 4 + 3], 0);
+}
+
+#[test]
+fn svg_gradient_zero_alpha_is_not_legacy_rgb_shorthand() {
+    let doc="<svg viewBox='0 0 16 16'><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='16' y2='0'><stop offset='0' stop-color='#ffff00' stop-opacity='0'/><stop offset='1' stop-color='#ffff00' stop-opacity='0'/></linearGradient><rect width='16' height='16' fill='url(#g)'/></svg>";
+    assert!(render(vec![svg(doc)]).chunks_exact(4).all(|p| p[3] == 0));
+}

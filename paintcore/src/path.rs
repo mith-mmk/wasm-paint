@@ -95,8 +95,17 @@ pub enum GlyphPaint {
 impl GlyphPaint {
     /// Resolves the glyph-specific paint into the generic paintcore paint source.
     pub fn to_paint(&self, default_color: u32) -> crate::paint::Paint {
-        let convert_color =
-            |color| crate::paint::Color::from_argb_u32(normalize_solid_color(color));
+        self.to_paint_impl(default_color, false)
+    }
+
+    fn to_paint_impl(&self, default_color: u32, exact_argb: bool) -> crate::paint::Paint {
+        let convert_color = |color| {
+            crate::paint::Color::from_argb_u32(if exact_argb {
+                color
+            } else {
+                normalize_solid_color(color)
+            })
+        };
         let convert_stops = |stops: &[GradientStop]| {
             stops
                 .iter()
@@ -2163,7 +2172,7 @@ pub struct SvgRenderTransform {
 fn prepare_svg_glyph(
     glyph: &PositionedGlyph,
     transform: Option<SvgRenderTransform>,
-) -> Result<Option<PositionedGlyph>, Error> {
+) -> Result<Option<Vec<crate::svg_render::SvgPreparedLayer>>, Error> {
     let svg: Vec<_> = glyph
         .glyph
         .layers
@@ -2199,11 +2208,10 @@ fn prepare_svg_glyph(
         .into());
     }
     let matrix = transform.viewport_units_to_pixels;
-    let layers = crate::svg_render::parse_document(&svg[0].document, matrix)?
-        .into_iter()
-        .map(GlyphLayer::Path)
-        .collect();
-    Ok(Some(PositionedGlyph::new(Glyph::new(layers), 0.0, 0.0)))
+    Ok(Some(crate::svg_render::parse_document(
+        &svg[0].document,
+        matrix,
+    )?))
 }
 
 /// Render a standalone SVG with an explicit viewport-unit to pixel transform.
@@ -2218,9 +2226,7 @@ pub fn draw_svg_document(
     default_color: u32,
 ) -> Result<(), Error> {
     let layers = crate::svg_render::parse_document(document, transform.viewport_units_to_pixels)?;
-    for layer in &layers {
-        draw_path_layer(screen, layer, origin_x, origin_y, default_color);
-    }
+    draw_svg_layers(screen, &layers, origin_x, origin_y, default_color);
     Ok(())
 }
 
@@ -2250,15 +2256,59 @@ pub fn draw_glyphs_with_svg_transforms(
         .map(|(g, t)| prepare_svg_glyph(g, *t))
         .collect::<Result<Vec<_>, _>>()?;
     for (index, glyph) in glyphs.glyphs.iter().enumerate() {
-        draw_prepared_glyph(
-            screen,
-            prepared[index].as_ref().unwrap_or(glyph),
-            offset_x,
-            offset_y,
-            default_color,
-        )?;
+        if let Some(layers) = &prepared[index] {
+            draw_svg_layers(screen, layers, offset_x, offset_y, default_color);
+        } else {
+            draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)?;
+        }
     }
     Ok(())
+}
+
+#[cfg(feature = "svg-font")]
+fn draw_svg_layers(
+    screen: &mut dyn Screen,
+    layers: &[crate::svg_render::SvgPreparedLayer],
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+) {
+    for prepared in layers {
+        let mut layer = prepared.path.clone();
+        // Geometry and gradient must both move with the screen offset.
+        match &mut layer.paint {
+            GlyphPaint::LinearGradient(g) => {
+                g.transform[4] += offset_x;
+                g.transform[5] += offset_y;
+            }
+            GlyphPaint::RadialGradient(g) => {
+                g.transform[4] += offset_x;
+                g.transform[5] += offset_y;
+            }
+            _ => {}
+        }
+        if let Some(style) = &prepared.stroke_style {
+            stroke_path(
+                screen,
+                &layer.commands,
+                &layer.paint.to_paint_impl(default_color, true),
+                style,
+                offset_x,
+                offset_y,
+                DrawOptions::default(),
+            );
+        } else {
+            fill_path(
+                screen,
+                &layer.commands,
+                &layer.paint.to_paint_impl(default_color, true),
+                layer.fill_rule,
+                offset_x,
+                offset_y,
+                DrawOptions::default(),
+            );
+        }
+    }
 }
 
 fn draw_prepared_glyph(
@@ -2299,9 +2349,7 @@ pub fn draw_glyph(
     default_color: u32,
 ) -> Result<(), Error> {
     #[cfg(feature = "svg-font")]
-    let prepared = prepare_svg_glyph(glyph, None)?;
-    #[cfg(feature = "svg-font")]
-    let glyph = prepared.as_ref().unwrap_or(glyph);
+    prepare_svg_glyph(glyph, None)?;
     draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)
 }
 
@@ -2320,16 +2368,10 @@ pub fn draw_glyphs(
     default_color: u32,
 ) -> Result<(), Error> {
     #[cfg(feature = "svg-font")]
-    let prepared = glyphs
-        .glyphs
-        .iter()
-        .map(|g| prepare_svg_glyph(g, None))
-        .collect::<Result<Vec<_>, _>>()?;
-    for (index, glyph) in glyphs.glyphs.iter().enumerate() {
-        #[cfg(feature = "svg-font")]
-        let glyph = prepared[index].as_ref().unwrap_or(glyph);
-        #[cfg(not(feature = "svg-font"))]
-        let _ = index;
+    for glyph in &glyphs.glyphs {
+        prepare_svg_glyph(glyph, None)?;
+    }
+    for glyph in &glyphs.glyphs {
         draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)?;
     }
     Ok(())

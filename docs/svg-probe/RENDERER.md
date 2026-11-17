@@ -78,3 +78,36 @@ pre-draw error. Neither successful example establishes full emoji corpus support
 
 Verified fontcore context revision:
 `4c0ee63b1b0d54d1c447e1bc24de7c5d7e2b6e05`.
+
+## Second stage: fixed 20-artwork Noto sample
+
+`tools/noto-corpus.json` pins each input SHA-256 at the same Noto revision. These
+are 20 representative standalone assets wrapped into synthetic SVG fonts, **not
+the entire Noto corpus**. First-stage E2E passed two; the expanded renderer passes
+15 image comparisons. Supported sample MAE is below 0.24/255. The rest remain
+explicitly unsupported: tulip/thumbs-up clip/use, UFO element opacity, dog/rocket
+DTD. A comparison failure or accidental success on an unsupported fixture fails
+the corpus gate; merely producing some pixels never counts as support.
+
+```sh
+python3 tools/run_noto_corpus.py ../fontcore docs/svg-probe/output --download --check
+```
+
+The source SVG bytes are embedded unchanged in the synthetic font. CairoSVG's
+reference alone uses Python ElementTree canonicalization of checksum-verified
+sources to expand Adobe's fixed internal namespace entities; Cairo's unsafe mode
+is never enabled. DTD remains rejected by fontcore/paintcore. Asset/license details
+are in the manifest; generated SVG/fonts/PNGs stay in ignored output.
+
+Additional support: circle/ellipse/rect (no rounded corners), line/polyline/polygon,
+stroke width/cap/join/miter under similarity transforms, gradient href inheritance
+(local, bounded and cycle-checked), stop opacity, and definitions outside `defs`.
+Known Adobe metadata is accepted only where rendering-inert in this subset.
+Nonuniform/skewed strokes, clip/mask/filter, use, element/group opacity, arcs and
+external references still fail. No public path-command fields were expanded;
+private prepared layers carry full stroke style.
+
+SVG colors now retain exact ARGB alpha, avoiding the legacy glyph converter's
+RGB/RGBA guessing. This matters for fully transparent gradient stops and is
+limited to the new SVG path; existing glyph behavior stays unchanged. The new path
+also shifts gradient coordinates together with geometry for screen offsets.

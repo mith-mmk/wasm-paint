@@ -1,0 +1,112 @@
+{
+  "source_revision": "99701e07d3d1fe1bdbcdb14964547f0fd592966f",
+  "source_base": "https://raw.githubusercontent.com/googlefonts/noto-emoji/99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/svg/",
+  "license": "Apache-2.0; copyright Google Inc. See fontcore SVG extraction fixtures NOTO-LICENSE.",
+  "files": [
+    {
+      "name": "emoji_u1f308.svg",
+      "sha256": "23a80becfb38d89ebf3ab8aa57136dce162bc74daac358668694e07499101fba",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f30d.svg",
+      "sha256": "873feb50c7ac2bc1bd22e473de017be0c3c76662def7df423d0cfff0fc3f44b7",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f333.svg",
+      "sha256": "9e1a171b2d64100143265e7df251f4f74d598d84f904e807a7f02f1bb837ef8b",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f337.svg",
+      "sha256": "903a426ac185391cf7801b878333aed734692676f7be02a1793f2c3292ab6c9b",
+      "expected": "unsupported",
+      "reason": "clip/use"
+    },
+    {
+      "name": "emoji_u1f381.svg",
+      "sha256": "f8df9f99dd7e8582de860c15f037a141f1b7f4c531e5f80f1624d5aa472ba38b",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f3b8.svg",
+      "sha256": "9819b03b27a9b55906e22439cb2264175ef84882a7502cf410afc50c062069f9",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f3c0.svg",
+      "sha256": "5d908316a564b3dc295b7d734098aedc95264520025e3d0da6b5f6d3016c61ec",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f431.svg",
+      "sha256": "fbb19611e927d40ff0188f5d4da8457e8d83faeb18a3adc66d91cb5ef17f2f1c",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f436.svg",
+      "sha256": "bed8ea61ae55ed250eb9c843f7e6a6557998ffaa342b20496464ce713b4b5f69",
+      "expected": "unsupported",
+      "reason": "DTD"
+    },
+    {
+      "name": "emoji_u1f44d.svg",
+      "sha256": "c30d8e01a118cb2dce565d9153cb885111fade63c8191770cce4ced236dfb98a",
+      "expected": "unsupported",
+      "reason": "clip/use"
+    },
+    {
+      "name": "emoji_u1f4a1.svg",
+      "sha256": "4c3d9c210c03271ebe63b9f86ab3e9a33d36483ed5920e116d7efed6c095def7",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f525.svg",
+      "sha256": "dbea451b6cba787df0bb9bc84ceec1bed96e499e8b876b80682ce323f83b1a1b",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f602.svg",
+      "sha256": "b553c8c7d447edbd684c436bdf49208ab142f3fc7004eb98fbe8ab6dc68451ab",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f60d.svg",
+      "sha256": "d621a55c839b758a62e2722564dab703f7ad4598466f52f62648ca70b7dfb541",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f680.svg",
+      "sha256": "4c01badc8952fc694b29ff2292b55965dd9ae5e22b0f94aaa68e336ae12f6d55",
+      "expected": "unsupported",
+      "reason": "DTD"
+    },
+    {
+      "name": "emoji_u1f6f8.svg",
+      "sha256": "387a1e0eea71680a57302c27ba1e1116824be85829ab2b4d0105b318a851f9f9",
+      "expected": "unsupported",
+      "reason": "element opacity"
+    },
+    {
+      "name": "emoji_u1f914.svg",
+      "sha256": "b393f008e46a8813060545984a801d2304573860aaedb828da3ea20520d83a68",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f984.svg",
+      "sha256": "9822ca09b90d6939eca361661cef57a36fa6b658ea00738004fca5404aa18b59",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f98a.svg",
+      "sha256": "9e5321b6dc5e5e7fbcf21994e063f30d2770b6ec41b88ee4543eb84e90934bcd",
+      "expected": "render"
+    },
+    {
+      "name": "emoji_u1f9d1.svg",
+      "sha256": "2edfa2dc220151672d473ea21a933683be42ecad3d702ce6f5c9ca274f0d502b",
+      "expected": "render"
+    }
+  ]
+}
