@@ -2151,15 +2151,30 @@ fn draw_raster_layer(
 }
 
 #[cfg(feature = "svg-font")]
-fn draw_svg_layer(
-    _screen: &mut dyn Screen,
-    _layer: &SvgGlyphLayer,
-    _origin_x: f32,
-    _origin_y: f32,
-) -> Result<(), Error> {
+fn unsupported_svg() -> Error {
+    std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "raw SVG glyph rendering is not implemented; use a supported SVG renderer",
+    )
+    .into()
+}
+
+#[cfg(feature = "svg-font")]
+fn validate_svg_layers(glyph: &Glyph) -> Result<(), Error> {
+    // A raw layer can be the full-fidelity alternative to preceding Path layers.
+    // Do not draw those partial paths, or later double-paint both alternatives.
+    if glyph
+        .layers
+        .iter()
+        .any(|layer| matches!(layer, GlyphLayer::Svg(_)))
+    {
+        return Err(unsupported_svg());
+    }
     Ok(())
 }
 
+/// Draw one glyph. With `svg-font`, raw SVG layers are rejected before any pixels
+/// are changed, including when accompanied by an approximate Path fallback.
 pub fn draw_glyph(
     screen: &mut dyn Screen,
     glyph: &PositionedGlyph,
@@ -2167,6 +2182,8 @@ pub fn draw_glyph(
     offset_y: f32,
     default_color: u32,
 ) -> Result<(), Error> {
+    #[cfg(feature = "svg-font")]
+    validate_svg_layers(&glyph.glyph)?;
     let origin_x = glyph.x + offset_x;
     let origin_y = glyph.y + offset_y;
 
@@ -2177,7 +2194,7 @@ pub fn draw_glyph(
             }
             GlyphLayer::Raster(layer) => draw_raster_layer(screen, layer, origin_x, origin_y)?,
             #[cfg(feature = "svg-font")]
-            GlyphLayer::Svg(layer) => draw_svg_layer(screen, layer, origin_x, origin_y)?,
+            GlyphLayer::Svg(_) => return Err(unsupported_svg()),
         }
     }
 
@@ -2185,6 +2202,10 @@ pub fn draw_glyph(
 }
 
 /// Draws parsed glyphs prepared by the font parser.
+///
+/// With `svg-font`, the entire run is checked for raw SVG before drawing. Such a
+/// run returns an `Unsupported` I/O error without changing the destination. This
+/// is not a general transaction guarantee for unrelated raster/decode errors.
 ///
 /// The parser is responsible for:
 /// - converting font units into pixel space
@@ -2198,6 +2219,10 @@ pub fn draw_glyphs(
     offset_y: f32,
     default_color: u32,
 ) -> Result<(), Error> {
+    #[cfg(feature = "svg-font")]
+    for glyph in &glyphs.glyphs {
+        validate_svg_layers(&glyph.glyph)?;
+    }
     for glyph in &glyphs.glyphs {
         draw_glyph(screen, glyph, offset_x, offset_y, default_color)?;
     }
