@@ -1,4 +1,8 @@
-# First bounded SVG renderer
+# Bounded SVG renderer
+
+Current verified status is the third-stage subset described below: 18 of 20 pinned
+Noto sample assets pass reference comparison, with two explicit DTD rejections.
+Earlier sections preserve the incremental implementation history.
 
 `svg-font` enables a private SVG adapter in paintcore. fontcore still owns font
 parsing, document extraction and glyph metrics. The adapter translates SVG into
@@ -111,3 +115,27 @@ SVG colors now retain exact ARGB alpha, avoiding the legacy glyph converter's
 RGB/RGBA guessing. This matters for fully transparent gradient stops and is
 limited to the new SVG path; existing glyph behavior stays unchanged. The new path
 also shifts gradient coordinates together with geometry for screen offsets.
+
+## Third stage: clip/use and leaf opacity
+
+The fixed sample now passes **18/20** reference comparisons. Tulip and thumbs-up
+use a user-space `clipPath` containing one local `use` of a path; UFO uses leaf
+opacity. All 18 have RGBA MAE below 0.33/255 at 256px. Dog/rocket still fail
+explicitly because their source documents contain DTD declarations. This is a
+sample result, not a statement that all Noto Emoji or all SVG features work.
+
+Group clipping is intersected with inherited clips in the coordinate system where
+the clip was declared, not transformed again by descendants. Clip masks follow
+screen offsets. Clip stacks/geometry are bounded. Supported clip definitions have
+one shape or one local one-hop `use` reference; `clip-rule` is preserved.
+
+Leaf opacity is supported when the element paints only fill or only stroke.
+Group opacity and simultaneous fill+stroke opacity below one remain rejected,
+because correct overlap needs isolated compositing. Other remaining limitations:
+objectBoundingBox/multi-child/nested clip definitions, recursive/external/general
+painted `use`, masks/filters, CSS, text/images, arcs, rounded rects, and nonuniform
+strokes. Unsupported rendering features fail during preparation before drawing
+any glyph in the run. Existing bitmap/decode failures are not transactional.
+
+Fontcore integration revision for the expanded sample:
+`7d04cb51acfc2ade5a0ce5a2e57401ae16243027`.

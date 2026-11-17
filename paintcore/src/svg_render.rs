@@ -86,7 +86,10 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
         if a.namespace().is_some()
             && !(a.namespace() == Some("http://www.w3.org/1999/xlink")
                 && k == "href"
-                && matches!(n.tag_name().name(), "linearGradient" | "radialGradient"))
+                && matches!(
+                    n.tag_name().name(),
+                    "linearGradient" | "radialGradient" | "use"
+                ))
         {
             return Err(unsupported("namespaced attribute"));
         }
@@ -101,6 +104,9 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                 | "stroke-linecap"
                 | "stroke-linejoin"
                 | "stroke-miterlimit"
+                | "clip-path"
+                | "clip-rule"
+                | "opacity"
                 | "style"
         );
         let gradient = matches!(
@@ -130,6 +136,21 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                 "line" => graphics || matches!(k, "x1" | "y1" | "x2" | "y2"),
                 "polyline" | "polygon" => graphics || k == "points",
                 "defs" => false,
+                "clipPath" => matches!(
+                    k,
+                    "transform" | "clipPathUnits" | "clip-rule" | "clip-path" | "style"
+                ),
+                "use" => matches!(
+                    k,
+                    "href"
+                        | "x"
+                        | "y"
+                        | "transform"
+                        | "clip-rule"
+                        | "clip-path"
+                        | "overflow"
+                        | "style"
+                ),
                 "radialGradient" => gradient || matches!(k, "cx" | "cy" | "r" | "fx" | "fy"),
                 "linearGradient" => gradient || matches!(k, "x1" | "y1" | "x2" | "y2"),
                 "stop" => matches!(k, "offset" | "stop-color" | "stop-opacity" | "style"),
@@ -164,6 +185,10 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                 }
                 return Err(unsupported("enable-background value"));
             }
+            if k == "overflow" && n.tag_name().name() == "use" && v.trim() == "visible" {
+                p.insert(k, v.trim());
+                continue;
+            }
             if !(if n.tag_name().name() == "stop" {
                 matches!(k, "stop-color" | "stop-opacity")
             } else {
@@ -176,6 +201,9 @@ fn props<'a, 'i>(n: Node<'a, 'i>) -> Result<HashMap<&'a str, &'a str>> {
                         | "stroke-linecap"
                         | "stroke-linejoin"
                         | "stroke-miterlimit"
+                        | "clip-path"
+                        | "clip-rule"
+                        | "opacity"
                 )
             }) {
                 return Err(unsupported(&format!("style {k}")));
@@ -192,12 +220,20 @@ struct State {
     rule: FillRule,
     stroke: String,
     stroke_style: StrokeStyle,
+    clips: std::sync::Arc<Vec<SvgPreparedClip>>,
 }
 /// Rendering-only state, deliberately not part of the public glyph command ABI.
 #[derive(Debug, Clone)]
 pub(crate) struct SvgPreparedLayer {
     pub(crate) path: PathGlyphLayer,
     pub(crate) stroke_style: Option<StrokeStyle>,
+    pub(crate) clips: Vec<SvgPreparedClip>,
+    pub(crate) opacity: f32,
+}
+#[derive(Debug, Clone)]
+pub(crate) struct SvgPreparedClip {
+    pub(crate) commands: Vec<Command>,
+    pub(crate) rule: FillRule,
 }
 impl std::ops::Deref for SvgPreparedLayer {
     type Target = PathGlyphLayer;
@@ -564,6 +600,149 @@ fn gradient<'a, 'i>(
         _ => Err(unsupported("paint reference is not a gradient")),
     }
 }
+
+fn clip_rule(p: &HashMap<&str, &str>, default: FillRule) -> Result<FillRule> {
+    match p.get("clip-rule").copied() {
+        None => Ok(default),
+        Some("nonzero") => Ok(FillRule::NonZero),
+        Some("evenodd") => Ok(FillRule::EvenOdd),
+        _ => Err(unsupported("clip-rule")),
+    }
+}
+fn local_reference(value: &str) -> Result<&str> {
+    value
+        .strip_prefix("url(#")
+        .and_then(|v| v.strip_suffix(')'))
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| unsupported("external or invalid clip reference"))
+}
+fn clip<'a, 'i>(
+    n: Node<'a, 'i>,
+    m: Matrix,
+    ids: &HashMap<String, Node<'a, 'i>>,
+) -> Result<SvgPreparedClip> {
+    if n.tag_name().name() != "clipPath" {
+        return Err(unsupported("clip reference is not clipPath"));
+    }
+    let p = props(n)?;
+    if p.get("clipPathUnits")
+        .is_some_and(|v| *v != "userSpaceOnUse")
+    {
+        return Err(unsupported("objectBoundingBox clip"));
+    }
+    if p.get("clip-path").is_some_and(|v| *v != "none") {
+        return Err(unsupported("nested clipPath"));
+    }
+    if p.keys().any(|k| {
+        !matches!(
+            *k,
+            "id" | "data-name"
+                | "style"
+                | "transform"
+                | "clipPathUnits"
+                | "clip-rule"
+                | "clip-path"
+        )
+    }) {
+        return Err(unsupported("clipPath style property"));
+    }
+    // clip-rule is inherited in the definition tree, unlike transforms.
+    let mut inherited_rule = FillRule::NonZero;
+    let ancestors: Vec<_> = n.ancestors().skip(1).filter(|n| n.is_element()).collect();
+    for ancestor in ancestors.into_iter().rev() {
+        inherited_rule = clip_rule(&props(ancestor)?, inherited_rule)?;
+    }
+    let rule = clip_rule(&p, inherited_rule)?;
+    let matrix = mul(m, transform(p.get("transform").copied().unwrap_or(""))?);
+    let children: Vec<_> = n
+        .children()
+        .filter(|n| n.is_element() && !matches!(n.tag_name().name(), "title" | "desc"))
+        .collect();
+    if children.len() != 1 {
+        return Err(unsupported("clipPath requires exactly one geometry child"));
+    }
+    let mut target = children[0];
+    let mut matrix = matrix;
+    let mut rule = rule;
+    if target.tag_name().name() == "use" {
+        let u = props(target)?;
+        if u.keys().any(|k| {
+            !matches!(
+                *k,
+                "id" | "data-name"
+                    | "style"
+                    | "href"
+                    | "x"
+                    | "y"
+                    | "transform"
+                    | "clip-rule"
+                    | "clip-path"
+                    | "overflow"
+            )
+        }) {
+            return Err(unsupported("clip use style property"));
+        }
+        if u.get("clip-path").is_some_and(|v| *v != "none") {
+            return Err(unsupported("nested clip use"));
+        }
+        if u.get("overflow").is_some_and(|v| *v != "visible") {
+            return Err(unsupported("clip use viewport"));
+        }
+        if target.children().any(|n| n.is_element()) {
+            return Err(unsupported("clip use children"));
+        }
+        rule = clip_rule(&u, rule)?;
+        matrix = mul(
+            matrix,
+            transform(u.get("transform").copied().unwrap_or(""))?,
+        );
+        let x = u.get("x").map(|v| number(v)).unwrap_or(Ok(0.))?;
+        let y = u.get("y").map(|v| number(v)).unwrap_or(Ok(0.))?;
+        matrix = mul(matrix, [1., 0., 0., 1., x, y]);
+        let id = u
+            .get("href")
+            .and_then(|v| v.strip_prefix('#'))
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| unsupported("external or missing clip use href"))?;
+        target = *ids
+            .get(id)
+            .ok_or_else(|| unsupported("missing clip use target"))?;
+    }
+    if !matches!(
+        target.tag_name().name(),
+        "path" | "circle" | "ellipse" | "rect" | "line" | "polyline" | "polygon"
+    ) {
+        return Err(unsupported(
+            "clip use target must be direct geometry (no recursion)",
+        ));
+    }
+    let t = props(target)?;
+    if t.get("clip-path").is_some_and(|v| *v != "none") {
+        return Err(unsupported("nested clip geometry"));
+    }
+    if t.get("opacity").is_some_and(|v| *v != "1") {
+        return Err(unsupported("clip geometry opacity"));
+    }
+    if target
+        .children()
+        .filter(|n| n.is_element())
+        .any(|n| !matches!(n.tag_name().name(), "title" | "desc"))
+    {
+        return Err(unsupported("clip geometry children"));
+    }
+    rule = clip_rule(&t, rule)?;
+    matrix = mul(
+        matrix,
+        transform(t.get("transform").copied().unwrap_or(""))?,
+    );
+    if !matrix.iter().all(|v| v.is_finite() && v.abs() <= 1e7) {
+        return Err(unsupported("clip transform limit"));
+    }
+    Ok(SvgPreparedClip {
+        commands: shape(target.tag_name().name(), &t, matrix)?,
+        rule,
+    })
+}
 fn visit(
     n: Node<'_, '_>,
     state: &State,
@@ -591,6 +770,7 @@ fn visit(
             | "desc"
             | "linearGradient"
             | "radialGradient"
+            | "clipPath"
     ) {
         return Err(unsupported(&format!("element {tag}")));
     }
@@ -598,7 +778,10 @@ fn visit(
         return Ok(());
     }
     let p = props(n)?;
-    if matches!(tag, "defs" | "linearGradient" | "radialGradient") {
+    if matches!(
+        tag,
+        "defs" | "linearGradient" | "radialGradient" | "clipPath"
+    ) {
         return Ok(());
     }
     if tag == "svg" && depth != 0 {
@@ -619,6 +802,29 @@ fn visit(
     if !state.matrix.iter().all(|n| n.is_finite() && n.abs() <= 1e7) {
         return Err(unsupported("cumulative transform limit"));
     }
+    if let Some(value) = p.get("clip-path").filter(|v| **v != "none") {
+        if state.clips.len() >= 16 {
+            return Err(unsupported("inherited clip depth limit"));
+        }
+        let id = local_reference(value)?;
+        let prepared_clip = clip(
+            *ids.get(id).ok_or_else(|| unsupported("missing clipPath"))?,
+            state.matrix,
+            ids,
+        )?;
+        if state.clips.iter().map(|c| c.commands.len()).sum::<usize>()
+            + prepared_clip.commands.len()
+            > 100_000
+        {
+            return Err(unsupported("inherited clip command limit"));
+        }
+        std::sync::Arc::make_mut(&mut state.clips).push(prepared_clip);
+    }
+    let opacity = p
+        .get("opacity")
+        .map(|v| number(v))
+        .unwrap_or(Ok(1.))?
+        .clamp(0., 1.);
     if let Some(fill) = p.get("fill") {
         state.fill = fill.to_string();
     }
@@ -665,6 +871,17 @@ fn visit(
         tag,
         "path" | "circle" | "ellipse" | "rect" | "line" | "polyline" | "polygon"
     );
+    if opacity < 1.
+        && (!geometry
+            || (state.fill != "none"
+                && tag != "line"
+                && state.stroke != "none"
+                && state.stroke_style.width > 0.))
+    {
+        return Err(unsupported(
+            "opacity requires isolated group or fill+stroke compositing",
+        ));
+    }
     if geometry
         && n.children()
             .filter(|n| n.is_element())
@@ -695,11 +912,22 @@ fn visit(
             if out.len() >= 4096 {
                 return Err(unsupported("painted layer limit"));
             }
-            let total: usize = out.iter().map(|l| l.path.commands.len()).sum();
-            if total + path.commands.len() > 100_000 {
+            let total: usize = out
+                .iter()
+                .map(|l| {
+                    l.path.commands.len() + l.clips.iter().map(|c| c.commands.len()).sum::<usize>()
+                })
+                .sum();
+            let clip_commands: usize = state.clips.iter().map(|c| c.commands.len()).sum();
+            if total + path.commands.len() + clip_commands > 100_000 {
                 return Err(unsupported("total path command limit"));
             }
-            out.push(SvgPreparedLayer { path, stroke_style });
+            out.push(SvgPreparedLayer {
+                path,
+                stroke_style,
+                clips: state.clips.as_ref().clone(),
+                opacity,
+            });
             Ok(())
         };
         if !commands.is_empty() {
@@ -850,6 +1078,7 @@ pub(crate) fn parse_document(
         rule: FillRule::NonZero,
         stroke: "none".into(),
         stroke_style: StrokeStyle::default(),
+        clips: std::sync::Arc::new(Vec::new()),
     };
     let mut out = Vec::new();
     visit(root, &state, &ids, &mut out, 0)?;
@@ -957,6 +1186,55 @@ mod tests {
             &source.replace("enable-background:new 0 0 128 128", "filter:url(#x)"),
             ID
         )
+        .is_err());
+    }
+    #[test]
+    fn clip_use_transform_and_group_clip_remain_fixed_for_children() {
+        let source="<defs><path id='shape' d='M0 0 L2 0 L2 2 Z'/></defs><clipPath id='c' transform='translate(1 0)'><use href='#shape' x='2' transform='scale(2)'/></clipPath><g transform='translate(10 0)' clip-path='url(#c)'><path transform='translate(100 0)' d='M0 0 L1 1 L0 1 Z'/></g>";
+        let layers = parse(&svg(source)).unwrap();
+        assert_eq!(layers[0].clips.len(), 1);
+        assert!(matches!(
+            layers[0].clips[0].commands[0],
+            Command::MoveTo(30., 0.)
+        ));
+        assert!(matches!(
+            layers[0].path.commands[0],
+            Command::MoveTo(220., 0.)
+        ));
+    }
+    #[test]
+    fn clip_rule_and_nested_group_intersection_are_preserved() {
+        let source="<clipPath id='a' clip-rule='evenodd'><path d='M0 0 L5 0 L5 5 Z'/></clipPath><clipPath id='b'><rect width='2' height='2'/></clipPath><g clip-path='url(#a)'><g clip-path='url(#b)'><rect width='5' height='5'/></g></g>";
+        let layers = parse(&svg(source)).unwrap();
+        assert_eq!(layers[0].clips.len(), 2);
+        assert_eq!(layers[0].clips[0].rule, FillRule::EvenOdd);
+        let source="<svg viewBox='0 0 10 10' clip-rule='evenodd'><clipPath id='c'><rect width='2' height='2'/></clipPath><rect width='5' height='5' clip-path='url(#c)'/></svg>";
+        assert_eq!(
+            parse_document(source, ID).unwrap()[0].clips[0].rule,
+            FillRule::EvenOdd
+        );
+    }
+    #[test]
+    fn unsupported_clip_unions_references_and_units_fail() {
+        for definition in [
+            "<clipPath id='c'><rect width='2' height='2'/><circle r='1'/></clipPath>",
+            "<clipPath id='c' clipPathUnits='objectBoundingBox'><rect width='1' height='1'/></clipPath>",
+            "<clipPath id='c' clip-path='url(#c)'><rect width='1' height='1'/></clipPath>",
+            "<clipPath id='c'><use href='https://example.com/a'/></clipPath>",
+            "<clipPath id='c'><use href='#c'/></clipPath>",
+            "<clipPath id='c'><use href='#s'/></clipPath><use id='s' href='#s'/>",
+        ] {assert!(parse(&svg(&format!("{definition}<rect width='2' height='2' clip-path='url(#c)'/>"))).is_err());}
+    }
+    #[test]
+    fn leaf_opacity_does_not_leak_and_group_or_dual_paint_opacity_is_rejected() {
+        let layers=parse(&svg("<path d='M0 0 L1 0 L1 1 Z' opacity='.5'/><rect width='2' height='2'/><line x2='2' stroke='red' opacity='.25'/>")).unwrap();
+        assert_eq!(layers[0].opacity, 0.5);
+        assert_eq!(layers[1].opacity, 1.);
+        assert_eq!(layers[2].opacity, 0.25);
+        assert!(parse(&svg("<g opacity='.5'><rect width='2' height='2'/></g>")).is_err());
+        assert!(parse(&svg(
+            "<rect width='2' height='2' stroke='red' opacity='.5'/>"
+        ))
         .is_err());
     }
 }

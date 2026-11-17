@@ -21,8 +21,7 @@
     {
       "name": "emoji_u1f337.svg",
       "sha256": "903a426ac185391cf7801b878333aed734692676f7be02a1793f2c3292ab6c9b",
-      "expected": "unsupported",
-      "reason": "clip/use"
+      "expected": "render"
     },
     {
       "name": "emoji_u1f381.svg",
@@ -53,8 +52,7 @@
     {
       "name": "emoji_u1f44d.svg",
       "sha256": "c30d8e01a118cb2dce565d9153cb885111fade63c8191770cce4ced236dfb98a",
-      "expected": "unsupported",
-      "reason": "clip/use"
+      "expected": "render"
     },
     {
       "name": "emoji_u1f4a1.svg",
@@ -85,8 +83,7 @@
     {
       "name": "emoji_u1f6f8.svg",
       "sha256": "387a1e0eea71680a57302c27ba1e1116824be85829ab2b4d0105b318a851f9f9",
-      "expected": "unsupported",
-      "reason": "element opacity"
+      "expected": "render"
     },
     {
       "name": "emoji_u1f914.svg",

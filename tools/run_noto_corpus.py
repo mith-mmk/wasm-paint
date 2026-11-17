@@ -15,6 +15,8 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import cairosvg
 from PIL import Image
+import PIL
+import fontTools
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import newTable
@@ -83,7 +85,7 @@ for item in manifest['files']:
         result['comparison_pass']=result['mae']<=1.0 and abs(result['coverage_delta'])<=256
     results.append(result)
     print(source.name, 'OK' if result.get('comparison_pass') else 'FAIL',result.get('mae',result.get('error')),flush=True)
-summary={'source_revision':manifest['source_revision'],'fontcore_commit':subprocess.check_output(['git','-C',str(fontcore),'rev-parse','HEAD'],text=True).strip(),'results':results}
+summary={'reference_versions':{'CairoSVG':cairosvg.__version__,'Pillow':PIL.__version__,'fontTools':fontTools.__version__},'source_revision':manifest['source_revision'],'fontcore_commit':subprocess.check_output(['git','-C',str(fontcore),'rev-parse','HEAD'],text=True).strip(),'results':results}
 (out/'noto-corpus-results.json').write_text(json.dumps(summary,indent=2)+'\n')
 
 if '--check' in sys.argv[3:]:

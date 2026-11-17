@@ -2287,6 +2287,31 @@ fn draw_svg_layers(
             }
             _ => {}
         }
+        let mut clip_mask: Option<Mask> = None;
+        for clip in &prepared.clips {
+            let next = rasterize_path_mask(
+                &clip.commands,
+                screen.width(),
+                screen.height(),
+                offset_x,
+                offset_y,
+                clip.rule,
+            );
+            if let Some(current) = &mut clip_mask {
+                for (a, b) in current.coverage_mut().iter_mut().zip(next.coverage()) {
+                    *a = ((*a as u32 * *b as u32 + 127) / 255) as u8;
+                }
+            } else {
+                clip_mask = Some(next);
+            }
+        }
+        let options = DrawOptions {
+            opacity: prepared.opacity,
+            clip_mask: clip_mask
+                .as_ref()
+                .map(|mask| crate::composite::ClipMask::new(mask, 0, 0)),
+            ..DrawOptions::default()
+        };
         if let Some(style) = &prepared.stroke_style {
             stroke_path(
                 screen,
@@ -2295,7 +2320,7 @@ fn draw_svg_layers(
                 style,
                 offset_x,
                 offset_y,
-                DrawOptions::default(),
+                options,
             );
         } else {
             fill_path(
@@ -2305,7 +2330,7 @@ fn draw_svg_layers(
                 layer.fill_rule,
                 offset_x,
                 offset_y,
-                DrawOptions::default(),
+                options,
             );
         }
     }

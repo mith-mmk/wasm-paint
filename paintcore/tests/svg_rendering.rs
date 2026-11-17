@@ -165,3 +165,64 @@ fn svg_gradient_zero_alpha_is_not_legacy_rgb_shorthand() {
     let doc="<svg viewBox='0 0 16 16'><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='16' y2='0'><stop offset='0' stop-color='#ffff00' stop-opacity='0'/><stop offset='1' stop-color='#ffff00' stop-opacity='0'/></linearGradient><rect width='16' height='16' fill='url(#g)'/></svg>";
     assert!(render(vec![svg(doc)]).chunks_exact(4).all(|p| p[3] == 0));
 }
+
+#[test]
+fn local_use_clip_and_screen_offset_mask_the_shape() {
+    let doc="<svg viewBox='0 0 16 16'><defs><path id='p' d='M0 0H8V16H0Z'/></defs><clipPath id='c'><use href='#p'/></clipPath><rect width='16' height='16' fill='red' clip-path='url(#c)'/></svg>";
+    let mut canvas = Layer::tmp(30, 30);
+    draw_svg_document(
+        &mut canvas,
+        doc,
+        SvgRenderTransform {
+            viewport_units_to_pixels: [1., 0., 0., 1., 0., 0.],
+        },
+        4.,
+        3.,
+        0xff000000,
+    )
+    .unwrap();
+    assert_eq!(canvas.buffer()[(5 * 30 + 6) * 4 + 3], 255);
+    assert_eq!(canvas.buffer()[(5 * 30 + 16) * 4 + 3], 0);
+    assert_eq!(canvas.buffer()[(30 + 6) * 4 + 3], 0);
+}
+
+#[test]
+fn leaf_opacity_is_applied_once_and_group_opacity_is_rejected() {
+    let doc =
+        "<svg viewBox='0 0 16 16'><rect width='16' height='16' fill='red' opacity='.5'/></svg>";
+    let pixels = render(vec![svg(doc)]);
+    assert!((127..=128).contains(&pixels[(8 * 20 + 8) * 4 + 3]));
+    let group="<svg viewBox='0 0 16 16'><g opacity='.5'><rect width='16' height='16'/><rect width='16' height='16'/></g></svg>";
+    let mut canvas = Layer::tmp(20, 20);
+    assert!(draw_svg_document(
+        &mut canvas,
+        group,
+        SvgRenderTransform {
+            viewport_units_to_pixels: [1., 0., 0., 1., 0., 0.]
+        },
+        0.,
+        0.,
+        0xff000000
+    )
+    .is_err());
+    assert!(canvas.buffer().iter().all(|v| *v == 0));
+}
+
+#[test]
+fn inherited_clip_is_not_transformed_again_by_child() {
+    let doc="<svg viewBox='0 0 32 16'><defs><clipPath id='c'><rect width='8' height='16'/></clipPath></defs><g transform='translate(4)' clip-path='url(#c)'><rect transform='translate(4)' width='16' height='16' fill='red'/></g></svg>";
+    let mut canvas = Layer::tmp(32, 16);
+    draw_svg_document(
+        &mut canvas,
+        doc,
+        SvgRenderTransform {
+            viewport_units_to_pixels: [1., 0., 0., 1., 0., 0.],
+        },
+        0.,
+        0.,
+        0xff000000,
+    )
+    .unwrap();
+    assert_eq!(canvas.buffer()[(8 * 32 + 10) * 4 + 3], 255);
+    assert_eq!(canvas.buffer()[(8 * 32 + 14) * 4 + 3], 0);
+}
