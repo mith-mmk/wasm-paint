@@ -472,6 +472,7 @@ fn gradient<'a, 'i>(
     n: Node<'a, 'i>,
     m: Matrix,
     ids: &HashMap<String, Node<'a, 'i>>,
+    budget: &mut ExpansionBudget,
 ) -> Result<GlyphPaint> {
     let mut chain = Vec::new();
     let mut current = n;
@@ -533,6 +534,7 @@ fn gradient<'a, 'i>(
         if child.children().any(|n| n.is_element()) {
             return Err(unsupported("stop children"));
         }
+        budget.commands(1)?;
         let s = props(child)?;
         let val = s.get("offset").copied().unwrap_or("0");
         let offset = if let Some(v) = val.strip_suffix('%') {
@@ -561,9 +563,9 @@ fn gradient<'a, 'i>(
             color: (value & 0x00ff_ffff) | (alpha << 24),
         });
     }
-    if stops.is_empty() {
+    let Some(last_stop) = stops.last() else {
         return Err(unsupported("empty gradient"));
-    }
+    };
     let transform = mul(
         m,
         transform(p.get("gradientTransform").copied().unwrap_or(""))?,
@@ -612,14 +614,39 @@ fn gradient<'a, 'i>(
             }))
         }
         "linearGradient" => {
-            if !["x1", "y1", "x2", "y2"].iter().all(|k| p.contains_key(k)) {
-                return Err(unsupported("linear gradient percentage defaults"));
+            // Compare before narrowing to the painter's f32 coordinates. Nearby
+            // but distinct endpoints can round to the same f32 value.
+            let endpoint = |key| -> Result<f64> {
+                let v = p
+                    .get(key)
+                    .ok_or_else(|| unsupported("linear gradient percentage defaults"))?;
+                let v = v
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|_| unsupported("invalid number or unsupported unit"))?;
+                if v.is_finite() && v.abs() <= 1e7 {
+                    Ok(v)
+                } else {
+                    Err(unsupported("nonfinite or excessive coordinate"))
+                }
+            };
+            let (x1, y1) = (endpoint("x1")?, endpoint("y1")?);
+            let (x2, y2) = (endpoint("x2")?, endpoint("y2")?);
+            if (x1, y1) == (x2, y2) {
+                // SVG 1.1 uses the last stop's color and opacity everywhere.
+                return Ok(GlyphPaint::Solid(last_stop.color));
+            }
+            let (x1, y1, x2, y2) = (x1 as f32, y1 as f32, x2 as f32, y2 as f32);
+            let (dx, dy) = (x2 - x1, y2 - y1);
+            // The generic paint sampler forces t=0 in this range.
+            if dx * dx + dy * dy <= f32::EPSILON {
+                return Err(unsupported("linear gradient is too short"));
             }
             Ok(GlyphPaint::LinearGradient(LinearGradientPaint {
-                x1: get("x1", 0.)?,
-                y1: get("y1", 0.)?,
-                x2: get("x2", 1.)?,
-                y2: get("y2", 0.)?,
+                x1,
+                y1,
+                x2,
+                y2,
                 units,
                 transform,
                 spread,
@@ -925,7 +952,7 @@ fn visit<'a, 'i>(
         // Charge even invisible geometry so repeated fill=none use expansion
         // cannot evade the work budget.
         budget.commands(commands.len())?;
-        let paint_for = |value: &str| -> Result<GlyphPaint> {
+        let paint_for = |value: &str, budget: &mut ExpansionBudget| -> Result<GlyphPaint> {
             let value = value.trim();
             if value == "currentColor" {
                 Ok(GlyphPaint::CurrentColor)
@@ -937,22 +964,21 @@ fn visit<'a, 'i>(
                     *ids.get(id).ok_or_else(|| unsupported("missing gradient"))?,
                     state.matrix,
                     ids,
+                    budget,
                 )
             } else {
                 Ok(GlyphPaint::Solid(color(value)?))
             }
         };
-        let mut add = |path: PathGlyphLayer, stroke_style: Option<StrokeStyle>| -> Result<()> {
+        let mut add = |path: PathGlyphLayer,
+                       stroke_style: Option<StrokeStyle>,
+                       budget: &mut ExpansionBudget|
+         -> Result<()> {
             budget.paints += 1;
             if budget.paints > 4096 {
                 return Err(unsupported("expanded paint limit"));
             }
-            let stops = match &path.paint {
-                GlyphPaint::LinearGradient(g) => g.stops.len(),
-                GlyphPaint::RadialGradient(g) => g.stops.len(),
-                _ => 0,
-            };
-            budget.commands(path.commands.len() + stops)?;
+            budget.commands(path.commands.len())?;
             children.push(SvgPreparedNode::Paint(SvgPreparedLayer {
                 path,
                 stroke_style,
@@ -963,9 +989,10 @@ fn visit<'a, 'i>(
         };
         if !commands.is_empty() {
             if state.fill != "none" && tag != "line" {
-                let mut layer = PathGlyphLayer::new(commands.clone(), paint_for(&state.fill)?);
+                let mut layer =
+                    PathGlyphLayer::new(commands.clone(), paint_for(&state.fill, budget)?);
                 layer.fill_rule = state.rule;
-                add(layer, None)?;
+                add(layer, None, budget)?;
             }
             if state.stroke != "none" && state.stroke_style.width > 0. {
                 let m = state.matrix;
@@ -983,9 +1010,12 @@ fn visit<'a, 'i>(
                 if !style.width.is_finite() || style.width > 1e7 {
                     return Err(unsupported("excessive transformed stroke width"));
                 }
-                let layer =
-                    PathGlyphLayer::stroke(commands, paint_for(&state.stroke)?, style.width);
-                add(layer, Some(style))?;
+                let layer = PathGlyphLayer::stroke(
+                    commands,
+                    paint_for(&state.stroke, budget)?,
+                    style.width,
+                );
+                add(layer, Some(style), budget)?;
             }
         }
     } else if tag == "use" {

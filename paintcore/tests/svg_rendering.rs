@@ -161,6 +161,65 @@ fn stroke_cap_is_not_lost_in_private_svg_adapter() {
 }
 
 #[test]
+fn coincident_linear_gradient_uses_last_stop_rgba() {
+    for (opacity, expected) in [(".5", [34, 119, 204, 128]), ("0", [0, 0, 0, 0])] {
+        let doc = format!(
+            "<svg viewBox='0 0 16 16'>
+                <linearGradient id='base' gradientUnits='userSpaceOnUse'
+                    x1='3' y1='4' x2='3.0' y2='4' spreadMethod='repeat'>
+                    <stop offset='0' stop-color='#ff0000'/>
+                    <stop offset='.8' stop-color='#2277cc' stop-opacity='{opacity}'/>
+                </linearGradient>
+                <linearGradient id='g' href='#base' gradientTransform='translate(2 3)'/>
+                <rect width='16' height='16' fill='url(#g)'/>
+            </svg>"
+        );
+        let pixels = render(vec![svg(&doc)]);
+        for (i, pixel) in pixels.chunks_exact(4).enumerate() {
+            let (x, y) = (i % 20, i / 20);
+            let rgba = if x < 16 && y < 16 { expected } else { [0; 4] };
+            assert_eq!(pixel, rgba, "pixel ({x}, {y}), stop-opacity {opacity}");
+        }
+    }
+}
+
+#[test]
+fn nonzero_short_linear_gradient_fails_before_drawing() {
+    // The second endpoint pair rounds to a single point in f32.
+    for x2 in ["8.0001", "8.00000001"] {
+        let doc = format!(
+            "<svg viewBox='0 0 16 16'>
+                <linearGradient id='g' gradientUnits='userSpaceOnUse'
+                    x1='8' y1='4' x2='{x2}' y2='4'>
+                    <stop offset='0' stop-color='red'/>
+                    <stop offset='1' stop-color='blue'/>
+                </linearGradient>
+                <rect width='16' height='16' fill='green'/>
+                <rect width='16' height='16' fill='url(#g)'/>
+            </svg>"
+        );
+        let mut canvas = Layer::tmp(20, 20);
+        canvas.buffer_mut().fill(42);
+        let error = draw_svg_document(
+            &mut canvas,
+            &doc,
+            SvgRenderTransform {
+                viewport_units_to_pixels: [1., 0., 0., 1., 0., 0.],
+            },
+            0.,
+            0.,
+            0xff000000,
+        )
+        .unwrap_err()
+        .downcast::<std::io::Error>()
+        .expect("SVG preparation returns an I/O error");
+        assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+        assert_eq!(error.to_string(), "SVG: linear gradient is too short");
+        assert!(canvas.buffer().iter().all(|&byte| byte == 42));
+    }
+}
+
+#[test]
 fn svg_gradient_zero_alpha_is_not_legacy_rgb_shorthand() {
     let doc="<svg viewBox='0 0 16 16'><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='16' y2='0'><stop offset='0' stop-color='#ffff00' stop-opacity='0'/><stop offset='1' stop-color='#ffff00' stop-opacity='0'/></linearGradient><rect width='16' height='16' fill='url(#g)'/></svg>";
     assert!(render(vec![svg(doc)]).chunks_exact(4).all(|p| p[3] == 0));

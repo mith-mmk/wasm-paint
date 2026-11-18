@@ -47,7 +47,8 @@
       "name": "emoji_u1f436.svg",
       "sha256": "bed8ea61ae55ed250eb9c843f7e6a6557998ffaa342b20496464ce713b4b5f69",
       "expected": "unsupported",
-      "reason": "DTD"
+      "reason": "DTD",
+      "shaping_error": "failed to extract SVG glyph layer for 'A'"
     },
     {
       "name": "emoji_u1f44d.svg",
@@ -84,7 +85,8 @@
       "name": "emoji_u1f680.svg",
       "sha256": "4c01badc8952fc694b29ff2292b55965dd9ae5e22b0f94aaa68e336ae12f6d55",
       "expected": "unsupported",
-      "reason": "DTD"
+      "reason": "DTD",
+      "shaping_error": "failed to extract SVG glyph layer for 'A'"
     },
     {
       "name": "emoji_u1f6f8.svg",

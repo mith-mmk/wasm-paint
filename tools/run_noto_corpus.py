@@ -71,7 +71,7 @@ for item in manifest['files']:
     cairosvg.svg2png(bytestring=canonical,output_width=256,output_height=256,write_to=reference)
     command = [os.environ['SVG_CONTEXT_PROBE_BINARY']] if 'SVG_CONTEXT_PROBE_BINARY' in os.environ else ['cargo','run','--quiet','--manifest-path',str(runner/'Cargo.toml'),'--']
     run=subprocess.run(command+[str(prefix)+'.ttf',str(prefix),'0'],capture_output=True,text=True)
-    result={'file':source.name,'rendered':run.returncode==0}
+    result={'file':source.name,'rendered':run.returncode==0,'returncode':run.returncode}
     try:result['probe']=json.loads(run.stdout)
     except ValueError:result['stdout']=run.stdout
     if run.returncode:
@@ -89,10 +89,15 @@ summary={'reference_versions':{'CairoSVG':cairosvg.__version__,'Pillow':PIL.__ve
 (out/'noto-corpus-results.json').write_text(json.dumps(summary,indent=2)+'\n')
 
 if '--check' in sys.argv[3:]:
-    expected = {f['name']: f['expected'] for f in manifest['files']}
-    for result in results:
-        if expected[result['file']] == 'render':
-            assert result.get('comparison_pass'), f"{result['file']}: rendering/reference regression"
-        else:
-            assert not result['rendered'], f"{result['file']}: unsupported input must not succeed"
+    for item, result in zip(manifest['files'], results, strict=True):
+        if item['expected'] == 'render' and result.get('comparison_pass'):
+            continue
+        if item['expected'] == 'unsupported':
+            diagnostic = f"SVG shaping error (Unsupported): {item['shaping_error']}"
+            # These checksum-pinned DTD fixtures are rejected during SVG extraction.
+            # The probe reserves status 2 for errors in shaping with SVG context.
+            if result['returncode'] == 2 and result['error'].splitlines()[-1:] == [diagnostic]:
+                continue
+            raise SystemExit(f"{result['file']}: expected {diagnostic}, got {result}")
+        raise SystemExit(f"{result['file']}: rendering/reference regression")
     print('corpus gate passed: supported references and explicit unsupported failures')

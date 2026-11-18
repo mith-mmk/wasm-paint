@@ -2,10 +2,18 @@
 // Compiled by run_svg_context_probe.py, not against the published dependency.
 use paintcore::prelude::*;
 use paintcore::image_compat::{ImageFormat, RgbaImage};
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+use std::process::ExitCode;
+
+fn main() -> Result<ExitCode, Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
     let face = fontcore::load_font_from_buffer(&std::fs::read(&args[1])?)?;
-    let context = face.engine().with_font_size(256.).shape_with_svg_context("A\u{fe0f}")?;
+    let context = match face.engine().with_font_size(256.).shape_with_svg_context("A\u{fe0f}") {
+        Ok(context) => context,
+        Err(error) => {
+            eprintln!("SVG shaping error ({:?}): {error}", error.kind());
+            return Ok(ExitCode::from(2));
+        }
+    };
     let run: GlyphRun = context.run().clone().into();
     let mut transforms = Vec::new();
     let mut counts = [0;3];
@@ -28,5 +36,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(format!("{}-all.png",args[2]),image.encode_to_vec(ImageFormat::Png)?)?;
     println!("{{\"paths\":{},\"rasters\":{},\"svg\":{},\"renders\":[{{\"kind\":\"all\",\"ok\":{},\"nontransparent_pixels\":{painted}}}]}}",counts[0],counts[1],counts[2],result.is_ok());
     result?;
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
