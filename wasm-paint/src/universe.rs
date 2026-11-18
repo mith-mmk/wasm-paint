@@ -1956,6 +1956,19 @@ impl Universe {
         font_size: f32,
         color: u32,
     ) -> Result<(), JsValue> {
+        self.draw_loaded_text(&text, x, y, font_size, color, false)
+    }
+
+    #[cfg(feature = "font")]
+    fn draw_loaded_text(
+        &mut self,
+        text: &str,
+        x: f32,
+        y: f32,
+        font_size: f32,
+        color: u32,
+        vertical: bool,
+    ) -> Result<(), JsValue> {
         if !font_size.is_finite() || font_size <= 0.0 {
             return Err(js_error("font_size must be a positive finite value"));
         }
@@ -1964,13 +1977,13 @@ impl Universe {
             .font
             .as_ref()
             .ok_or_else(|| js_error("font is not loaded"))?;
-        let glyphs = {
-            let mut options = FontOptions::new(font);
-            options.font_size = font_size;
-            path::layout_text(&text, options).map_err(|error| js_error(&error.to_string()))?
-        };
-
-        path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
+        let mut options = FontOptions::new(font).with_font_size(font_size);
+        if vertical {
+            options = options.with_vertical_flow();
+        }
+        let layer = self.canvas.layer_mut(self.canvas.current()).unwrap();
+        path::draw_text_with_options(layer, text, options, x, y, color)
+            .map(|_| ())
             .map_err(|error| js_error(&error.to_string()))
     }
 
@@ -1988,6 +2001,11 @@ impl Universe {
     ) -> Result<(), JsValue> {
         if !x.is_finite() || !y.is_finite() {
             return Err(js_error("text origin must be finite"));
+        }
+        match flow.as_str() {
+            "horizontal" => return self.draw_loaded_text(&text, x, y, font_size, color, false),
+            "vertical" => return self.draw_loaded_text(&text, x, y, font_size, color, true),
+            _ => {}
         }
         let glyphs = self.layout_text_flow(&text, font_size, &flow)?;
         path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)

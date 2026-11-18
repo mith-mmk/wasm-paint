@@ -2589,6 +2589,9 @@ pub fn layout_text_vertical_mixed_ltr(
         .map_err(|error| Box::new(error) as Error)
 }
 
+/// Shapes and draws text. With `svg-font`, a loaded single face carries its
+/// typed SVG placement through to rendering; family fallback still uses the
+/// legacy glyph-run path, which rejects raw SVG without placement metadata.
 #[cfg(feature = "font")]
 pub fn draw_text_with_options(
     screen: &mut dyn Screen,
@@ -2598,6 +2601,44 @@ pub fn draw_text_with_options(
     offset_y: f32,
     default_color: u32,
 ) -> Result<GlyphRun, Error> {
+    #[cfg(feature = "svg-font")]
+    if let Some(FontRef::Loaded(face)) = options.font {
+        let shaped = face
+            .engine()
+            .with_options(options)
+            .shape_with_svg_context(text)?;
+        let transforms: Vec<_> = shaped
+            .run()
+            .glyphs
+            .iter()
+            .enumerate()
+            .map(|(glyph, positioned)| {
+                positioned
+                    .glyph
+                    .layers
+                    .iter()
+                    .enumerate()
+                    .find_map(|(layer, _)| {
+                        shaped
+                            .svg_layer_transform(glyph, layer)
+                            .map(|viewport_units_to_pixels| SvgRenderTransform {
+                                viewport_units_to_pixels,
+                            })
+                    })
+            })
+            .collect();
+        let glyphs = shaped.into_run().into();
+        draw_glyphs_with_svg_transforms(
+            screen,
+            &glyphs,
+            &transforms,
+            offset_x,
+            offset_y,
+            default_color,
+        )?;
+        return Ok(glyphs);
+    }
+
     let glyphs = layout_text(text, options)?;
     draw_glyphs(screen, &glyphs, offset_x, offset_y, default_color)?;
     Ok(glyphs)

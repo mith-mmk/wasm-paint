@@ -1,8 +1,9 @@
 # Bounded SVG renderer
 
-Current verified status is the third-stage subset described below: 18 of 20 pinned
-Noto sample assets pass reference comparison, with two explicit DTD rejections.
-Earlier sections preserve the incremental implementation history.
+Current verified status: 21 of 23 pinned Noto sample assets pass reference
+comparison, with two explicit DTD rejections. The published fontcore dependency
+also enables single-face text drawing with real OpenType SVG fonts. Earlier
+sections preserve the incremental implementation history.
 
 `svg-font` enables a private SVG adapter in paintcore. fontcore still owns font
 parsing, document extraction and glyph metrics. The adapter translates SVG into
@@ -183,3 +184,57 @@ arcs, rounded rects, nonuniform strokes, objectBoundingBox/multi-child/nested
 clip definitions and external resources. Unsupported features remain errors,
 not partial rendering. Fontcore integration SHA remains
 `7d04cb51acfc2ade5a0ce5a2e57401ae16243027`.
+
+
+## Published dependency and ordinary text APIs
+
+The workspace uses registry `fontcore 0.0.20`; no Git or local dependency
+override is needed. With the `svg-font` feature, native
+`draw_text_with_options` and Wasm `Universe.drawText` /
+`Universe.drawTextFlow` (`horizontal` and `vertical`) take the typed
+placement from fontcore for a loaded single face. Callers still supply the normal
+text origin; the SVG glyph origin and layer offset are not applied a second time.
+An unsupported SVG stops the run before changing the destination. Raw
+`draw_glyphs`, family fallback, mapped layouts and mixed/sideways flow do not
+acquire raw SVG placement through this integration.
+
+### Real-font check
+
+These are **unmodified fonts**, not synthetic SFNTs. Fixture source:
+[Google Fonts color-fonts, revision e830e042](https://github.com/googlefonts/color-fonts/tree/e830e042b0e93fd5b0197a7fe9f0398f6d87f467/fonts).
+No upstream binaries are committed here.
+
+| Font | SHA-256 |
+| --- | --- |
+| `noto-untouchedsvg.ttf` | `90eca50e0696d71b1d8ac2c6a635d7972e747759e70d47a10b4db896490c9d3f` |
+| `noto-untouchedsvgz.ttf` | `0cd71a72d01a9f3064c9e60a75af68ae04a1f3e12a0dde839faff4fdeeabcb5e` |
+| `noto-picosvg.ttf` | `51f4a7aef6b813f467b4966bfb8a80bc4963815ea25caaa7d26534a336bbcfce` |
+
+The untouched SVG and SVGZ at 256 px produced identical native pixels in the
+13 sampled runs: 😀 with and without VS16, 🙂, 🌈, 🌷, 👍, 🛸, 🧪, 🐶, 🚀, 👓, 👩‍🚀
+and 😀👍. The dog/rocket SVGs embedded by this upstream build are not the
+DTD-bearing standalone inputs described above. The optimized picosvg font is
+not interchangeable: 6 of the 13 runs rendered, and 7 stopped in fontcore SVG
+extraction with `Unsupported` rather than drawing incomplete fallback art. The
+large picosvg document covering 😀 and several other sampled glyphs has 73,943
+local references and exceeds fontcore's 65,536 whole-document reference limit.
+
+On Chrome 157, the ordinary Wasm APIs rendered both orientations of 😀👍 through
+`ImageData` onto a Canvas: 76,615 nontransparent pixels in each, with horizontal
+ink bounds (34, 93)–(535, 332) at origin (16, 288) and vertical bounds
+(298, 31)–(531, 520) at origin (280, 220). The horizontal APIs and both untouched
+font encodings agreed pixel-for-pixel. A 👩‍🚀 ZWJ run produced 40,972 visible pixels
+within one glyph width. A synthetic run with an unsupported filter verified that
+existing pixels were unchanged on error. These are targeted integration and
+positioning checks, not full-font conformance.
+
+To reproduce the core pixel checks after building web bindings with `svg-font`:
+
+```sh
+PAINT_TEST_SVG_FONT=/path/to/noto-untouchedsvg.ttf \
+PAINT_TEST_SVGZ_FONT=/path/to/noto-untouchedsvgz.ttf \
+node --test tests/web-paint/font-text-wasm.test.cjs
+```
+
+With only the repository's synthetic fixture, set `PAINT_TEST_SVG_WASM=1`
+instead. Native SVG text tests need no external assets.
