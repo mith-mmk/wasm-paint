@@ -8,6 +8,7 @@ use std::io::{Error, ErrorKind};
 
 type Result<T> = std::result::Result<T, Error>;
 type Matrix = [f32; 6];
+const PATH_COMMAND_LIMIT: usize = 100_000;
 const ID: Matrix = [1., 0., 0., 1., 0., 0.];
 fn unsupported(s: &str) -> Error {
     Error::new(ErrorKind::Unsupported, format!("SVG: {s}"))
@@ -258,7 +259,7 @@ impl ExpansionBudget {
             .commands
             .checked_add(n)
             .ok_or_else(|| unsupported("expanded command overflow"))?;
-        if self.commands > 100_000 {
+        if self.commands > PATH_COMMAND_LIMIT {
             return Err(unsupported("expanded command limit"));
         }
         Ok(())
@@ -270,6 +271,109 @@ impl std::ops::Deref for SvgPreparedLayer {
         &self.path
     }
 }
+/// Convert SVG endpoint-parameterized arcs to cubic segments of at most 45°.
+fn append_arc(
+    out: &mut Vec<Command>,
+    m: Matrix,
+    start: (f32, f32),
+    end: (f32, f32),
+    radii: (f64, f64),
+    rotation: f64,
+    flags: (bool, bool),
+) -> Result<()> {
+    let (large, sweep) = flags;
+    let (mut rx, mut ry) = (radii.0.abs(), radii.1.abs());
+    if ![rx, ry, rotation]
+        .iter()
+        .all(|n| n.is_finite() && n.abs() <= 1e7)
+    {
+        return Err(unsupported("excessive arc radius or rotation"));
+    }
+    if start == end {
+        return Ok(());
+    }
+    if rx == 0. || ry == 0. {
+        let p = point(m, end);
+        out.push(Command::Line(p.0, p.1));
+        return Ok(());
+    }
+
+    let (sin_phi, cos_phi) = match rotation.rem_euclid(360.) {
+        0. | 360. => (0., 1.),
+        90. => (1., 0.),
+        180. => (0., -1.),
+        270. => (-1., 0.),
+        angle => angle.to_radians().sin_cos(),
+    };
+    let dx = (f64::from(start.0) - f64::from(end.0)) * 0.5;
+    let dy = (f64::from(start.1) - f64::from(end.1)) * 0.5;
+    let x = (cos_phi * dx + sin_phi * dy) / rx;
+    let y = (-sin_phi * dx + cos_phi * dy) / ry;
+    let scale = x.hypot(y);
+    if !scale.is_finite() || scale == 0. {
+        return Err(unsupported("arc geometry outside numeric limits"));
+    }
+    if scale > 1. {
+        rx *= scale;
+        ry *= scale;
+    }
+
+    // Work in the ellipse's unit circle. Radii too small for the chord are
+    // scaled together, so the adjusted half-chord length is at most one.
+    let h = scale.min(1.);
+    let perpendicular = ((1. - h) * (1. + h)).sqrt() * if large == sweep { -1. } else { 1. };
+    let (ux, uy) = (x / scale, y / scale);
+    let (vx, vy) = (ux * h - uy * perpendicular, uy * h + ux * perpendicular);
+    let small_angle = 2. * h.asin();
+    let angle = if large {
+        std::f64::consts::TAU - small_angle
+    } else {
+        small_angle
+    } * if sweep { 1. } else { -1. };
+    let count = (angle.abs() / std::f64::consts::FRAC_PI_4).ceil() as usize;
+    if count == 0 || count > 8 || out.len() + count > PATH_COMMAND_LIMIT {
+        return Err(unsupported("path command limit"));
+    }
+    let step = angle / count as f64;
+    let tangent = (4. / 3.) * (step / 4.).tan();
+
+    let map = |x: f64, y: f64| {
+        let x = rx * x;
+        let y = ry * y;
+        point(
+            m,
+            (
+                (f64::from(start.0) + cos_phi * x - sin_phi * y) as f32,
+                (f64::from(start.1) + sin_phi * x + cos_phi * y) as f32,
+            ),
+        )
+    };
+    // Evaluate relative to the exact start rather than subtracting a large
+    // ellipse center from a radius to locate a shallow arc.
+    let state = |a: f64| {
+        let (sin, cos) = a.sin_cos();
+        let half_sin = (a * 0.5).sin();
+        let cos_minus_one = -2. * half_sin * half_sin;
+        (
+            vx * cos_minus_one - vy * sin,
+            vx * sin + vy * cos_minus_one,
+            -(vx * sin + vy * cos),
+            vx * cos - vy * sin,
+        )
+    };
+    for i in 0..count {
+        let (x0, y0, dx0, dy0) = state(i as f64 * step);
+        let (x1, y1, dx1, dy1) = state((i + 1) as f64 * step);
+        let last = i + 1 == count;
+        out.push(Command::CubicBezier(
+            map(x0 + tangent * dx0, y0 + tangent * dy0),
+            map(x1 - tangent * dx1, y1 - tangent * dy1),
+            if last { point(m, end) } else { map(x1, y1) },
+        ));
+    }
+    Ok(())
+}
+
 fn path(data: &str, m: Matrix) -> Result<Vec<Command>> {
     use svgtypes::PathSegment::*;
     let mut out = Vec::new();
@@ -277,8 +381,8 @@ fn path(data: &str, m: Matrix) -> Result<Vec<Command>> {
     let mut start = cur;
     let mut cubic = None;
     let mut quad = None;
-    for seg in svgtypes::PathParser::from(data) {
-        if out.len() >= 100_000 {
+    for (index, seg) in svgtypes::PathParser::from(data).enumerate() {
+        if index >= PATH_COMMAND_LIMIT || out.len() >= PATH_COMMAND_LIMIT {
             return Err(unsupported("path command limit"));
         }
         let seg = seg.map_err(|_| unsupported("invalid path"))?;
@@ -366,7 +470,28 @@ fn path(data: &str, m: Matrix) -> Result<Vec<Command>> {
                 cur = start;
                 out.push(Command::Close);
             }
-            EllipticalArc { .. } => return Err(unsupported("elliptical arcs are not implemented")),
+            EllipticalArc {
+                abs,
+                rx,
+                ry,
+                x_axis_rotation,
+                large_arc,
+                sweep,
+                x,
+                y,
+            } => {
+                let end = pos(x, y, abs)?;
+                append_arc(
+                    &mut out,
+                    m,
+                    cur,
+                    end,
+                    (rx, ry),
+                    x_axis_rotation,
+                    (large_arc, sweep),
+                )?;
+                cur = end;
+            }
         }
     }
     for command in &out {
@@ -1283,6 +1408,140 @@ mod tests {
             Command::Bezier((12., 2.), (14., 2.))
         ));
     }
+    #[test]
+    fn arc_flags_select_direction_and_small_or_large_span() {
+        for (large, sweep) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+            // Compact flags and the following x coordinate are legal SVG syntax.
+            let commands = path(&format!("M-2 0 A4 4 0 {large}{sweep}2 0"), ID).unwrap();
+            assert_eq!(commands.len(), if large == 0 { 3 } else { 8 });
+            let mut x = -2.;
+            let mut y = 0.;
+            let center_y = (3f32).sqrt() * 2. * if large == sweep { -1. } else { 1. };
+            for command in &commands[1..] {
+                let Command::CubicBezier(a, b, c) = command else {
+                    panic!("expected arc cubic")
+                };
+                let mx = (x + 3. * a.0 + 3. * b.0 + c.0) / 8.;
+                let my = (y + 3. * a.1 + 3. * b.1 + c.1) / 8.;
+                assert!((mx.hypot(my - center_y) - 4.).abs() < 0.0001);
+                assert!(if sweep == 0 { my > 0. } else { my < 0. });
+                (x, y) = *c;
+            }
+            assert_eq!((x, y), (2., 0.));
+        }
+    }
+
+    #[test]
+    fn rotated_arc_grows_radii_then_applies_affine_transform() {
+        // Requested 1x2 radii are too small for this chord; after a 90°
+        // rotation the corrected ellipse has horizontal radius 4, vertical 2.
+        let m = [-2., 1., 0.5, 3., 5., 9.];
+        let commands = path("M-4 0 A1 2 90 0 1 4 0", m).unwrap();
+        assert_eq!(commands.len(), 5);
+        let Command::CubicBezier(_, _, apex) = commands[2] else {
+            panic!("expected cubic")
+        };
+        assert_eq!(apex, point(m, (0., -2.)));
+        let Command::CubicBezier(_, _, end) = commands[4] else {
+            unreachable!()
+        };
+        assert_eq!(end, point(m, (4., 0.)));
+
+        let negative = path("M-4 0 A-1 -2 -270 0 1 4 0", m).unwrap();
+        assert_eq!(format!("{negative:?}"), format!("{commands:?}"));
+    }
+
+    #[test]
+    fn relative_repeated_and_degenerate_arcs_preserve_path_state() {
+        let commands = path("M3 5 a2 2 0 0 1 2 2 2 2 0 0 1 -2 2 s1 1 2 0 z l1 2", ID).unwrap();
+        let len = commands.len();
+        assert!(
+            commands
+                .iter()
+                .any(|command| matches!(command, Command::CubicBezier(_, _, (5., 7.))))
+        );
+        assert!(matches!(
+            commands[len - 4],
+            Command::CubicBezier(_, _, (3., 9.))
+        ));
+        assert!(matches!(
+            commands[len - 3],
+            Command::CubicBezier((3., 9.), (4., 10.), (5., 9.))
+        ));
+        assert!(matches!(commands[commands.len() - 2], Command::Close));
+        assert!(matches!(commands.last(), Some(Command::Line(4., 7.))));
+
+        let commands = path("M1 1 Q2 3 3 1 A2 2 0 1 1 3 1 t2 0 a0 1 0 1 1 1 2", ID).unwrap();
+        assert_eq!(commands.len(), 4);
+        assert!(matches!(commands[2], Command::Bezier((3., 1.), (5., 1.))));
+        assert!(matches!(commands[3], Command::Line(6., 3.)));
+    }
+
+    #[test]
+    fn invalid_and_excessive_arcs_are_rejected() {
+        for invalid in [
+            "M0 0 A2 2 0 2 1 2 2",         // invalid flag
+            "M0 0 A2 2 0 0 1 2",           // truncated
+            "M0 0 A1e8 2 0 0 1 2 2",       // unbounded input radius
+            "M0 0 A2 2 1e50 0 1 2 2",      // unbounded rotation
+            "M0 0 A0.00001 1e7 0 0 1 2 0", // corrected geometry exceeds the limit
+        ] {
+            let error = path(invalid, ID).unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::Unsupported, "{invalid}");
+        }
+        assert!(path("M0 0 A100 100 0 1 1 2 0", [1e6, 0., 0., 1e6, 0., 0.]).is_err());
+        let too_many = format!("M0 0{}", " a10 10 0 1 1 1 0".repeat(12_500));
+        assert!(
+            path(&too_many, ID)
+                .unwrap_err()
+                .to_string()
+                .contains("path command limit")
+        );
+    }
+
+    #[test]
+    fn arcs_work_in_clips_and_invalid_arcs_leave_pixels_unchanged() {
+        use crate::canvas::{Canvas, Screen};
+        let mut canvas = Canvas::new(32, 32);
+        let render_transform = SvgRenderTransform {
+            viewport_units_to_pixels: ID,
+        };
+        let body = r#"<clipPath id="c"><path d="M4 15 A11 11 0 1 1 26 15 A11 11 0 1 1 4 15 Z"/></clipPath>
+            <rect width="32" height="32" fill="red" clip-path="url(#c)"/>"#;
+        draw_svg_document(
+            &mut canvas,
+            &svg(body).document,
+            render_transform,
+            0.,
+            0.,
+            0xff000000,
+        )
+        .unwrap();
+        let alpha = |x: usize, y: usize| canvas.buffer()[(y * 32 + x) * 4 + 3];
+        assert_eq!(alpha(15, 15), 255);
+        assert_eq!(alpha(15, 5), 255);
+        assert_eq!(alpha(5, 5), 0);
+
+        let before = canvas.buffer().to_vec();
+        let good = svg("<rect width='32' height='32' fill='blue'/>");
+        let bad = svg("<path d='M1 2 A2 2 0 0 9 4 5'/>");
+        let run = GlyphRun::new(vec![
+            PositionedGlyph::new(Glyph::new(vec![GlyphLayer::Svg(good)]), 0., 0.),
+            PositionedGlyph::new(Glyph::new(vec![GlyphLayer::Svg(bad)]), 0., 0.),
+        ]);
+        let err = draw_glyphs_with_svg_transforms(
+            &mut canvas,
+            &run,
+            &[Some(render_transform); 2],
+            0.,
+            0.,
+            0xff000000,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("invalid path"));
+        assert_eq!(canvas.buffer(), before);
+    }
+
     #[test]
     fn unsupported_content_in_defs_cannot_change_style_silently() {
         assert!(parse(&svg(
