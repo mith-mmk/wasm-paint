@@ -27,11 +27,11 @@ are unchanged. Additive APIs are `drawTextFlow(text,x,y,size,argb,flow)` and
 `measureTextFlow(text,size,flow)` (four conservative ink bounds, or empty).
 Supported flow identifiers: `horizontal`, `vertical`, `mixed`, `sideways`.
 Drawing coordinates use the shaped origin; UI adjusts bounds once for anchoring.
-With `svg-font`, this integration preview passes SVG placement through
+With `svg-font`, the fontcore 0.0.21 integration passes SVG placement through
 `drawText`, `drawTextFamily`, and all four `drawTextFlow` options. Mixed and
 sideways retain their previous restrictions on bitmap and other colored layers.
 Bounds are conservative layout geometry, not pixel-exact SVG ink bounds.
-See the [integration details](../../docs/svg-probe/RENDERER.md#svg-text-layout-integration-preview).
+See the [integration details](../../docs/svg-probe/RENDERER.md#svg-text-layout-integration).
 
 Tests: `node --test tests/web-paint/font-text.test.cjs` (no generated bindings
 needed), and `node --test tests/web-paint/paint-tool.test.cjs` after generating

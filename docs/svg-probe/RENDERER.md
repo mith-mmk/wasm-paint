@@ -216,8 +216,11 @@ and 😀👍. The dog/rocket SVGs embedded by this upstream build are not the
 DTD-bearing standalone inputs described above. The optimized picosvg font is
 not interchangeable: 6 of the 13 runs rendered, and 7 stopped in fontcore SVG
 extraction with `Unsupported` rather than drawing incomplete fallback art. The
-large picosvg document covering 😀 and several other sampled glyphs has 73,943
-local references and exceeds fontcore's 65,536 whole-document reference limit.
+large picosvg document covering 😀 and several other sampled glyphs had 73,943
+local references and exceeded the 65,536 whole-document reference limit in
+fontcore 0.0.20. Since 0.0.21, references outside the selected glyph and its
+dependencies do not count against that budget. This does not change which
+SVG drawing commands the paintcore renderer supports.
 
 On Chrome 157, the ordinary Wasm APIs rendered both orientations of 😀👍 through
 `ImageData` onto a Canvas: 76,615 nontransparent pixels in each, with horizontal
@@ -240,13 +243,17 @@ With only the repository's synthetic fixture, set `PAINT_TEST_SVG_WASM=1`
 instead. Native SVG text tests need no external assets.
 
 
-## SVG text layout integration preview
+## SVG text layout integration
 
-The separate `feat/svg-layout-context-integration` branch pins FontReader's
-placement API revision `a93433843db8ba59eeaf4463a528eee48d0e1d2e`. It is an
-integration preview, not a registry release. PR #10's published-dependency
-branch keeps using fontcore 0.0.20. When a fontcore release contains these APIs,
-switch the preview's exact Git pin to that registry version before publishing.
+This integration uses registry `fontcore 0.0.21` for typed SVG placement,
+with no Git dependency or local override. The parent PR #10 still uses
+fontcore 0.0.20.
+
+With the published dependency, the native real-font check painted all 13
+untouched SVG and SVGZ samples with identical pixels. The pinned picosvg font
+now shapes all 13 samples; 10 render, up from 6 with 0.0.20. The other three
+(`🛸`, `🧪`, and `👩‍🚀`) reach the renderer but fail without drawing any
+pixels because elliptical arcs are still unsupported on this branch.
 
 - Family fallback chooses and shapes faces exactly as before. Each SVG uses
   its selected face's scale and final placement. Wasm `drawTextFamily` uses
