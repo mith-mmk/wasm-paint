@@ -238,3 +238,40 @@ node --test tests/web-paint/font-text-wasm.test.cjs
 
 With only the repository's synthetic fixture, set `PAINT_TEST_SVG_WASM=1`
 instead. Native SVG text tests need no external assets.
+
+
+## SVG text layout integration preview
+
+The separate `feat/svg-layout-context-integration` branch pins FontReader's
+placement API revision `a93433843db8ba59eeaf4463a528eee48d0e1d2e`. It is an
+integration preview, not a registry release. PR #10's published-dependency
+branch keeps using fontcore 0.0.20. When a fontcore release contains these APIs,
+switch the preview's exact Git pin to that registry version before publishing.
+
+- Family fallback chooses and shapes faces exactly as before. Each SVG uses
+  its selected face's scale and final placement. Wasm `drawTextFamily` uses
+  this path, including when the fallback face's metrics differ.
+- `MappedTextLayout` retains SVG placement with its source data. Hard-line and
+  BiDi layouts add their line/run origins, then the placed object's origin.
+  Mixed-vertical placement already includes orientation and centering. Caret
+  and source queries retain their existing geometry rules.
+- Wasm `drawTextFlow` with `mixed` or `sideways` can draw raw SVG. Native
+  callers can opt in through the corresponding `layout_text_*_with_svg_context`
+  functions and draw the returned `SvgTextRun`. The original outline APIs are
+  still callable with the same signatures and restrictions.
+- Raw SVG remains an alternative to approximate paths. Other colored layers
+  and bitmap glyphs still follow the existing outline-only restrictions for
+  mixed and sideways flow. Unsupported SVG errors before modifying any pixel.
+
+The native synthetic cases compare exact RGBA for two fallback face scales,
+one clockwise rotation, separate mapped lines and BiDi runs, and destination
+preservation on a renderer error. Other tests verify caret provenance and
+mixed upright/sideways glyph placement. See `paintcore/tests/svg_text.rs` and
+the SVG cases in `tests/web-paint/font-text-wasm.test.cjs`.
+
+On hadrianus in Chrome 157, the real `noto-untouchedsvg.ttf` face was selected
+as the fallback in `A️😀A️` (19,723 painted pixels across both faces).
+At 256 px, 😀👍 painted 76,610 pixels in sideways flow and 76,615 in mixed
+upright flow. Sideways raw and gzip SVG produced identical pixels. A synthetic
+sideways-upright-sideways run painted all 768 expected pixels. A later nested
+SVG viewport was rejected without altering the existing canvas.

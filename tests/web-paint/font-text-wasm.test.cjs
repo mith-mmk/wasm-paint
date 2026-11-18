@@ -106,3 +106,49 @@ test("Google Fonts Noto OpenType SVG renders in ordinary Wasm text APIs", { skip
   assert.ok(vertical.count > 70000 && vertical.height > vertical.width, "upright vertical SVG uses vertical glyph positions");
   if (svgzFontPath) assert.deepEqual(render(fs.readFileSync(svgzFontPath)), horizontal, "same artwork in SVG and SVGZ renders identically");
 });
+
+test("Wasm draws family fallback and rotated raw SVG, preserving failure atomicity", { skip: !testSvgWasm && "Build Wasm with svg-font and set PAINT_TEST_SVG_WASM=1" }, async () => {
+  const { Universe } = await runtime();
+  const fixture = name => fs.readFileSync(path.resolve(__dirname, "../../paintcore/tests/fixtures", name));
+  const primary = fixture("svg-layout-primary.ttf");
+  const fallback = fixture("svg-layout-fallback.ttf");
+  const sample = "A\uFE0F😀A\uFE0F";
+  const mixed = "A\uFE0F一\uFE0FA\uFE0F";
+  const family = new Universe(84, 36);
+  const rotated = new Universe(160, 240);
+  const rgba = [34, 119, 204, 128];
+  const data = (engine) => Uint8ClampedArray.from(engine.getLayerImageData("main").data);
+  const alphaCount = (pixels) => pixels.filter((v, i) => i % 4 === 3 && v > 0).length;
+  const pixel = (pixels, width, x, y) => [...pixels.slice(4 * (y * width + x), 4 * (y * width + x) + 4)];
+  try {
+    family.resetFontFamily("SvgLayoutPrimary");
+    family.addFontToFamily(primary);
+    family.addFontToFamily(fallback);
+    const familyDraw = text => family.drawTextFamily(text, 5, 7, 64, 0xff000000, undefined, 400, "normal", 1);
+    familyDraw(sample);
+    const combined = data(family);
+    assert.equal(alphaCount(combined), 16 * 16 * 2 + 8 * 8);
+    for (const [x, y] of [[9, 15], [39, 11], [57, 15]]) assert.deepEqual(pixel(combined, 84, x, y), rgba);
+    assert.throws(() => familyDraw("A\uFE0F😀B\uFE0F"));
+    assert.deepEqual(data(family), combined);
+
+    rotated.loadFont(primary);
+    const a = "A\uFE0F";
+    const fail = "A\uFE0FB\uFE0F";
+    assert.equal(rotated.measureTextFlow(a, 64, "sideways").length, 4);
+    rotated.drawTextFlow(a, 40, 7, 64, 0xff000000, "sideways");
+    const clockwise = data(rotated);
+    assert.equal(alphaCount(clockwise), 16 * 16);
+    assert.deepEqual(pixel(clockwise, 160, 16, 11), rgba);
+    assert.deepEqual(pixel(clockwise, 160, 31, 26), rgba);
+    assert.throws(() => rotated.drawTextFlow(fail, 40, 7, 64, 0xff000000, "sideways"));
+    assert.throws(() => rotated.drawTextFlow(fail, 94, 72, 64, 0xff000000, "mixed"));
+    assert.deepEqual(data(rotated), clockwise);
+    assert.equal(rotated.measureTextFlow(mixed, 64, "mixed").length, 4);
+    rotated.drawTextFlow(mixed, 94, 72, 64, 0xff000000, "mixed");
+    assert.equal(alphaCount(data(rotated)), 4 * 16 * 16);
+  } finally {
+    family.free();
+    rotated.free();
+  }
+});

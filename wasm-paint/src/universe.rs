@@ -217,6 +217,31 @@ fn glyph_run_bounds(run: &path::GlyphRun) -> Option<paintcore::path::GlyphBounds
 }
 
 #[cfg(feature = "font")]
+enum TextFlowLayout {
+    Plain(path::GlyphRun),
+    #[cfg(feature = "svg-font")]
+    Svg(path::SvgTextRun),
+}
+#[cfg(feature = "font")]
+impl TextFlowLayout {
+    fn glyph_run(&self) -> &path::GlyphRun {
+        match self {
+            Self::Plain(run) => run,
+            #[cfg(feature = "svg-font")]
+            Self::Svg(run) => run.glyph_run(),
+        }
+    }
+
+    fn draw(&self, layer: &mut Layer, x: f32, y: f32, color: u32) -> Result<(), Error> {
+        match self {
+            Self::Plain(run) => path::draw_glyphs(layer, run, x, y, color),
+            #[cfg(feature = "svg-font")]
+            Self::Svg(run) => run.draw(layer, x, y, color),
+        }
+    }
+}
+
+#[cfg(feature = "font")]
 fn format_glyph_run_bounds(run: &path::GlyphRun) -> String {
     if let Some(bounds) = glyph_run_bounds(run) {
         format!(
@@ -2007,8 +2032,9 @@ impl Universe {
             "vertical" => return self.draw_loaded_text(&text, x, y, font_size, color, true),
             _ => {}
         }
-        let glyphs = self.layout_text_flow(&text, font_size, &flow)?;
-        path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
+        let layout = self.layout_text_flow(&text, font_size, &flow)?;
+        layout
+            .draw(self.layer_mut(), x, y, color)
             .map_err(|error| js_error(&error.to_string()))
     }
 
@@ -2021,8 +2047,8 @@ impl Universe {
         font_size: f32,
         flow: String,
     ) -> Result<Vec<f32>, JsValue> {
-        let glyphs = self.layout_text_flow(&text, font_size, &flow)?;
-        Ok(glyph_run_bounds(&glyphs)
+        let layout = self.layout_text_flow(&text, font_size, &flow)?;
+        Ok(glyph_run_bounds(layout.glyph_run())
             .map(|b| vec![b.min_x, b.min_y, b.max_x, b.max_y])
             .unwrap_or_default())
     }
@@ -2033,7 +2059,7 @@ impl Universe {
         text: &str,
         font_size: f32,
         flow: &str,
-    ) -> Result<path::GlyphRun, JsValue> {
+    ) -> Result<TextFlowLayout, JsValue> {
         if !font_size.is_finite() || font_size <= 0.0 {
             return Err(js_error("font_size must be a positive finite value"));
         }
@@ -2043,16 +2069,34 @@ impl Universe {
             .ok_or_else(|| js_error("font is not loaded"))?;
         let options = FontOptions::new(font).with_font_size(font_size);
         let result = match flow {
-            "horizontal" => path::layout_text(text, options),
-            "vertical" => path::layout_text(text, options.with_vertical_flow()),
+            "horizontal" => path::layout_text(text, options).map(TextFlowLayout::Plain),
+            "vertical" => {
+                path::layout_text(text, options.with_vertical_flow()).map(TextFlowLayout::Plain)
+            }
+            #[cfg(feature = "svg-font")]
+            "mixed" => path::layout_text_vertical_mixed_ltr_with_svg_context(
+                text,
+                &path::FontEngine::new(font).with_options(options),
+            )
+            .map(TextFlowLayout::Svg),
+            #[cfg(not(feature = "svg-font"))]
             "mixed" => path::layout_text_vertical_mixed_ltr(
                 text,
                 &path::FontEngine::new(font).with_options(options),
-            ),
+            )
+            .map(TextFlowLayout::Plain),
+            #[cfg(feature = "svg-font")]
+            "sideways" => path::layout_text_sideways_ltr_with_svg_context(
+                text,
+                &path::FontEngine::new(font).with_options(options),
+            )
+            .map(TextFlowLayout::Svg),
+            #[cfg(not(feature = "svg-font"))]
             "sideways" => path::layout_text_sideways_ltr(
                 text,
                 &path::FontEngine::new(font).with_options(options),
-            ),
+            )
+            .map(TextFlowLayout::Plain),
             _ => {
                 return Err(js_error(
                     "unknown text flow; expected horizontal, vertical, mixed, or sideways",
@@ -2118,17 +2162,15 @@ impl Universe {
             .font_family
             .as_ref()
             .ok_or_else(|| js_error("font family is not initialized"))?;
-        let glyphs = {
-            let mut options = FontOptions::from_family(family);
-            options.font_size = font_size;
-            options.font_weight = FontWeight(font_weight as u16);
-            options.font_style = parse_font_style(font_style.as_deref())?;
-            options.font_stretch = FontStretch(font_stretch);
-            options.font_name = font_name.as_deref();
-            path::layout_text(&text, options).map_err(|error| js_error(&error.to_string()))?
-        };
-
-        path::draw_glyphs(self.layer_mut(), &glyphs, x, y, color)
+        let mut options = FontOptions::from_family(family);
+        options.font_size = font_size;
+        options.font_weight = FontWeight(font_weight as u16);
+        options.font_style = parse_font_style(font_style.as_deref())?;
+        options.font_stretch = FontStretch(font_stretch);
+        options.font_name = font_name.as_deref();
+        let layer = self.canvas.layer_mut(self.canvas.current()).unwrap();
+        path::draw_text_with_options(layer, &text, options, x, y, color)
+            .map(|_| ())
             .map_err(|error| js_error(&error.to_string()))
     }
 

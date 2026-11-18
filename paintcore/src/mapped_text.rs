@@ -17,7 +17,7 @@
 //! ```
 //!
 //! UTF-8 positions, affinity, approximation and Unsupported errors are inherited
-//! from fontcore 0.0.19. Source envelopes are not exact scalar causality.
+//! from fontcore. Source envelopes are not exact scalar causality.
 use crate::{
     path::{self, GlyphRun},
     prelude::Screen,
@@ -72,27 +72,24 @@ impl TextCaret {
 #[derive(Clone)]
 pub struct MappedTextLayout {
     source: TextLayoutSource,
-    glyphs: GlyphRun,
+    glyphs: RenderGlyphs,
     single_carets: Option<fontcore::CaretLayout>,
 }
 impl MappedTextLayout {
     pub fn from_shaped(shaped: fontcore::ShapedText) -> Result<Self, Error> {
         let carets = fontcore::CaretLayout::new(&shaped)?;
+        let mut glyphs = RenderGlyphs::default();
+        glyphs.append_shaped(&shaped, 0.0, 0.0);
         Ok(Self {
-            glyphs: shaped.glyph_run().clone().into(),
+            glyphs,
             source: TextLayoutSource::Single(shaped),
             single_carets: Some(carets),
         })
     }
     pub fn from_hard_lines(layout: fontcore::HardLineLayout) -> Self {
-        let mut glyphs = GlyphRun::default();
+        let mut glyphs = RenderGlyphs::default();
         for line in layout.lines() {
-            append_run(
-                &mut glyphs,
-                line.shaped().glyph_run(),
-                line.origin_x(),
-                line.origin_y(),
-            );
+            glyphs.append_shaped(line.shaped(), line.origin_x(), line.origin_y());
         }
         Self {
             source: TextLayoutSource::HardLines(layout),
@@ -101,15 +98,10 @@ impl MappedTextLayout {
         }
     }
     pub fn from_bidi(layout: fontcore::BidiParagraphLayout) -> Self {
-        let mut glyphs = GlyphRun::default();
+        let mut glyphs = RenderGlyphs::default();
         for line in layout.lines() {
             for run in line.visual_runs() {
-                append_run(
-                    &mut glyphs,
-                    run.shaped().glyph_run(),
-                    run.origin_x(),
-                    run.origin_y(),
-                );
+                glyphs.append_shaped(run.shaped(), run.origin_x(), run.origin_y());
             }
         }
         Self {
@@ -120,7 +112,13 @@ impl MappedTextLayout {
     }
     pub fn from_vertical_mixed(layout: fontcore::VerticalMappedLayout) -> Self {
         Self {
-            glyphs: layout.glyph_run().clone().into(),
+            glyphs: RenderGlyphs {
+                run: layout.glyph_run().clone().into(),
+                #[cfg(feature = "svg-font")]
+                transforms: path::collect_svg_transforms(layout.glyph_run(), |g, l| {
+                    layout.svg_layer_transform(g, l)
+                }),
+            },
             source: TextLayoutSource::VerticalMixed(layout),
             single_carets: None,
         }
@@ -154,15 +152,17 @@ impl MappedTextLayout {
         engine: &fontcore::FontEngine<'_>,
         text: &str,
     ) -> Result<Self, Error> {
-        Ok(Self::from_vertical_mixed(
-            engine.shape_vertical_mixed_ltr_mapped(text)?,
-        ))
+        #[cfg(feature = "svg-font")]
+        let layout = engine.shape_vertical_mixed_ltr_mapped_with_svg_context(text)?;
+        #[cfg(not(feature = "svg-font"))]
+        let layout = engine.shape_vertical_mixed_ltr_mapped(text)?;
+        Ok(Self::from_vertical_mixed(layout))
     }
     pub fn source(&self) -> &TextLayoutSource {
         &self.source
     }
     pub fn glyph_run(&self) -> &GlyphRun {
-        &self.glyphs
+        &self.glyphs.run
     }
     pub fn text(&self) -> &str {
         match &self.source {
@@ -176,7 +176,7 @@ impl MappedTextLayout {
     /// callers with a zoomed/rotated canvas must inverse-transform input first.
     pub fn placed(&self, x: f32, y: f32) -> Result<PlacedText<'_>, Error> {
         finite(x, y)?;
-        for glyph in &self.glyphs.glyphs {
+        for glyph in &self.glyphs.run.glyphs {
             finite(glyph.x + x, glyph.y + y)?;
         }
         Ok(PlacedText { layout: self, x, y })
@@ -196,7 +196,22 @@ impl PlacedText<'_> {
         screen: &mut dyn Screen,
         color: u32,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        path::draw_glyphs(screen, &self.layout.glyphs, self.x, self.y, color)
+        let glyphs = &self.layout.glyphs;
+        #[cfg(feature = "svg-font")]
+        {
+            path::draw_glyphs_with_svg_transforms(
+                screen,
+                &glyphs.run,
+                &glyphs.transforms,
+                self.x,
+                self.y,
+                color,
+            )
+        }
+        #[cfg(not(feature = "svg-font"))]
+        {
+            path::draw_glyphs(screen, &glyphs.run, self.x, self.y, color)
+        }
     }
     pub fn caret_positions(&self, position: TextPosition) -> Result<Vec<TextCaret>, Error> {
         let carets = match &self.layout.source {
@@ -265,14 +280,32 @@ fn finite(x: f32, y: f32) -> Result<(), Error> {
         ))
     }
 }
-fn append_run(target: &mut GlyphRun, run: &fontcore::GlyphRun, x: f32, y: f32) {
-    target
-        .glyphs
-        .extend(run.glyphs.iter().cloned().map(|mut g| {
-            g.x += x;
-            g.y += y;
-            g.into()
-        }));
+#[derive(Clone, Default)]
+struct RenderGlyphs {
+    run: GlyphRun,
+    #[cfg(feature = "svg-font")]
+    transforms: Vec<Option<path::SvgRenderTransform>>,
+}
+
+impl RenderGlyphs {
+    fn append_shaped(&mut self, shaped: &fontcore::ShapedText, x: f32, y: f32) {
+        let run = shaped.glyph_run();
+        #[cfg(feature = "svg-font")]
+        self.transforms
+            .extend(path::collect_svg_transforms(run, |g, l| {
+                let mut matrix = shaped.svg_layer_transform(g, l)?;
+                matrix[4] += x;
+                matrix[5] += y;
+                Some(matrix)
+            }));
+        self.run
+            .glyphs
+            .extend(run.glyphs.iter().cloned().map(|mut g| {
+                g.x += x;
+                g.y += y;
+                g.into()
+            }));
+    }
 }
 macro_rules! caret_conversion {
     ($ty:ty, $line:expr, $group:expr) => {
