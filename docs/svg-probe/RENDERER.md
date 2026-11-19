@@ -251,9 +251,10 @@ fontcore 0.0.20.
 
 With the published dependency, the native real-font check painted all 13
 untouched SVG and SVGZ samples with identical pixels. The pinned picosvg font
-now shapes all 13 samples; 10 render, up from 6 with 0.0.20. The other three
-(`🛸`, `🧪`, and `👩‍🚀`) reach the renderer but fail without drawing any
-pixels because elliptical arcs are still unsupported on this branch.
+shapes all 13 samples. Without the elliptical arc renderer from [#11](https://github.com/mith-mmk/wasm-paint/pull/11),
+10 samples draw and three (`🛸`, `🧪`, and `👩‍🚀`) return an unsupported-arc
+error without painting any pixels. With the arc renderer and this layout
+integration together, all 13 picosvg samples draw.
 
 - Family fallback chooses and shapes faces exactly as before. Each SVG uses
   its selected face's scale and final placement. Wasm `drawTextFamily` uses
