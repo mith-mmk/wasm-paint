@@ -186,6 +186,32 @@ not partial rendering. Fontcore integration SHA remains
 `7d04cb51acfc2ade5a0ce5a2e57401ae16243027`.
 
 
+## Elliptical path arcs
+
+Paths and clip paths accept absolute `A` and relative `a`, including implicit
+repetitions. SVG radius correction, x-axis rotation and both flags are applied
+in local coordinates. Identical endpoints omit the segment; a zero radius
+produces a line. Curves are lowered into at most eight cubic segments of up to
+45° before applying the element transform. Each emitted segment counts toward
+the existing limits. Malformed or out-of-bounds geometry still aborts SVG
+preflight without drawing. No public path or glyph API changed.
+
+With the FontReader picosvg scoping fix
+(`19697f9588899627426be2b28aaa14127d267e19`), all 13 picosvg runs from the [real-font check](#real-font-check)
+produced pixels. The three runs newly enabled by arcs were compared at 256 px
+against headless Chrome, using the same scoped SVG document, text origin
+(16, 288), and viewport-to-pixel scale (256/1200) on a 660×384 canvas:
+
+| Sample | Paint pixels (alpha > 0) | Chrome pixels (alpha > 0) | Alpha > 127 overlap (IoU) | Premultiplied RGBA MAE (0–255) |
+| --- | ---: | ---: | ---: | ---: |
+| 🛸 | 33,342 | 33,286 | 99.73% | 0.0721 |
+| 🧪 | 18,780 | 18,759 | 99.85% | 0.0355 |
+| 👩‍🚀 | 40,976 | 40,919 | 99.86% | 0.0997 |
+
+The other 10 runs already drew with the scoping fix before arc support, and
+some use existing Path fallback rather than raw SVG. These are sample checks,
+not full picosvg or OpenType SVG conformance.
+
 ## Published dependency and ordinary text APIs
 
 The workspace uses registry `fontcore 0.0.20`; no Git or local dependency
