@@ -11,13 +11,13 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 
 ```toml
 [dependencies]
-paintcore = "0.0.33"
+paintcore = "0.0.34"
 ```
 
-Version 0.0.33 uses WML2 0.0.45 and optional fontcore 0.0.16. Callers sharing
+Version 0.0.34 uses WML2 0.0.45 and optional fontcore 0.0.21. Callers sharing
 these crates' public types with paintcore must align their direct dependency
 versions, or use paintcore re-exports where available; these type identities
-change again from paintcore 0.0.32. Reader adapters use bin-rs 0.1.0.
+can differ from prior releases. Reader adapters use bin-rs 0.1.0.
 
 ## Features
 
@@ -41,9 +41,21 @@ Feature flags:
 - `font`: OpenType font support, including raster and COLR layers
 - `svg-font`: OpenType SVG glyph support (verified with Noto Color Emoji)
 
-## Vertical text (fontcore 0.0.16)
+## OpenType SVG glyphs
 
-Enable `font` to use the published fontcore 0.0.16 dependency, shared with the
+With `svg-font`, `draw_text_with_options`, family fallback, and mapped layouts
+carry the font's SVG placement through to drawing. The sideways and mixed
+vertical helpers ending in `_with_svg_context` retain placement for those
+orientations. A detached raw SVG run requires explicit placement through
+`draw_glyphs_with_svg_transforms`. Use `draw_svg_document` for standalone SVG.
+
+The renderer supports a bounded subset, including elliptical paths, gradients,
+local references, and opacity groups. Features such as filters, masks,
+external references, and general CSS return errors.
+
+## Vertical text (fontcore 0.0.21)
+
+Enable `font` to use the published fontcore 0.0.21 dependency, shared with the
 Wasm crate. Existing horizontal text calls keep their default direction.
 
 ```rust,no_run
@@ -215,7 +227,7 @@ See [the compatibility notes](../docs/image-compat.md) for semantics and limits.
 
 ## Mapped text and caret integration (`font`)
 
-The additive `mapped_text` module uses fontcore 0.0.19. Existing `path::GlyphRun`
+The additive `mapped_text` module uses fontcore 0.0.21. Existing `path::GlyphRun`
 and `layout_text` APIs remain unchanged. `MappedTextLayout` retains an immutable
 paintcore render run **and** the original fontcore layout/mappings, avoiding the
 loss of source ranges during the old render-only conversion.
@@ -237,7 +249,7 @@ indices as JS UTF-16 offsets or glyph indices. Source envelopes are conservative
 not exact scalar causality. A boundary may have multiple visual carets.
 
 Limitations are inherited rather than hidden: ligature-internal carets are
-approximate (GDEF is not used in 0.0.19); soft wrapping, some cross-run joining and
+approximate; soft wrapping, some cross-run joining and
 upper-layout family fallback are unsupported. Mixed vertical is a single-face,
 single-column API. Nearest-caret testing is not glyph ink containment. The adapter
 supports translation only; zoom/rotation must be handled consistently by the

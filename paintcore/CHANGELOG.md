@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.0.34 - 2026-11-19
+
+- Add opt-in OpenType SVG glyph rendering through published fontcore 0.0.21.
+  Supported SVGs include paths with elliptical arcs, user-space gradients,
+  local use and clips, and isolated opacity groups. Unsupported SVG is rejected
+  before drawing the run.
+- Carry typed SVG placement through ordinary text, family fallback, mapped
+  layouts, and mixed vertical and sideways text. Detached raw SVG runs still
+  require an explicit transform. Existing outline layout APIs remain available.
+- Retain the original fontcore layouts in the mapped-text adapter for caret
+  and hit testing while reusing the converted paintcore run for drawing.
+
+WML2 remains at 0.0.45 and the minimum Rust version stays at 1.91.
+The wasm-paint wrapper is not published as part of this release.
+
 ## 0.0.33 - 2026-11-11
 
 - Update registry dependencies to bin-rs 0.1.0, WML2 0.0.45, and optional
