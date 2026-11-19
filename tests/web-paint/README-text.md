@@ -22,15 +22,16 @@ the new layer and redo restores it, as with existing horizontal text. PNG export
 includes the committed layer. Font selections are not persisted in PNG files.
 
 Build Wasm with `font` (optionally `svg-font`), using the wasm-bindgen CLI version
-matching Cargo.lock. Existing `drawText`, `drawTextFamily`, and inspection APIs
+matching Cargo.lock. The `drawText`, `drawTextFamily`, and inspection signatures
 are unchanged. Additive APIs are `drawTextFlow(text,x,y,size,argb,flow)` and
 `measureTextFlow(text,size,flow)` (four conservative ink bounds, or empty).
 Supported flow identifiers: `horizontal`, `vertical`, `mixed`, `sideways`.
 Drawing coordinates use the shaped origin; UI adjusts bounds once for anchoring.
-With `svg-font`, a loaded single face can render the supported raw SVG subset in
-`drawText` and horizontal or standard-vertical `drawTextFlow`. Family fallback,
-mixed and sideways still do not render raw SVG. See the
-[real-font check](../../docs/svg-probe/RENDERER.md#real-font-check).
+With `svg-font`, the fontcore 0.0.21 integration passes SVG placement through
+`drawText`, `drawTextFamily`, and all four `drawTextFlow` options. Mixed and
+sideways retain their previous restrictions on bitmap and other colored layers.
+Bounds are conservative layout geometry, not pixel-exact SVG ink bounds.
+See the [integration details](../../docs/svg-probe/RENDERER.md#svg-text-layout-integration).
 
 Tests: `node --test tests/web-paint/font-text.test.cjs` (no generated bindings
 needed), and `node --test tests/web-paint/paint-tool.test.cjs` after generating

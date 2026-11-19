@@ -242,8 +242,11 @@ and 😀👍. The dog/rocket SVGs embedded by this upstream build are not the
 DTD-bearing standalone inputs described above. The optimized picosvg font is
 not interchangeable: 6 of the 13 runs rendered, and 7 stopped in fontcore SVG
 extraction with `Unsupported` rather than drawing incomplete fallback art. The
-large picosvg document covering 😀 and several other sampled glyphs has 73,943
-local references and exceeds fontcore's 65,536 whole-document reference limit.
+large picosvg document covering 😀 and several other sampled glyphs had 73,943
+local references and exceeded the 65,536 whole-document reference limit in
+fontcore 0.0.20. Since 0.0.21, references outside the selected glyph and its
+dependencies do not count against that budget. This does not change which
+SVG drawing commands the paintcore renderer supports.
 
 On Chrome 157, the ordinary Wasm APIs rendered both orientations of 😀👍 through
 `ImageData` onto a Canvas: 76,615 nontransparent pixels in each, with horizontal
@@ -264,3 +267,45 @@ node --test tests/web-paint/font-text-wasm.test.cjs
 
 With only the repository's synthetic fixture, set `PAINT_TEST_SVG_WASM=1`
 instead. Native SVG text tests need no external assets.
+
+
+## SVG text layout integration
+
+This integration uses registry `fontcore 0.0.21` for typed SVG placement,
+with no Git dependency or local override. The parent PR #10 still uses
+fontcore 0.0.20.
+
+With the published dependency, the native real-font check painted all 13
+untouched SVG and SVGZ samples with identical pixels. The pinned picosvg font
+shapes all 13 samples. Without the elliptical arc renderer from [#11](https://github.com/mith-mmk/wasm-paint/pull/11),
+10 samples draw and three (`🛸`, `🧪`, and `👩‍🚀`) return an unsupported-arc
+error without painting any pixels. With the arc renderer and this layout
+integration together, all 13 picosvg samples draw.
+
+- Family fallback chooses and shapes faces exactly as before. Each SVG uses
+  its selected face's scale and final placement. Wasm `drawTextFamily` uses
+  this path, including when the fallback face's metrics differ.
+- `MappedTextLayout` retains SVG placement with its source data. Hard-line and
+  BiDi layouts add their line/run origins, then the placed object's origin.
+  Mixed-vertical placement already includes orientation and centering. Caret
+  and source queries retain their existing geometry rules.
+- Wasm `drawTextFlow` with `mixed` or `sideways` can draw raw SVG. Native
+  callers can opt in through the corresponding `layout_text_*_with_svg_context`
+  functions and draw the returned `SvgTextRun`. The original outline APIs are
+  still callable with the same signatures and restrictions.
+- Raw SVG remains an alternative to approximate paths. Other colored layers
+  and bitmap glyphs still follow the existing outline-only restrictions for
+  mixed and sideways flow. Unsupported SVG errors before modifying any pixel.
+
+The native synthetic cases compare exact RGBA for two fallback face scales,
+one clockwise rotation, separate mapped lines and BiDi runs, and destination
+preservation on a renderer error. Other tests verify caret provenance and
+mixed upright/sideways glyph placement. See `paintcore/tests/svg_text.rs` and
+the SVG cases in `tests/web-paint/font-text-wasm.test.cjs`.
+
+On hadrianus in Chrome 157, the real `noto-untouchedsvg.ttf` face was selected
+as the fallback in `A️😀A️` (19,723 painted pixels across both faces).
+At 256 px, 😀👍 painted 76,610 pixels in sideways flow and 76,615 in mixed
+upright flow. Sideways raw and gzip SVG produced identical pixels. A synthetic
+sideways-upright-sideways run painted all 768 expected pixels. A later nested
+SVG viewport was rejected without altering the existing canvas.
