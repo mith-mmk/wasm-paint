@@ -1455,11 +1455,9 @@ mod tests {
     fn relative_repeated_and_degenerate_arcs_preserve_path_state() {
         let commands = path("M3 5 a2 2 0 0 1 2 2 2 2 0 0 1 -2 2 s1 1 2 0 z l1 2", ID).unwrap();
         let len = commands.len();
-        assert!(
-            commands
-                .iter()
-                .any(|command| matches!(command, Command::CubicBezier(_, _, (5., 7.))))
-        );
+        assert!(commands
+            .iter()
+            .any(|command| matches!(command, Command::CubicBezier(_, _, (5., 7.)))));
         assert!(matches!(
             commands[len - 4],
             Command::CubicBezier(_, _, (3., 9.))
@@ -1491,12 +1489,10 @@ mod tests {
         }
         assert!(path("M0 0 A100 100 0 1 1 2 0", [1e6, 0., 0., 1e6, 0., 0.]).is_err());
         let too_many = format!("M0 0{}", " a10 10 0 1 1 1 0".repeat(12_500));
-        assert!(
-            path(&too_many, ID)
-                .unwrap_err()
-                .to_string()
-                .contains("path command limit")
-        );
+        assert!(path(&too_many, ID)
+            .unwrap_err()
+            .to_string()
+            .contains("path command limit"));
     }
 
     #[test]
