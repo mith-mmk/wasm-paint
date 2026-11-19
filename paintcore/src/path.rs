@@ -95,8 +95,17 @@ pub enum GlyphPaint {
 impl GlyphPaint {
     /// Resolves the glyph-specific paint into the generic paintcore paint source.
     pub fn to_paint(&self, default_color: u32) -> crate::paint::Paint {
-        let convert_color =
-            |color| crate::paint::Color::from_argb_u32(normalize_solid_color(color));
+        self.to_paint_impl(default_color, false)
+    }
+
+    fn to_paint_impl(&self, default_color: u32, exact_argb: bool) -> crate::paint::Paint {
+        let convert_color = |color| {
+            crate::paint::Color::from_argb_u32(if exact_argb {
+                color
+            } else {
+                normalize_solid_color(color)
+            })
+        };
         let convert_stops = |stops: &[GradientStop]| {
             stops
                 .iter()
@@ -2150,17 +2159,320 @@ fn draw_raster_layer(
     Ok(())
 }
 
+/// Explicit SVG viewport-unit to positioned-run pixel transform, including the
+/// glyph origin and SVG layer offsets exactly once. Never inferred from glyph
+/// advance/ascender bounds or from untrusted data attributes inside the SVG.
 #[cfg(feature = "svg-font")]
-fn draw_svg_layer(
-    _screen: &mut dyn Screen,
-    _layer: &SvgGlyphLayer,
-    _origin_x: f32,
-    _origin_y: f32,
+#[derive(Debug, Clone, Copy)]
+pub struct SvgRenderTransform {
+    pub viewport_units_to_pixels: [f32; 6],
+}
+
+#[cfg(feature = "svg-font")]
+fn prepare_svg_glyph(
+    glyph: &PositionedGlyph,
+    transform: Option<SvgRenderTransform>,
+) -> Result<Option<Vec<crate::svg_render::SvgPreparedNode>>, Error> {
+    let svg: Vec<_> = glyph
+        .glyph
+        .layers
+        .iter()
+        .filter_map(|l| {
+            if let GlyphLayer::Svg(svg) = l {
+                Some(svg)
+            } else {
+                None
+            }
+        })
+        .collect();
+    if svg.is_empty() {
+        return Ok(None);
+    }
+    let transform = transform.ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "raw SVG requires an explicit viewport-unit to pixel transform",
+        )
+    })?;
+    if svg.len() != 1
+        || glyph
+            .glyph
+            .layers
+            .iter()
+            .any(|l| matches!(l, GlyphLayer::Raster(_)))
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "ambiguous mixed SVG glyph representation",
+        )
+        .into());
+    }
+    let matrix = transform.viewport_units_to_pixels;
+    Ok(Some(crate::svg_render::parse_document(
+        &svg[0].document,
+        matrix,
+    )?))
+}
+
+/// Render a standalone SVG with an explicit viewport-unit to pixel transform.
+/// SVG viewBox/width/height are resolved first, then this transform, then origin.
+#[cfg(feature = "svg-font")]
+pub fn draw_svg_document(
+    screen: &mut dyn Screen,
+    document: &str,
+    transform: SvgRenderTransform,
+    origin_x: f32,
+    origin_y: f32,
+    default_color: u32,
 ) -> Result<(), Error> {
+    let layers = crate::svg_render::parse_document(document, transform.viewport_units_to_pixels)?;
+    let mut scratch = svg_group_scratch(screen, std::iter::once(layers.as_slice()))?;
+    draw_svg_nodes(
+        screen,
+        &layers,
+        origin_x,
+        origin_y,
+        default_color,
+        &mut scratch,
+    );
     Ok(())
 }
 
-pub fn draw_glyph(
+/// Draw a run with caller-provided SVG placement, one entry per positioned glyph.
+/// A raw SVG replaces its approximate Path layers. All SVGs are validated before
+/// drawing. Existing glyph bounds are not reinterpreted as SVG viewport metadata.
+#[cfg(feature = "svg-font")]
+pub fn draw_glyphs_with_svg_transforms(
+    screen: &mut dyn Screen,
+    glyphs: &GlyphRun,
+    transforms: &[Option<SvgRenderTransform>],
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+) -> Result<(), Error> {
+    if transforms.len() != glyphs.glyphs.len() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "one SVG transform entry is required per glyph",
+        )
+        .into());
+    }
+    let prepared = glyphs
+        .glyphs
+        .iter()
+        .zip(transforms)
+        .map(|(g, t)| prepare_svg_glyph(g, *t))
+        .collect::<Result<Vec<_>, _>>()?;
+    // Preflight all documents and allocate the maximum reusable group stack
+    // before an earlier glyph can change pixels.
+    let mut scratch = svg_group_scratch(screen, prepared.iter().filter_map(|p| p.as_deref()))?;
+    for (index, glyph) in glyphs.glyphs.iter().enumerate() {
+        if let Some(layers) = &prepared[index] {
+            draw_svg_nodes(
+                screen,
+                layers,
+                offset_x,
+                offset_y,
+                default_color,
+                &mut scratch,
+            );
+        } else {
+            draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "svg-font")]
+fn svg_group_stats(nodes: &[crate::svg_render::SvgPreparedNode]) -> (usize, usize) {
+    let mut depth = 0;
+    let mut groups = 0;
+    for node in nodes {
+        if let crate::svg_render::SvgPreparedNode::Group { children, .. } = node {
+            let (child_depth, child_groups) = svg_group_stats(children);
+            depth = depth.max(child_depth + 1);
+            groups += child_groups + 1;
+        }
+    }
+    (depth, groups)
+}
+
+#[cfg(feature = "svg-font")]
+fn svg_group_scratch<'a>(
+    screen: &dyn Screen,
+    documents: impl IntoIterator<Item = &'a [crate::svg_render::SvgPreparedNode]>,
+) -> Result<Vec<Layer>, Error> {
+    const MAX_GROUP_DEPTH: usize = 16;
+    const MAX_SCRATCH_BYTES: u64 = 64 * 1024 * 1024;
+    const MAX_GROUP_PIXELS: u64 = 64 * 1024 * 1024;
+    let mut depth = 0;
+    let mut groups = 0u64;
+    for nodes in documents {
+        let (d, g) = svg_group_stats(nodes);
+        depth = depth.max(d);
+        groups = groups.saturating_add(g as u64);
+    }
+    let pixels = u64::from(screen.width()) * u64::from(screen.height());
+    let bytes = pixels.saturating_mul(4).saturating_mul(depth as u64);
+    if depth > MAX_GROUP_DEPTH
+        || bytes > MAX_SCRATCH_BYTES
+        || pixels.saturating_mul(groups) > MAX_GROUP_PIXELS
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "SVG isolated-group surface/depth/work budget exceeded",
+        )
+        .into());
+    }
+    let mut scratch = Vec::with_capacity(depth);
+    for _ in 0..depth {
+        scratch.push(Layer::try_new(
+            "svg-isolated-group".into(),
+            screen.width(),
+            screen.height(),
+        )?);
+    }
+    Ok(scratch)
+}
+
+#[cfg(feature = "svg-font")]
+fn svg_clip_mask(
+    screen: &dyn Screen,
+    clips: &[crate::svg_render::SvgPreparedClip],
+    offset_x: f32,
+    offset_y: f32,
+) -> Option<Mask> {
+    let mut mask: Option<Mask> = None;
+    for clip in clips {
+        let next = rasterize_path_mask(
+            &clip.commands,
+            screen.width(),
+            screen.height(),
+            offset_x,
+            offset_y,
+            clip.rule,
+        );
+        if let Some(current) = &mut mask {
+            for (a, b) in current.coverage_mut().iter_mut().zip(next.coverage()) {
+                *a = ((*a as u32 * *b as u32 + 127) / 255) as u8;
+            }
+        } else {
+            mask = Some(next);
+        }
+    }
+    mask
+}
+
+#[cfg(feature = "svg-font")]
+fn draw_svg_nodes(
+    screen: &mut dyn Screen,
+    nodes: &[crate::svg_render::SvgPreparedNode],
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+    scratch: &mut [Layer],
+) {
+    for node in nodes {
+        match node {
+            crate::svg_render::SvgPreparedNode::Paint(layer) => draw_svg_layers(
+                screen,
+                std::slice::from_ref(layer),
+                offset_x,
+                offset_y,
+                default_color,
+            ),
+            crate::svg_render::SvgPreparedNode::Group {
+                children,
+                opacity,
+                clips,
+            } => {
+                // Exact maximum depth was checked and allocated before drawing.
+                let (surface, remaining) = scratch
+                    .split_first_mut()
+                    .expect("preflighted SVG group depth");
+                surface.buffer_mut().fill(0);
+                draw_svg_nodes(
+                    surface,
+                    children,
+                    offset_x,
+                    offset_y,
+                    default_color,
+                    remaining,
+                );
+                let clip = svg_clip_mask(screen, clips, offset_x, offset_y);
+                crate::composite::composite_screen(
+                    surface,
+                    screen,
+                    0,
+                    0,
+                    DrawOptions {
+                        opacity: *opacity,
+                        clip_mask: clip
+                            .as_ref()
+                            .map(|m| crate::composite::ClipMask::new(m, 0, 0)),
+                        ..DrawOptions::default()
+                    },
+                );
+            }
+        }
+    }
+}
+
+#[cfg(feature = "svg-font")]
+fn draw_svg_layers(
+    screen: &mut dyn Screen,
+    layers: &[crate::svg_render::SvgPreparedLayer],
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+) {
+    for prepared in layers {
+        let mut layer = prepared.path.clone();
+        // Geometry and gradient must both move with the screen offset.
+        match &mut layer.paint {
+            GlyphPaint::LinearGradient(g) => {
+                g.transform[4] += offset_x;
+                g.transform[5] += offset_y;
+            }
+            GlyphPaint::RadialGradient(g) => {
+                g.transform[4] += offset_x;
+                g.transform[5] += offset_y;
+            }
+            _ => {}
+        }
+        let clip_mask = svg_clip_mask(screen, &prepared.clips, offset_x, offset_y);
+        let options = DrawOptions {
+            opacity: prepared.opacity,
+            clip_mask: clip_mask
+                .as_ref()
+                .map(|mask| crate::composite::ClipMask::new(mask, 0, 0)),
+            ..DrawOptions::default()
+        };
+        if let Some(style) = &prepared.stroke_style {
+            stroke_path(
+                screen,
+                &layer.commands,
+                &layer.paint.to_paint_impl(default_color, true),
+                style,
+                offset_x,
+                offset_y,
+                options,
+            );
+        } else {
+            fill_path(
+                screen,
+                &layer.commands,
+                &layer.paint.to_paint_impl(default_color, true),
+                layer.fill_rule,
+                offset_x,
+                offset_y,
+                options,
+            );
+        }
+    }
+}
+
+fn draw_prepared_glyph(
     screen: &mut dyn Screen,
     glyph: &PositionedGlyph,
     offset_x: f32,
@@ -2169,7 +2481,6 @@ pub fn draw_glyph(
 ) -> Result<(), Error> {
     let origin_x = glyph.x + offset_x;
     let origin_y = glyph.y + offset_y;
-
     for layer in &glyph.glyph.layers {
         match layer {
             GlyphLayer::Path(layer) => {
@@ -2177,20 +2488,39 @@ pub fn draw_glyph(
             }
             GlyphLayer::Raster(layer) => draw_raster_layer(screen, layer, origin_x, origin_y)?,
             #[cfg(feature = "svg-font")]
-            GlyphLayer::Svg(layer) => draw_svg_layer(screen, layer, origin_x, origin_y)?,
+            GlyphLayer::Svg(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "SVG glyph was not prepared",
+                )
+                .into())
+            }
         }
     }
-
     Ok(())
+}
+
+/// Draw one legacy glyph. Raw SVG is rejected before changing destination pixels.
+/// Raw SVG needs the separate explicit-transform API; legacy bounds are ambiguous.
+pub fn draw_glyph(
+    screen: &mut dyn Screen,
+    glyph: &PositionedGlyph,
+    offset_x: f32,
+    offset_y: f32,
+    default_color: u32,
+) -> Result<(), Error> {
+    #[cfg(feature = "svg-font")]
+    prepare_svg_glyph(glyph, None)?;
+    draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)
 }
 
 /// Draws parsed glyphs prepared by the font parser.
 ///
-/// The parser is responsible for:
-/// - converting font units into pixel space
-/// - resolving fallback fonts
-/// - converting SVG glyph payloads into `PathGlyphLayer`s
-/// - leaving PNG or other bitmap glyph payloads as `RasterGlyphLayer`s
+/// With `svg-font`, raw SVG is rejected before drawing. Use the separate
+/// explicit-transform API for supported SVG. This is not a
+/// transaction guarantee for unrelated raster/decode errors.
+/// The font parser supplies pixel-space outlines, metrics and bitmap payloads;
+/// paintcore handles its supported subset of raw SVG payloads privately.
 pub fn draw_glyphs(
     screen: &mut dyn Screen,
     glyphs: &GlyphRun,
@@ -2198,8 +2528,12 @@ pub fn draw_glyphs(
     offset_y: f32,
     default_color: u32,
 ) -> Result<(), Error> {
+    #[cfg(feature = "svg-font")]
     for glyph in &glyphs.glyphs {
-        draw_glyph(screen, glyph, offset_x, offset_y, default_color)?;
+        prepare_svg_glyph(glyph, None)?;
+    }
+    for glyph in &glyphs.glyphs {
+        draw_prepared_glyph(screen, glyph, offset_x, offset_y, default_color)?;
     }
     Ok(())
 }
@@ -2255,6 +2589,9 @@ pub fn layout_text_vertical_mixed_ltr(
         .map_err(|error| Box::new(error) as Error)
 }
 
+/// Shapes and draws text. With `svg-font`, a loaded single face carries its
+/// typed SVG placement through to rendering; family fallback still uses the
+/// legacy glyph-run path, which rejects raw SVG without placement metadata.
 #[cfg(feature = "font")]
 pub fn draw_text_with_options(
     screen: &mut dyn Screen,
@@ -2264,6 +2601,44 @@ pub fn draw_text_with_options(
     offset_y: f32,
     default_color: u32,
 ) -> Result<GlyphRun, Error> {
+    #[cfg(feature = "svg-font")]
+    if let Some(FontRef::Loaded(face)) = options.font {
+        let shaped = face
+            .engine()
+            .with_options(options)
+            .shape_with_svg_context(text)?;
+        let transforms: Vec<_> = shaped
+            .run()
+            .glyphs
+            .iter()
+            .enumerate()
+            .map(|(glyph, positioned)| {
+                positioned
+                    .glyph
+                    .layers
+                    .iter()
+                    .enumerate()
+                    .find_map(|(layer, _)| {
+                        shaped
+                            .svg_layer_transform(glyph, layer)
+                            .map(|viewport_units_to_pixels| SvgRenderTransform {
+                                viewport_units_to_pixels,
+                            })
+                    })
+            })
+            .collect();
+        let glyphs = shaped.into_run().into();
+        draw_glyphs_with_svg_transforms(
+            screen,
+            &glyphs,
+            &transforms,
+            offset_x,
+            offset_y,
+            default_color,
+        )?;
+        return Ok(glyphs);
+    }
+
     let glyphs = layout_text(text, options)?;
     draw_glyphs(screen, &glyphs, offset_x, offset_y, default_color)?;
     Ok(glyphs)

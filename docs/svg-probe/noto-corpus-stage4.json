@@ -1,0 +1,443 @@
+{
+  "reference_versions": {
+    "CairoSVG": "2.9.1",
+    "Pillow": "13.0.0",
+    "fontTools": "4.68.0"
+  },
+  "source_revision": "99701e07d3d1fe1bdbcdb14964547f0fd592966f",
+  "fontcore_commit": "7d04cb51acfc2ade5a0ce5a2e57401ae16243027",
+  "results": [
+    {
+      "file": "emoji_u1f308.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 36533
+          }
+        ]
+      },
+      "mae": 0.07558822631835938,
+      "coverage_delta": 9,
+      "reference_nontransparent_pixels": 36524,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f30d.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 46193
+          }
+        ]
+      },
+      "mae": 0.18369293212890625,
+      "coverage_delta": 16,
+      "reference_nontransparent_pixels": 46177,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f333.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 31676
+          }
+        ]
+      },
+      "mae": 0.07350540161132812,
+      "coverage_delta": 10,
+      "reference_nontransparent_pixels": 31666,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f337.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 24952
+          }
+        ]
+      },
+      "mae": 0.10325241088867188,
+      "coverage_delta": 18,
+      "reference_nontransparent_pixels": 24934,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f381.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 43673
+          }
+        ]
+      },
+      "mae": 0.08876419067382812,
+      "coverage_delta": 8,
+      "reference_nontransparent_pixels": 43665,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f3b8.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 20998
+          }
+        ]
+      },
+      "mae": 0.23590087890625,
+      "coverage_delta": -8,
+      "reference_nontransparent_pixels": 21006,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f3c0.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 46142
+          }
+        ]
+      },
+      "mae": 0.12471771240234375,
+      "coverage_delta": 15,
+      "reference_nontransparent_pixels": 46127,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f431.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 36955
+          }
+        ]
+      },
+      "mae": 0.14706802368164062,
+      "coverage_delta": -18,
+      "reference_nontransparent_pixels": 36973,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f436.svg",
+      "rendered": false,
+      "stdout": "",
+      "error": "Error: Custom { kind: Unsupported, error: \"failed to extract SVG glyph layer for 'A'\" }"
+    },
+    {
+      "file": "emoji_u1f44d.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 28350
+          }
+        ]
+      },
+      "mae": 0.098480224609375,
+      "coverage_delta": 12,
+      "reference_nontransparent_pixels": 28338,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f453.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 14795
+          }
+        ]
+      },
+      "mae": 0.09396743774414062,
+      "coverage_delta": 16,
+      "reference_nontransparent_pixels": 14779,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f4a1.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 25301
+          }
+        ]
+      },
+      "mae": 0.21978378295898438,
+      "coverage_delta": -5,
+      "reference_nontransparent_pixels": 25306,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f525.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 29005
+          }
+        ]
+      },
+      "mae": 0.07143020629882812,
+      "coverage_delta": 8,
+      "reference_nontransparent_pixels": 28997,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f602.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 42776
+          }
+        ]
+      },
+      "mae": 0.11740493774414062,
+      "coverage_delta": 10,
+      "reference_nontransparent_pixels": 42766,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f60d.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 41916
+          }
+        ]
+      },
+      "mae": 0.07978439331054688,
+      "coverage_delta": 12,
+      "reference_nontransparent_pixels": 41904,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f680.svg",
+      "rendered": false,
+      "stdout": "",
+      "error": "Error: Custom { kind: Unsupported, error: \"failed to extract SVG glyph layer for 'A'\" }"
+    },
+    {
+      "file": "emoji_u1f6f8.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 33345
+          }
+        ]
+      },
+      "mae": 0.3254661560058594,
+      "coverage_delta": 5,
+      "reference_nontransparent_pixels": 33340,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f914.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 43568
+          }
+        ]
+      },
+      "mae": 0.08894729614257812,
+      "coverage_delta": 14,
+      "reference_nontransparent_pixels": 43554,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f984.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 31573
+          }
+        ]
+      },
+      "mae": 0.11926651000976562,
+      "coverage_delta": 10,
+      "reference_nontransparent_pixels": 31563,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f98a.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 33792
+          }
+        ]
+      },
+      "mae": 0.08972549438476562,
+      "coverage_delta": 8,
+      "reference_nontransparent_pixels": 33784,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f9d1.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 45650
+          }
+        ]
+      },
+      "mae": 0.11264419555664062,
+      "coverage_delta": 5,
+      "reference_nontransparent_pixels": 45645,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f9ea.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 18659
+          }
+        ]
+      },
+      "mae": 0.10064315795898438,
+      "coverage_delta": 6,
+      "reference_nontransparent_pixels": 18653,
+      "comparison_pass": true
+    },
+    {
+      "file": "emoji_u1f9eb.svg",
+      "rendered": true,
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 28057
+          }
+        ]
+      },
+      "mae": 0.17793655395507812,
+      "coverage_delta": 12,
+      "reference_nontransparent_pixels": 28045,
+      "comparison_pass": true
+    }
+  ]
+}

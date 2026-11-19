@@ -1,0 +1,55 @@
+{
+  "source_revision": "99701e07d3d1fe1bdbcdb14964547f0fd592966f",
+  "source_base": "https://raw.githubusercontent.com/googlefonts/noto-emoji/99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/svg/",
+  "license": "Apache-2.0; copyright Google Inc.",
+  "files": [
+    {
+      "name": "emoji_u1f453.svg",
+      "url": "https://raw.githubusercontent.com/googlefonts/noto-emoji/99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/svg/emoji_u1f453.svg",
+      "bytes": 2467,
+      "sha256": "ca58dee2bb2028a4ef9c30326561b8e3da9dbaaa1eba83157c3e0909032ef565",
+      "dtd": false,
+      "group_opacity": [
+        {
+          "style": "opacity:0.8;"
+        }
+      ],
+      "painted_use": []
+    },
+    {
+      "name": "emoji_u1f9ea.svg",
+      "url": "https://raw.githubusercontent.com/googlefonts/noto-emoji/99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/svg/emoji_u1f9ea.svg",
+      "bytes": 2403,
+      "sha256": "476dc975d42c4cda63e3e04514a3f27d0f0716b9e21f191359631afa78f22a44",
+      "dtd": false,
+      "group_opacity": [
+        {
+          "style": "opacity:0.6;"
+        }
+      ],
+      "painted_use": []
+    },
+    {
+      "name": "emoji_u1f9eb.svg",
+      "url": "https://raw.githubusercontent.com/googlefonts/noto-emoji/99701e07d3d1fe1bdbcdb14964547f0fd592966f/2D/svg/emoji_u1f9eb.svg",
+      "bytes": 4681,
+      "sha256": "caf73227b8fe452c4d62438891c0b683a87d09733647ab6c217449718cc3242c",
+      "dtd": false,
+      "group_opacity": [
+        {
+          "style": "opacity:0.7;"
+        },
+        {
+          "style": "opacity:0.46;"
+        }
+      ],
+      "painted_use": []
+    }
+  ],
+  "scan_summary": {
+    "attempted": 100,
+    "downloaded": 100,
+    "painted_local_use_found": 0,
+    "note": "Group opacity examples are real, but no overlapping painted sibling group-opacity example was found. A synthetic overlap test is needed to validate isolated compositing."
+  }
+}

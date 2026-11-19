@@ -1,0 +1,133 @@
+{
+  "kind": "synthetic_semantics_fixtures_not_real_noto",
+  "sourcefontcoreSHA": "7d04cb51acfc2ade5a0ce5a2e57401ae16243027",
+  "binarySHA256": "572fa6d296686bbf41fbeba1bf2b69535e7aaa118013620d806c25ad036a6d2f",
+  "cases": [
+    {
+      "name": "fill-stroke-opacity",
+      "svgSHA256": "e6110acaeea042ca7248d0b4f2315481fb1001ffa485b8eac96112397de51b88",
+      "reference": "paintcore-svg-probe/docs/svg-probe/output/semantics/fill-stroke-opacity-reference.png",
+      "exitCode": 0,
+      "stderr": "",
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 65536
+          }
+        ]
+      },
+      "mean_absolute_rgba_error_0_255": 0.0,
+      "different_rgba_pixels": 0
+    },
+    {
+      "name": "group-clip-opacity",
+      "svgSHA256": "c94aaf2e94ad7a1523ac1d6b4d25fac19a943a2d071c4431ed64c60fa285501b",
+      "reference": "paintcore-svg-probe/docs/svg-probe/output/semantics/group-clip-opacity-reference.png",
+      "exitCode": 0,
+      "stderr": "",
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 65536
+          }
+        ]
+      },
+      "mean_absolute_rgba_error_0_255": 0.0105438232421875,
+      "different_rgba_pixels": 562
+    },
+    {
+      "name": "group-opacity-nested",
+      "svgSHA256": "f9ec62722807bc0ca3f2c41de9eff5376422d381bed439c90eef8f20e247fac8",
+      "reference": "paintcore-svg-probe/docs/svg-probe/output/semantics/group-opacity-nested-reference.png",
+      "exitCode": 0,
+      "stderr": "",
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 33468
+          }
+        ]
+      },
+      "mean_absolute_rgba_error_0_255": 0.12041854858398438,
+      "different_rgba_pixels": 1436
+    },
+    {
+      "name": "group-opacity-overlap",
+      "svgSHA256": "62237f505a76140db0b94f4a415eeaa693a420f9bce0743db72af278a368cf4d",
+      "reference": "paintcore-svg-probe/docs/svg-probe/output/semantics/group-opacity-overlap-reference.png",
+      "exitCode": 0,
+      "stderr": "",
+      "probe": {
+        "paths": 3,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 65536
+          }
+        ]
+      },
+      "mean_absolute_rgba_error_0_255": 0.0,
+      "different_rgba_pixels": 0
+    },
+    {
+      "name": "use-opacity-gradient",
+      "svgSHA256": "1205ab1a816ba9df3bac8e591e7c1a4a9167b93f1231fa246499526959deff88",
+      "reference": "paintcore-svg-probe/docs/svg-probe/output/semantics/use-opacity-gradient-reference.png",
+      "exitCode": 0,
+      "stderr": "",
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 21504
+          }
+        ]
+      },
+      "mean_absolute_rgba_error_0_255": 0.1982421875,
+      "different_rgba_pixels": 21504
+    },
+    {
+      "name": "use-style-transform",
+      "svgSHA256": "176a525833d47f3d4cf04ebcbc79f34eb313d4f014285c4dd3dc6d42d65519f1",
+      "reference": "paintcore-svg-probe/docs/svg-probe/output/semantics/use-style-transform-reference.png",
+      "exitCode": 0,
+      "stderr": "",
+      "probe": {
+        "paths": 0,
+        "rasters": 0,
+        "svg": 1,
+        "renders": [
+          {
+            "kind": "all",
+            "ok": true,
+            "nontransparent_pixels": 8276
+          }
+        ]
+      },
+      "mean_absolute_rgba_error_0_255": 0.046146392822265625,
+      "different_rgba_pixels": 502
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 Horizontal text keeps the existing browser/system-font Canvas renderer.
 The direction selector adds **vertical standard**, **vertical mixed LTR**, and
-**sideways LTR**, rendered by fontcore 0.0.14 through Wasm, without CSS or Canvas
+**sideways LTR**, rendered by fontcore through Wasm, without CSS or Canvas
 re-rotation. Select a local TTF/OTF/TTC/WOFF/WOFF2 font. Its bytes stay in the
 page; no network upload is performed. The selected font face, not the browser
 font menu or synthetic bold/italic, determines vertical text appearance.
@@ -27,6 +27,10 @@ are unchanged. Additive APIs are `drawTextFlow(text,x,y,size,argb,flow)` and
 `measureTextFlow(text,size,flow)` (four conservative ink bounds, or empty).
 Supported flow identifiers: `horizontal`, `vertical`, `mixed`, `sideways`.
 Drawing coordinates use the shaped origin; UI adjusts bounds once for anchoring.
+With `svg-font`, a loaded single face can render the supported raw SVG subset in
+`drawText` and horizontal or standard-vertical `drawTextFlow`. Family fallback,
+mixed and sideways still do not render raw SVG. See the
+[real-font check](../../docs/svg-probe/RENDERER.md#real-font-check).
 
 Tests: `node --test tests/web-paint/font-text.test.cjs` (no generated bindings
 needed), and `node --test tests/web-paint/paint-tool.test.cjs` after generating

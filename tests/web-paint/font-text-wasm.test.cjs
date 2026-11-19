@@ -47,3 +47,62 @@ test("real fontcore Wasm flows, errors and isolated pixels", { skip: !fontPath &
     assert.ok(engine.getLayerImageData("main").data.some(v => v !== 0), "legacy horizontal API remains functional");
   } finally { engine.free(); }
 });
+
+const svgFontPath = process.env.PAINT_TEST_SVG_FONT;
+const svgzFontPath = process.env.PAINT_TEST_SVGZ_FONT;
+const testSvgWasm = svgFontPath || process.env.PAINT_TEST_SVG_WASM === "1";
+const svgFixture = path.resolve(__dirname, "../../paintcore/tests/fixtures/svg-text.ttf");
+
+test("real Wasm single-face SVG text preserves placement and rejects an unsupported run", { skip: !testSvgWasm && "Build Wasm with svg-font and set PAINT_TEST_SVG_WASM=1" }, async () => {
+  const { Universe } = await runtime();
+  const engine = new Universe(76, 36);
+  try {
+    engine.loadFont(fs.readFileSync(svgFixture));
+    engine.drawText("A\uFE0FA\uFE0F", 5, 7, 64, 0xff000000);
+    const before = Uint8ClampedArray.from(engine.getLayerImageData("main").data);
+    for (let y = 0; y < 36; y++) for (let x = 0; x < 76; x++) {
+      const inArt = ((x >= 9 && x < 25) || (x >= 41 && x < 57)) && y >= 15 && y < 31;
+      const i = (y * 76 + x) * 4;
+      const want = inArt ? [34, 119, 204, 128] : [0, 0, 0, 0];
+      assert.ok(want.every((v, j) => before[i + j] === v), `pixel (${x}, ${y})`);
+    }
+    assert.throws(() => engine.drawText("A\uFE0FB\uFE0F", 0, 0, 64, 0xff000000));
+    assert.deepEqual(engine.getLayerImageData("main").data, before, "a later unsupported glyph leaves the destination unchanged");
+  } finally { engine.free(); }
+});
+
+test("Google Fonts Noto OpenType SVG renders in ordinary Wasm text APIs", { skip: !svgFontPath && "Set PAINT_TEST_SVG_FONT to noto-untouchedsvg.ttf" }, async () => {
+  const { Universe } = await runtime();
+  const render = (font, flow) => {
+    const engine = new Universe(660, 900);
+    try {
+      engine.loadFont(font);
+      const text = "😀👍";
+      if (flow) engine.drawTextFlow(text, 16, 288, 256, 0xff000000, flow);
+      else engine.drawText(text, 16, 288, 256, 0xff000000);
+      return Uint8ClampedArray.from(engine.getLayerImageData("main").data);
+    } finally { engine.free(); }
+  };
+  const stats = (data) => {
+    let count = 0, color = 0, minX = 660, minY = 900, maxX = 0, maxY = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (!data[i + 3]) continue;
+      const x = (i / 4) % 660, y = Math.floor(i / 4 / 660);
+      count++;
+      if (data[i] !== data[i + 1] || data[i + 1] !== data[i + 2]) color++;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+    return { count, color, width: maxX - minX + 1, height: maxY - minY + 1 };
+  };
+  const plain = fs.readFileSync(svgFontPath);
+  const horizontal = render(plain);
+  const h = stats(horizontal);
+  assert.ok(h.count > 75000 && h.color > 70000 && h.width > 490, "both glyphs produce substantial colored ink");
+  assert.deepEqual(render(plain, "horizontal"), horizontal, "legacy and flow APIs agree");
+  const vertical = stats(render(plain, "vertical"));
+  assert.ok(vertical.count > 70000 && vertical.height > vertical.width, "upright vertical SVG uses vertical glyph positions");
+  if (svgzFontPath) assert.deepEqual(render(fs.readFileSync(svgzFontPath)), horizontal, "same artwork in SVG and SVGZ renders identically");
+});

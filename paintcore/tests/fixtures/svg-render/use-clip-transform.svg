@@ -1,0 +1,1 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><defs><rect id="tile" width="64" height="64" fill="red"/><clipPath id="left"><rect width="32" height="64"/></clipPath></defs><use href="#tile" x="32" y="24" clip-path="url(#left)" opacity=".7"/></svg>

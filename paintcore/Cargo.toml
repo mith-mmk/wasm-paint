@@ -22,10 +22,14 @@ all-features = true
 [features]
 default = []
 font = ["dep:fontcore"]
-svg-font = ["font", "fontcore/svg-fonts"]
+svg-font = ["font", "fontcore/svg-fonts", "dep:roxmltree", "dep:svgtypes"]
 
 [dependencies]
 wml2.workspace = true
 # The same reader adapter WML2 uses, allowing limits without copying input.
 bin-rs = "0.1.0"
 fontcore = { workspace = true, optional = true }
+
+# Private SVG decoding only; no public command/dependency types are exposed.
+roxmltree = { version = "0.20", optional = true }
+svgtypes = { version = "0.15", optional = true }
