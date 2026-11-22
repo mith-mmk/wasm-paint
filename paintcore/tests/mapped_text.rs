@@ -225,3 +225,131 @@ fn bidi_direction_boundary_preserves_both_affinities() {
     assert_eq!(up.text_position().affinity(), CaretAffinity::Upstream);
     assert_eq!(down.text_position().affinity(), CaretAffinity::Downstream);
 }
+
+#[test]
+fn wrapped_lines_render_pixel_identically_and_roundtrip_soft_wrap_carets() {
+    let file = FontFile::from_buffer(EURO).unwrap();
+    let face = file.face(1).unwrap();
+    let engine = face.engine().with_font_size(60.0).with_line_height(72.0);
+    let first_word = engine.shape_mapped("Bß ").unwrap();
+    let first_adv: f32 = first_word
+        .glyph_run()
+        .glyphs
+        .iter()
+        .map(|g| g.glyph.metrics.advance_x)
+        .sum();
+    let layout = MappedTextLayout::shape_wrapped_lines(
+        &engine,
+        "Bß Bß",
+        first_adv + 10.0,
+        WrapMode::WordOrGrapheme,
+    )
+    .unwrap();
+    let TextLayoutSource::WrappedLines(raw) = layout.source() else {
+        panic!()
+    };
+    assert_eq!(raw.lines().len(), 2);
+    assert_eq!(raw.lines()[0].break_kind(), LineBreakKind::Soft);
+    assert_eq!(raw.lines()[1].break_kind(), LineBreakKind::EndOfText);
+
+    // Verify rendered pixels match manual per-line draw_glyphs translation.
+    let mut manual = Layer::tmp(400, 500);
+    for l in raw.lines() {
+        draw_glyphs(
+            &mut manual,
+            &l.shaped().glyph_run().clone().into(),
+            120.0 + l.origin_x(),
+            150.0 + l.origin_y(),
+            0xff12_3456,
+        )
+        .unwrap();
+    }
+    assert_eq!(render(layout.glyph_run()), manual.buffer());
+    assert!(manual.buffer().as_chunks::<4>().0.iter().any(|p| p[3] > 0));
+
+    // Verify screen-space soft-wrap affinity and hit_test round-trip.
+    let placed = layout.placed(120.0, 150.0).unwrap();
+    let up = placed
+        .caret_positions(TextPosition::new(4, CaretAffinity::Upstream))
+        .unwrap()[0];
+    let down = placed
+        .caret_positions(TextPosition::new(4, CaretAffinity::Downstream))
+        .unwrap()[0];
+    assert_eq!(up.line_index(), Some(0));
+    assert_eq!(up.y(), 150.0);
+    assert!(up.x() > 120.0);
+    assert_eq!(down.line_index(), Some(1));
+    assert_eq!((down.x(), down.y()), (120.0, 150.0 + 72.0));
+    assert_eq!(placed.hit_test(up.x() + 20.0, up.y()).unwrap(), up);
+    assert_eq!(placed.hit_test(down.x() - 20.0, down.y()).unwrap(), down);
+}
+
+#[test]
+fn wrapped_and_hard_lines_work_with_family_and_composite_in_paintcore() {
+    let file = FontFile::from_buffer(EURO).unwrap();
+    let face0 = file.face(0).unwrap();
+    let face1 = file.face(1).unwrap();
+
+    let mut family = FontFamily::new("Primary");
+    family.add_face(FontFaceDescriptor::new("Primary"), face0.clone());
+    family.add_face(FontFaceDescriptor::new("Fallback"), face1.clone());
+    let options = family.options().with_font_size(50.0).with_line_height(60.0);
+
+    let hard_fam =
+        MappedTextLayout::shape_hard_lines_family(&family, "Bä\nB", options.clone()).unwrap();
+    let TextLayoutSource::HardLines(raw_hard) = hard_fam.source() else {
+        panic!()
+    };
+    assert_eq!(raw_hard.lines().len(), 2);
+    assert!(render(hard_fam.glyph_run())
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .any(|p| p[3] > 0));
+
+    let wrapped_fam = MappedTextLayout::shape_wrapped_lines_family(
+        &family,
+        "BäB",
+        options,
+        1.0,
+        WrapMode::Grapheme,
+    )
+    .unwrap();
+    let TextLayoutSource::WrappedLines(raw_wrapped) = wrapped_fam.source() else {
+        panic!()
+    };
+    assert_eq!(raw_wrapped.lines().len(), 3);
+    assert!(render(wrapped_fam.glyph_run())
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .any(|p| p[3] > 0));
+
+    let mut composite = fontcore::CompositeFont::new(vec![&face0])
+        .unwrap()
+        .with_font_size(50.0)
+        .with_line_height(64.0);
+    composite.add_rule(
+        fontcore::CompositeFontRule::new(
+            vec![fontcore::UnicodeRange::new('A', 'Z').unwrap()],
+            vec![&face1],
+        )
+        .unwrap(),
+    );
+    let wrapped_comp = MappedTextLayout::shape_wrapped_lines_composite_ltr(
+        &composite,
+        "Bä",
+        1.0,
+        WrapMode::Grapheme,
+    )
+    .unwrap();
+    let TextLayoutSource::WrappedLines(raw_comp) = wrapped_comp.source() else {
+        panic!()
+    };
+    assert_eq!(raw_comp.lines().len(), 2);
+    assert!(render(wrapped_comp.glyph_run())
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .any(|p| p[3] > 0));
+}

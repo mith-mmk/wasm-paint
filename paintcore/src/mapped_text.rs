@@ -22,7 +22,10 @@ use crate::{
     path::{self, GlyphRun},
     prelude::Screen,
 };
-pub use fontcore::{BidiBaseDirection, CaretAffinity, CaretQuality, GlyphSource, TextPosition};
+pub use fontcore::{
+    BidiBaseDirection, CaretAffinity, CaretQuality, GlyphSource, LineBreakKind, TextPosition,
+    WrapMode,
+};
 use std::io::{Error, ErrorKind};
 
 /// The original layout, retained without flattening its source metadata.
@@ -31,6 +34,7 @@ use std::io::{Error, ErrorKind};
 pub enum TextLayoutSource {
     Single(fontcore::ShapedText),
     HardLines(fontcore::HardLineLayout),
+    WrappedLines(fontcore::WrappedLineLayout),
     Bidi(fontcore::BidiParagraphLayout),
     VerticalMixed(fontcore::VerticalMappedLayout),
 }
@@ -97,6 +101,17 @@ impl MappedTextLayout {
             single_carets: None,
         }
     }
+    pub fn from_wrapped_lines(layout: fontcore::WrappedLineLayout) -> Self {
+        let mut glyphs = RenderGlyphs::default();
+        for line in layout.lines() {
+            glyphs.append_shaped(line.shaped(), line.origin_x(), line.origin_y());
+        }
+        Self {
+            source: TextLayoutSource::WrappedLines(layout),
+            glyphs,
+            single_carets: None,
+        }
+    }
     pub fn from_bidi(layout: fontcore::BidiParagraphLayout) -> Self {
         let mut glyphs = RenderGlyphs::default();
         for line in layout.lines() {
@@ -139,6 +154,65 @@ impl MappedTextLayout {
             engine, text,
         )?))
     }
+    pub fn shape_hard_lines_family<'a>(
+        family: &'a fontcore::FontFamily,
+        text: &str,
+        options: fontcore::FontOptions<'a>,
+    ) -> Result<Self, Error> {
+        Ok(Self::from_hard_lines(
+            fontcore::HardLineLayout::shape_family(family, text, options)?,
+        ))
+    }
+    pub fn shape_hard_lines_composite_ltr(
+        composite: &fontcore::CompositeFont<'_>,
+        text: &str,
+    ) -> Result<Self, Error> {
+        Ok(Self::from_hard_lines(
+            fontcore::HardLineLayout::shape_composite_ltr(composite, text)?,
+        ))
+    }
+    pub fn shape_wrapped_lines(
+        engine: &fontcore::FontEngine<'_>,
+        text: &str,
+        max_inline_extent: f32,
+        wrap_mode: WrapMode,
+    ) -> Result<Self, Error> {
+        Ok(Self::from_wrapped_lines(
+            fontcore::WrappedLineLayout::shape(engine, text, max_inline_extent, wrap_mode)?,
+        ))
+    }
+    pub fn shape_wrapped_lines_family<'a>(
+        family: &'a fontcore::FontFamily,
+        text: &str,
+        options: fontcore::FontOptions<'a>,
+        max_inline_extent: f32,
+        wrap_mode: WrapMode,
+    ) -> Result<Self, Error> {
+        Ok(Self::from_wrapped_lines(
+            fontcore::WrappedLineLayout::shape_family(
+                family,
+                text,
+                options,
+                max_inline_extent,
+                wrap_mode,
+            )?,
+        ))
+    }
+    pub fn shape_wrapped_lines_composite_ltr(
+        composite: &fontcore::CompositeFont<'_>,
+        text: &str,
+        max_inline_extent: f32,
+        wrap_mode: WrapMode,
+    ) -> Result<Self, Error> {
+        Ok(Self::from_wrapped_lines(
+            fontcore::WrappedLineLayout::shape_composite_ltr(
+                composite,
+                text,
+                max_inline_extent,
+                wrap_mode,
+            )?,
+        ))
+    }
     pub fn shape_bidi(
         engine: &fontcore::FontEngine<'_>,
         text: &str,
@@ -168,6 +242,7 @@ impl MappedTextLayout {
         match &self.source {
             TextLayoutSource::Single(x) => x.text(),
             TextLayoutSource::HardLines(x) => x.text(),
+            TextLayoutSource::WrappedLines(x) => x.text(),
             TextLayoutSource::Bidi(x) => x.text(),
             TextLayoutSource::VerticalMixed(x) => x.text(),
         }
@@ -229,6 +304,11 @@ impl PlacedText<'_> {
                 .into_iter()
                 .map(TextCaret::from)
                 .collect(),
+            TextLayoutSource::WrappedLines(x) => x
+                .caret_positions(position)?
+                .into_iter()
+                .map(TextCaret::from)
+                .collect(),
             TextLayoutSource::Bidi(x) => x
                 .caret_positions(position)?
                 .into_iter()
@@ -258,6 +338,7 @@ impl PlacedText<'_> {
                 .hit_test(x, y)?
                 .into(),
             TextLayoutSource::HardLines(l) => l.hit_test(x, y)?.into(),
+            TextLayoutSource::WrappedLines(l) => l.hit_test(x, y)?.into(),
             TextLayoutSource::Bidi(l) => l.hit_test(x, y)?.into(),
             TextLayoutSource::VerticalMixed(l) => l.hit_test(x, y)?.into(),
         };
