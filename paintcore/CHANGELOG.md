@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.35 - 2026-11-22
+
+- Update optional `fontcore` dependency to `0.0.22`.
+- Add `MappedWrappedLineLayout` (`shape`, `shape_family`, `shape_composite_ltr`)
+  and `draw_mapped_wrapped_lines` in `mapped_text` for width-constrained greedy
+  line wrapping with caret and hit-testing preservation across single-face,
+  `FontFamily`, and `CompositeFont` sources.
+- Extend `MappedHardLineLayout` with `shape_family` and `shape_composite_ltr`.
+
+WML2 remains at 0.0.45 and the minimum Rust version stays at 1.91.
+The wasm-paint wrapper is not published as part of this release.
+
 ## 0.0.34 - 2026-11-19
 
 - Add opt-in OpenType SVG glyph rendering through published fontcore 0.0.21.
