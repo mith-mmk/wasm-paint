@@ -11,10 +11,10 @@ depend on a GPU backend or an external rasterizer. The existing `u32`, `Pen`, `C
 
 ```toml
 [dependencies]
-paintcore = "0.0.34"
+paintcore = "0.0.35"
 ```
 
-Version 0.0.34 uses WML2 0.0.45 and optional fontcore 0.0.21. Callers sharing
+Version 0.0.35 uses WML2 0.0.45 and optional fontcore 0.0.22. Callers sharing
 these crates' public types with paintcore must align their direct dependency
 versions, or use paintcore re-exports where available; these type identities
 can differ from prior releases. Reader adapters use bin-rs 0.1.0.
@@ -53,9 +53,9 @@ The renderer supports a bounded subset, including elliptical paths, gradients,
 local references, and opacity groups. Features such as filters, masks,
 external references, and general CSS return errors.
 
-## Vertical text (fontcore 0.0.21)
+## Vertical text (fontcore 0.0.22)
 
-Enable `font` to use the published fontcore 0.0.21 dependency, shared with the
+Enable `font` to use the published fontcore 0.0.22 dependency, shared with the
 Wasm crate. Existing horizontal text calls keep their default direction.
 
 ```rust,no_run
